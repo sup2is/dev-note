@@ -359,6 +359,12 @@ numbers.stream().filter(i -> i % 2 == 0).distinct().forEach(System.out::println)
 
 - map 메서드로 컬렉션 데이터를 변경 가능
 
+```
+List<String> dishNames = menue.stream().map(Dish::getName).collect(toList())
+```
+
+
+
 ### 스트림 평면화
 
 - ["Hello", "World"] 라는 리스트의 각 고유 문자를 뽑는 스트림을 작성한다고 가정함
@@ -373,6 +379,16 @@ words.stream().map(word -> word.split("")).distinct().collect(toList())
 **flatMap**
 
 - flatmap을 사용하면 각 배열을 스트림이 아니라 스트림 콘텐츠로 매핑함 간단하게 설명하면 flatMap 메서드는 스트림의 각 값을 다른 스트림으로 만든 다음에 모든 스트림을 하나의 스트림으로 연결하는 기능을 수행함
+
+```
+List<String> nuiqueCharacters = words.stream()
+    .map(w -> w.split(""))
+    .flatMap(Arrays::stream)
+    .distinct()
+    .collect(Collectors.toList());
+```
+
+
 
 ## 검색과 매칭
 
@@ -433,13 +449,32 @@ Optional<Integer> = numbers.stream.reduce((a, b) -> a + b)
 
 - reduce로 최댓값과 최솟값을 얻을수도 있음
 
+```
+Optinal<Integer> max = numbers.stream().reduce(Integer::max)
+```
 
+
+
+## 숫자형 스트림
 
 ### 기본형 특화 스트림
 
 - map 메서드의 리턴타입은 Stream\<T\> 타입이여서 sum()같은 메서드로 int 타입의 데이터를 받을 수 없음
 - 이때는 mapToInt같은 숫타 스트림 매핑 메서드를 사용해야함 mapToInt의 리턴타입은 IntStream 같은 기본형 특화 스트림임
+
+```
+int calories = mune.stream()
+            .mapToInt(Dish::getCalories)
+            .sum();
+```
+
 - boxed로 기본형 특화 스트림에서 일반 스트림으로 변경 가능
+
+```
+IntStream intstream = mune.stream()
+            .mapToInt(Dish::getCalories);
+Stream<Integer> stream = inteStream.boxed();
+```
 
 
 
@@ -467,6 +502,11 @@ stream.map(String::toUpperCase).forEach(...)
 
 - Arrays.stream을 이용해서 스트림을 만들 수 있음
 
+```
+int[] numbers = {2, 3, 5, 7}
+int sum = Arrays.stream(numbers).sum()
+```
+
 
 
 ### 파일로 스트림 만들기
@@ -492,12 +532,169 @@ stream.map(String::toUpperCase).forEach(...)
 - reduce 메서드로 스트림의 모든 요소를 반복 조합하여 값을 도출할 수 있음
 - filter, map 등은 상태를 저장하지 않는 상태 없는 연산임 reduce, sorted 같은 연산은 소트름의 모든 요소를 버퍼에 저장하기때문에 상태 있는 연산이라고함
 - IntStream, DoubleStream, LongStream은 기본형 특화 스트림임
-- 컬렉션뿐 아니라 값, 배열, 파일로도 스트림 새엇ㅇ 가능
+- 컬렉션뿐 아니라 값, 배열, 파일로도 스트림 생성 가능
 - 크기가 정해지지 않은 스트림을 무한스트림이라고함
 
 
 
+# #6 스트림으로 데이터 수집
 
+## 컬렉터란 무엇인가?
+
+### 고급 리듀싱 기능을 수행하는 컬렉터
+
+- 스트림에 collect를 호출하면 스트림의 요소에 리듀싱 연산이 수행됨. 
+- 직접 정의도 가능함 가장 많이 사용하는게 toList()
+
+### 미리 정의된 컬렉터
+
+- Collectors에서 제공하는 메서드의 기능은 크게 세가지임
+  1. 스트림 요소를 하나의 값으로 리듀스하고 요약
+  2. 요소 그룹화
+  3. 요소 분할
+
+## 리듀싱과 요약
+
+- 컬렉터로 스트림의 모든 항목을 하나의 결과로 합칠 수 있음
+
+### 스트림값에서 최댓값과 최솟값 검색
+
+- Collectors.maxBy, Collectors.minBy로 찾을 수 있음
+
+```
+Comparator<Dish> dishCaloriesComparator = Comparator.comparingInt(Dish::getCalories);
+
+Optinal<Dish> mostCalorieDish = menu.stream().collect(maxBy(dishCaloriesComparator));
+```
+
+
+
+### 요약 연산
+
+- summingInt 같은 특별한 요약 팩터리 메서드를 제공함
+
+
+
+### 문자열 연결
+
+- joining 팩토리 메서드를 이요하면 스트림의 각 객체에 toString 메서드를 호출해서 추출한 모든 문자열을 하나의 문자열로 연결해서 반환함
+- joining()은 내부적으로 StringBuilder를 이용해서 문자열을 하나로 만듦
+
+```
+menu.stream().collect(joining());
+```
+
+
+
+### 범용 리듀싱 요약 연산
+
+- 모든 컬렉터는 reducing 팩토리 메서드로도 정의할 수 있음
+- reducing을 사용하지않은 범용 팩터리 메서드는 프로그래머의 편의를 위함이였음
+- reducing은 세개의 변수를 얻음
+  1. 첫 번째 인수는 리듀싱 연산의 시작값이거나 스트림에 인수가 없을때는 반환값임
+  2. 두 번째 인수는 변환 함수
+  3. 두항목을 하나의 값으로 더하는 BinaryOperator임
+
+```
+int totalCalories = menu.stream().collect(reducing(0, Dish:getCalories, (i,j) -> i + j));
+```
+
+
+
+## 그룹화
+
+- 그룹화 연산의 결과로 그룹화 함수가 반환하는 키 그리고 각 키에 대응하는 스트림의 모든 항목 리스트를 값으로 갖는 맵이 반환됨
+
+```
+Map<Dish.Type, List<Dish>> dishesByType = menu.stream().collect(groupingBy(dish::getType))
+```
+
+### 다수준 그룹화
+
+- 두 인수를 받는 팩토리 메서드 Collectors.groupingBy를 이용해서 항목을 다수준으로 그룹화 할 수 있음
+
+```
+Map<Dish.Type, Map<CaloricLevel, List<Dish>>> dishesByTypeCaloricLevel = menu.stream()
+.collect(
+	groupingBy(Dish:getType,
+    	groupingBy(dish -> {
+    		if(dish.getCalories() <= 400) {return CaloricLevel.Diet} 
+    		else if (dish.getCalories() <= 700) {return CaloricLevel.NORMAL}
+    		else {return CaloricLevel.FAT}
+    		})))
+```
+
+- 다수준 그룹화 연산은 다양한 수준으로 확장됨 즉 n 수준 그룹화의 결과는 n수준 트리 구조로 표현되는 n수준 맵이됨
+- 보통 groupingBy의 연산을 버킷 개념으로 생각하면 쉬움
+
+### 서브그룹으로 데이터 수집
+
+```
+Map<Dish.Type, Long> typesCount = menu.stream().collect(groupingBy(Dish::getType, counting()));
+```
+
+**컬렉터 결과를 다른 형식에 적용하기**
+
+- Collectors.collectingandThen으로 컬렉터가 반환한 결과를 다른 형식으로 활용 가능
+
+```
+Map<Dish.Type, Dish> mostCaloricByType = 
+	menu.stream()
+		.collect(groupingBy(Dish::getType,
+			collectiongAndThen(
+				maxBy(comparingInt(dish::getCalories)), Optional::get)))
+```
+
+- 리듀싱 컬럭테너는 절대 Optional.empty를 반환하지 않음!
+
+- 가장 외부 계층에서 안쪽으로 다음과 같은 작업이 수행됨
+  1. 컬렉터는 점선으로 표시되어 있으며 groupingBy는 가장 바깥쪽에 위치하면서 요리의 종류에 따라 메뉴 스트림을 세 개의 서브스트림으로 그룹호함
+  2. groupingBy 컬렉터는 collectiongAndThen 컬렉터를 감싼다. 따라서 두 번째 컬렉터는 그룹화된 새 개의 서브스트림에 적용됨
+  3. collectiongAndThen  컬렉터는 세번째 컬렉터 maxBy를 감싼다.
+  4. 리듀싱 컬렉터가 서브스트림에 연산을 수행한 결과에 collectingAndThen의 Optional::get 변환 함수가 젹옹됨
+  5. groupingBy 컬렉터가 반환하는 맵의 분류 키에 대응하는 세 값이 각각의 요리 형식에서 가장 높은 칼로리임
+
+
+
+## 분할
+
+- 분할은 분할 함수라 불리는 predicate를 분류 함스로 사용하는 특수한 그룹화 기능임
+- true or false의 그룹으로 분류됨
+
+```
+Map<Boolean, List<Dish>> partitionedMenu = 
+	menu.stream().collect(partitionBy(Dish::isVegeterian))
+```
+
+
+
+### 분할 함수의 장점
+
+- 분할 함수의 장점은 true, false 두가지 요소의 스트림 리스트를 모두 유지한다는 것임
+
+
+
+### 숫자를 소수와 비소수로 분할하기
+
+
+
+## Collector 인터페이스
+
+- Collector 인터페이스는 리듀싱 연산을 어떻게 구현할지 제공하는 메서드 집합으로 구성됨 toList, gorupingBy 등
+
+```java
+public interface Collector<T, A, R> {
+    Supplier<A> supplier();
+    BiConsumer<A, T> accumulator();
+    BinaryOperator<A> combiner();
+    Function<A, R> finisher();
+    Set<Characteristics> characteristics();
+}
+```
+
+
+
+- Collector 는 스킵
 
 
 
