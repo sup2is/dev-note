@@ -326,6 +326,177 @@ Runaable r1 = () -> System.out.println("hello world")
 - forEach난 conut 처럼 스트림 파이프라인을 처리해서 스트림이 아닌 결과를 반환하는 연산을 최종 연산이라고함
 - 스트림의 요소는 요청할 때만 계산됨
 
+# #5 스트림 활용
+
+## 필터와 슬라이싱
+
+### Predicate로 필터링
+
+```
+List<Dish> vegetarianMenu = menu.stream().filter(Dish::isVegetarian).collect(toList())
+```
+
+### 고유 요소 필터링
+
+- distinct로 중복 제거
+
+```
+List<Integer> numbers = Arrays.asList(1, 2, 1, 3, 3, 2, 4)
+numbers.stream().filter(i -> i % 2 == 0).distinct().forEach(System.out::println)
+```
+
+### 스트림 축소
+
+- limit으로 사이즈 지정
+
+### 요소 건너뛰기
+
+- n개 이하로 지정할때는 skip으로 지정
+
+## 매핑
+
+### 스트림의 각 요소에 함수 적용하기
+
+- map 메서드로 컬렉션 데이터를 변경 가능
+
+### 스트림 평면화
+
+- ["Hello", "World"] 라는 리스트의 각 고유 문자를 뽑는 스트림을 작성한다고 가정함
+
+```
+words.stream().map(word -> word.split("")).distinct().collect(toList())
+```
+
+- 위 스트림의 변환 타입은 Stream(String[])임
+- flatmap으로 해결 가능
+
+**flatMap**
+
+- flatmap을 사용하면 각 배열을 스트림이 아니라 스트림 콘텐츠로 매핑함 간단하게 설명하면 flatMap 메서드는 스트림의 각 값을 다른 스트림으로 만든 다음에 모든 스트림을 하나의 스트림으로 연결하는 기능을 수행함
+
+## 검색과 매칭
+
+- 특정 속성이 데이터 집합에 있는지 여부를 판단할 수 있음
+
+### Predicate가 적어도 한 요소와 일치하는지  확인
+
+- anyMatch()를 사용해서 최소 한 요소와 일치하는지 확인함
+
+### Predicate가 모든 요소와 일치하는지 확인
+
+- allMatch()
+- 반대되는 개념으로 noneMatch() 있음
+
+### 쇼트 서킷
+
+- 전체 스트림을 처리하지 않았더라도 결과를 반환할 수 있고 이러한 상황을 쇼트 서킷이라고 함
+- 예를들어 allMatch() 메서드에서 하나라도 일치하지않으면 false를 바로 반환함
+
+### 요소 검색
+
+- findAny()로 현재 스트림에서 임의의 요소를 반환함
+
+### 첫번째 요소 찾기
+
+- findFirst()로 현재 스트림에서 첫번째 요소를 반환함
+
+**findAny와 findFirst는 스트림에서 첫번째 요소찾기가 어려울 수 있음 따라서 findFirst의 사용은 병렬성에 있음**
+
+## 리듀싱
+
+- 스트림 요소를 조합해서 더 복잡한 질의를 표현하는 방법
+- 리듀싱 연산은 모든 스트림 요소를 처리해서 값으로 도출하는 연산임
+
+```
+int sum = 0;
+for (int x : numbers) {
+  sum += x;
+}
+```
+
+- 위 연산은 아래처럼 변할 수 있음
+
+```
+int sum = numbers.stream.reduce(0, (a, b) -> a + b)
+```
+
+- reduce는 두개의 인수를 가짐
+  1. 초깃값 0
+  2. 두 요소를 조합해서 새로운 값을 만드는 BinaryOperator\<T\> 
+- 초기값없이 작성할 수 있는데 리턴 타입이 Optional이 됨
+
+```
+Optional<Integer> = numbers.stream.reduce((a, b) -> a + b)
+```
+
+### 최댓값과 최솟값
+
+- reduce로 최댓값과 최솟값을 얻을수도 있음
+
+
+
+### 기본형 특화 스트림
+
+- map 메서드의 리턴타입은 Stream\<T\> 타입이여서 sum()같은 메서드로 int 타입의 데이터를 받을 수 없음
+- 이때는 mapToInt같은 숫타 스트림 매핑 메서드를 사용해야함 mapToInt의 리턴타입은 IntStream 같은 기본형 특화 스트림임
+- boxed로 기본형 특화 스트림에서 일반 스트림으로 변경 가능
+
+
+
+### 숫자 범위
+
+- IntStream과 LongStream은 range와 rangeClosed라는 두가지 정적 메서드를 제공함
+- range는 시작과 끝을 포함하지 않음
+
+
+
+## 스트림 만들기
+
+### 값으로 스트림 만들기
+
+- 임의의 수를 인수로 받는 정적 메서드 Stream.of를 이용해서 스트림을 만들 수 있음
+
+```
+Strean<String> stream = Stream.of("java 8", "stream")
+stream.map(String::toUpperCase).forEach(...)
+```
+
+- Stream.empty() 로 비울 수 있음
+
+### 배열로 스트림 만들기
+
+- Arrays.stream을 이용해서 스트림을 만들 수 있음
+
+
+
+### 파일로 스트림 만들기
+
+- java.nio.file.Files의 많은 메서드가 스트림을 반환함
+- Files.lines는 주어진 파일의 행 스트림을 문자열로 반환함
+
+
+
+### 함수로 무한 스트림 만들기
+
+- Stream.interate와 Stream.generate를 제공함 두 연산으로 무한 스트림 생성 가능
+- 보통 limit이랑 섞어서 사용함
+
+
+
+## 요약
+
+- 스트림 api를 이용하면 복잡한 데이터 처리 질의를 표현할 수 있음 
+- iflter, distinct, skip, limit 메서드로 스트림을 필터링하거나 자를 수 있음
+- map, flatMap 메서드로 스트림의 요소를 추출하거나 변환한 수 있음 
+- findFirst, findAny로 스트림의 요소를 검색할 수 있음 이런 메서드들을 쇼트서킷이라고하고 결과를 찾는 즉시 리턴함
+- reduce 메서드로 스트림의 모든 요소를 반복 조합하여 값을 도출할 수 있음
+- filter, map 등은 상태를 저장하지 않는 상태 없는 연산임 reduce, sorted 같은 연산은 소트름의 모든 요소를 버퍼에 저장하기때문에 상태 있는 연산이라고함
+- IntStream, DoubleStream, LongStream은 기본형 특화 스트림임
+- 컬렉션뿐 아니라 값, 배열, 파일로도 스트림 새엇ㅇ 가능
+- 크기가 정해지지 않은 스트림을 무한스트림이라고함
+
+
+
 
 
 
