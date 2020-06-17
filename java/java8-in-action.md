@@ -832,21 +832,138 @@ public static long parallelSum (long n) {
 
 
 
+# #10 null 대신 Optional
+
+## 값이 없는 상황을 어떻게 처리할까?
+
+- 모든 값이 null 인지 의심하므로 변수에 접근할 때마다 중첩된 if 를 추가해야함 코드의 가독성이 매우 떨어짐
+
+### null 때문에 발생하는 문제
+
+- 에러의 근원 : npe
+- 코드를 어지럽힘
+- 아무 의미가 없음 
+- 자바 철학에 위배됨 : 자바에서는 모든 포인터를 감췄지만 유일하게 있는게 null 포인터임
+- 형식 시스템에 구멍을 만듦 : 
+
+### 다른 언어는 null 대신 무얼 사용하나?
+
+- 그루비같은 언어에서는 안전 내비게이션 연산자를 도입해서 NULL 문제를 해결함
+- 하스켈 스칼라 등 함수형 언어는 아예 다른 관점에서 NULL 문제를 접근함 하스켈은 선택형값을 저장할 수 있는 Maybe라는 형식을 제공함
+- 자바 8은 java.util.Optional을 제공함
+
+
+
+## Optional 클래스 소개
+
+- 값이 있으면 Optinal 클래스는 값을 감싸지만 값이 없으면 Optinal.empty 메서드로 Optional을 반환함
+- null은 말그대로 null이므로 예외가 발생하지만 Optional은 객체임
+- Optional을 사용함으로써 Optional 내부에 값이 없을 수 있음을 명시하지만 Optional을 사용하지 않고 직접적으로 액세스할때는 당연히 null이 아닌줄 암
+- Optinal을 이용하면 값이 없는 상황이 우리 데이터에 문제가 있는 것인지 아니면 알고리즘의 버그인지 명확하게 구분할 수 있음
+- 모든 레퍼런스를 Optional로 사용하는것은 바람직하지 않음
+
+## Optional 적용 패턴
+
+### Optional 객체 만들기
+
+**빈 Optional**
+
+- 빈 Optional 객체 얻기
+
+```
+Optional<Car> optCar = Optional.empty();
+```
+
+**null이 아닌 값으로 Optional 만들기**
+
+- 또는 정적 팩토리 메서드 Optional.of로 null이 아닌 값을 포함하는 Optional을 만들 수 있음
+
+```
+Optional<Car> optCar = Optional.of(car)
+```
+
+- 이제 car가 null일경우 즉시 npe가 발생함
+
+
+
+**null값으로 Optional 만들기**
+
+```
+Optional<Car> optCar = Optional.ofNullable(car)
+```
+
+- 이제 car가 null이면 빈 Optional을 가짐
 
 
 
 
 
+### 맵으로 Optional의 값을 추출하고 변환하기
+
+```
+String name = null;
+if(insurance != null) {
+	name = insurance.getName();
+}
+```
+
+- 이런 유형에 사용하도록 map 메서드를 지원함
+
+```
+Optional<Insurance> optInsurance = Optional.ofNulable(insurance);
+Optional<String> name = optInsurance.map(Insurance::getName)
+```
+
+- Optional의 map은 스트림의 map과 개념적으로 비슷함
+
+### flatMap으로 Optional 객체 연결
+
+- 만약 체이닝된 레퍼런스를 탐색할 경우 flatMap 메서드를 사용해야함
+- 단순히 map 으로 가져온다면 Optional이 연속된 객체를 리턴하기때문에 불가능
 
 
 
+**Optional은 직렬화 대상이 아님**
+
+- 도메인 클래스 내부에 Optional을 적용하고싶다면 다음과 같이 적용할 것
+
+```
+public class Person {
+	private Car car;
+	public Optional<Car> getCarAsOptional() {
+		return Optional.ofNullable(car)
+	}
+}
+```
 
 
 
+### 디폴트 액션과  Optional 언랩
+
+- Optional이 비어있을 때 디폴트값을 제공할 수 있는 orElse 메서드로 값을 읽으면 됨
+- Optional은 값을 가져오는 다양한 인스턴스 메서드를 제공함
+  - get() : 가장 간단하면서 가장 안전하지 않음 값이 없으면 NoSuchElementException을 반환함 get은 지양할것
+  - orElse는 값이 없을때 디폴트값 제공가능
+  - orElseGet은 orElse 메서드에 대응하는 게으른 버전의 메서드임. Optional이 비어있을때 실행하고 싶은 로직을 Supplier 타입으로 지정해주면 로직을 실행시킬 수 있음
+  - orElseThrow 는 Optional이 비어있을때 예외를 발생시킴 예외 지정 가능
+  - ifPresent 를 이용하면 값이 존재할 때 인수로 넘겨준 Comsumer 타입을 실행할 수 있음 값이 없으면 아무일도 안일어남
+
+### 두 Optional 합치기
 
 
 
+### 필터로 특정 값 거르기
 
+- filter는 predicate 타입을 인수로 받음 Optional 객체가 값을 가지며 predicate 와 일치하면 filter 는 그 값을 반환하고 아니면 빈 Optional을 반환함
+-  값이 없으면 실행조차 안함 값이 있을때만 함
+- predicate 가 true면 아무일도 없고 false일경우 Optional은 빈값이됨...?
+
+
+
+## Optional을 사용한 실전 예제
+
+- 잠재적으로 null이 도리 수 있는 대상을 Optional로 감쌓자.
+- 기본형 특화 Optional이 있긴하지만 map, flatMap, filter 등을 지원하지 않으므로 기본형 특화 Optional은 비권장
 
 
 
