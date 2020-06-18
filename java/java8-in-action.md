@@ -967,6 +967,57 @@ public class Person {
 
 
 
+# #11 CompletableFuture: 조합할 수 있는 비동기 프로그래밍
+
+## Future
+
+- 자바 5부터는 미래의 어느 시점에 결과를 얻는 모델에 활용할 수 있도록 Future 인퍼에시으를 제공하고 있음
+- 비동기 계산을 모델링하는데 Future를 이용할 수 있고 Future는 계산이 끝났을 때 결과에 접근할 수 있는 레퍼런스를 제공함
+- 시간이 걸릴 수 있는 작업을 Future 내부로 설정하면 호출자 스레드가 결과를 기다리는 동안 다른 유용한 작업을 수행할 수 있음
+- A스레드에서 B스레드로 태스크를 전가시켜서 병렬로 동작하고 A스레드에서 get을 통해 B스레드의 결과물을 얻어올 수 있었지만 A에서 B를 얻어올때 결과가 아직 완료되지 않았으면 A스레드가 블록되는 구현은 자바 8이전에 가능했음
+
+### Future 제한
+
+- Future로 동시 실행 코드를 구현하기는 사실 쉽지 않음 따라서 다음과 같은 선언형 기능이 필요함
+  - 두 개의 비동기 계산 결과를 하나로 합친다. 두 가지 계산 결과는 서로 독립적일 수 있으며 또는 두 번째 결과가 첫 번째 결과에 의존하는 상황일 수 있다.
+  - Future 집합이 실행하는 모든 태스크의 완료를 기다린다.
+  - Future 집합에서 가장 빨리 완료되는 태스크를 기다렸다가 결과를 얻는다.(예를 들어 여러 태스크가 다양한 방식으로 같은 결과를 구하는 상황)
+  - 프로그램적으로 Future를 완료시킨다 (즉, 비동기 동작에 수동으로 결과 제공)
+  - Future 완료 동작에 반응한다(즉, 결과를 기다리면서 블록되지 않고 결과가 준비되었다는 알림을 받은 다음에 Future의 결과로 원하는 추가 동작을 수행할 수 있음)
+- 자바 8에서 제공하는 CompletableFuture 클래스는 Future를 구현한 클래스
+- Future와 CompletableFuture 의 관계는 Collection과 Stream이랑 비슷함
+
+```java
+public Future<Double> getPriceAsync(String product) {
+	CompletableFuture<Double> futurePrice = new CompletableFuture<>(); // 계산 결과를 포함할 CompletableFuture를 생성
+	new Thread(() -> {
+		double price = calculatePrice(product); // 다른 스레드에서 비동기적으로 수행
+		futurePrice.complete(price); //오랜 시간이 걸리는 계산이 완료되면 Future에 값을 설정
+	}).start
+	return futurePrice; //계산 결과가 완료되길 기디라지 않고 Future를 반환
+}
+```
+
+
+
+- 반환된 futurePrice 를 get 하는시점까지 결과값이 없으면 그때 블록됨
+- 만약 다른스레드에서 실행한 로직이 에러가나면 get은 영원히 블록됨
+- 클라이언트는 타임아웃값을 받는 get 메서드의 오버로드 버전을 만들어 이 문제를 해결할 수 있음
+- 이처럼 블록 문제가 발생할 수 있는 상황에서는 타임아웃을 활용하는 것이 좋음
+- 병렬스트림을 사용하면 고정된 기기에 한정된 스레드만큼만 소비하지만 CompletableFuture은 커스텀 Executor를 정의함으로써 작업 스레드 수를 추가할 수 있음
+
+
+
+CompletableFuture는 따로 블로그로 정리함
+
+
+
+
+
+
+
+
+
 
 
 
