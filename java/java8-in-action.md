@@ -1012,6 +1012,72 @@ CompletableFuture는 따로 블로그로 정리함
 
 
 
+# #12 새로운 날짜와 시간 api
+
+- java 1.0에서 java.util.Date 클래스 하나로 날짜와 시간 관련 기능을 제공함
+- java.util.Calendar가 나왔지만 그닥 좋은 설계는 아니였음
+- Data와 Calendar 모두 가변 객체임 
+
+
+
+## LocalDate, LocalTime, Instant, Duration, Period
+
+### LocalDate와 LocalTime 사용
+
+- LocalDate 인스턴스는 시간을 제외한 날짜를 표현하는 불변객체임
+- 특히 LocalDate 객체는 어떤 시간대 정보도 포함하지 않음
+- 13:45:20 같은 시간은 LocalTime 클래스로 표현 가능
+
+
+
+### 날짜와 시간 조합
+
+- LocalDateTime은 LocalDate와 LocalTime을 쌍으로 갖는 복합 클래스임
+- LocalDateTime으로 날짜와 시간 모두 포함할 수 있음
+
+
+
+### Instant: 기계의 날짜와 시간
+
+- 기계의 관점에서는 연속된 시간에서 특정 지점을 하나의 큰 수로 표현하는 것이 가장 자연스러운 시간 표현 방법임
+- Instant 클래스는 유닉스 에포크시간을 기준으로 특정 지점까지의 시간을 초로 표현함
+
+### Duration과 Period 정의
+
+- LocalDateTime, LocalTime Instant 등등 모든 클래스는 Temporal 인터페이스를 구현하는데 Temporal 인터페이스는 특정 시간을 모델링하는 객체의 값을 어떻게 읽고 조작할지 정의함
+- Duration과 Period를 통해 두시간 사이의 어떠한 결과값을 도출해낼 수 있음
+
+
+
+## 날짜 조정, 파싱, 포매팅
+
+- with{attribute}로 날짜를 쉽게 조정할 수 있음
+- LocalDate, LocalTime, LocalDateTime, Instant 등 날짜와 시간을 표현하는 모든 클래스는 서로 비슷한 메서드를 제공함
+
+
+
+###  TemporalAdjusters 사용하기
+
+- 다음 돌아오는 평일, 다음주 일요일에 대한 조금 더 상세한 값을 원할때는 TemporalAdjusters 사용 가능
+
+
+
+### 날짜와 시간 객체 출력과 파싱
+
+- DateTimeFormatter를 이용해서 날짜나 시간을 특정 형식의 문자열로 만들 수 있음
+- DateTimeFormatter은 thread  safe함
+
+
+
+## 다양한 시간대와 캘린더 활용 방법
+
+- 지금까지 살펴본 모든 클래스에는 시간대와 관련한 정보가 없었음
+- java.util.TimeZone을 대체할 java.time.ZoneId 클래스가 새롭게 등장함 (불변)
+
+
+
+
+
 
 
 
