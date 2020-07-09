@@ -725,3 +725,153 @@ redis-redisql:6379>
 
 
 
+
+
+
+
+# #3 트랜잭션 제어 & 관리
+
+
+
+## Isolation & Lock
+
+1. 읽기 일관성과 데이터 공유를 위해 DataSets Lock을 제공함
+2. 트랜잭션 제어를 위해 Read Uncommited 와 ReadCommited 타입 두가지를 제공함
+
+> Global Lock, Database Loc, Object Lock, Page Lock, Key/Value Lock
+
+
+
+- 하둡같은 경우는 트랜잭션 제어가 없음 때문에 데이터 일관성 공유에 매우 취약함 이와같은 문제점을 개선하기 위해 제공되는 기술이 nosql이지만 모든 nosql 제품이 트랜잭션을 지원하지는 않음
+- redis는 트랜잭션을 지원함 commit, rollback <- Read Uncommitted 라고함
+
+## CAS(Check And Set)
+
+- 데이터 일관성 공유를 위해서는 동시 처리가 발생하 때 먼저 작업을 요구한 사용자에게 우선권을 보장하고 나중에 작업을 요구한 사용자의 세션에서는 해당 트랜잭션에 충돌이 발생했음을 인지할 수 있도록 해야하는데 redis에서는 이걸 CAS라고함
+
+```
+redis-redisql:6379> WATCH A
+OK
+redis-redisql:6379> MULTI
+OK
+redis-redisql:6379> SET 1 BLA
+QUEUED
+redis-redisql:6379> GET 1
+QUEUED
+redis-redisql:6379> GET 1
+QUEUED
+redis-redisql:6379> EXEC
+
+
+다른 쉘에서 MULTI > SET 이후에 데이터 변경했지만 에러 안났음
+```
+
+## Commit & Rollback
+
+- 최종 저장시 exec 취소시 discard
+
+```
+redis-redisql:6379> flushall
+OK
+redis-redisql:6379> set 3 sup2is
+OK
+redis-redisql:6379> flushall
+OK
+redis-redisql:6379> multi
+OK
+redis-redisql:6379> set 3 sup2is
+QUEUED
+redis-redisql:6379> discard
+OK
+redis-redisql:6379> 
+redis-redisql:6379> 
+redis-redisql:6379> keys *
+(empty array)
+redis-redisql:6379> 
+```
+
+## Index 유형 및 생성
+
+- Redis는 기본적으로 하나의 Key와 하나 이상의 Field/Element 값으로 구성되는데 Key에는 빠른 검색을 위해 기본적으로 인덱스가 생성됨 이를 Primary Key Index라고 함
+- 또 사용자의 필요에 따라 추가적인 인덱스를 생성할 수 있는데 Secondary Index라고 함
+- 인덱스 키를 통해 검색할 때 유일한 값을 검색하는 경우에 Exact Match By a Secondary Index 라고 하고 일정 범위의 값을 검색 조건으로 부여하는 경우를 Range By a Secondary Index라고함
+
+1. Sorted Set 타입 인덱스
+
+```
+redis-redisql:6379> zadd order.ship_date.index 2 '201809124:20180926'
+(integer) 1
+redis-redisql:6379> zadd order.ship_date.index 1 '201809123:20180925'
+(integer) 1
+redis-redisql:6379> zrange order.ship_date.index 0 - 1
+(error) ERR value is not an integer or out of range
+redis-redisql:6379> zrange order.ship_date.index 0 -1
+1) "201809123:20180925"
+2) "201809124:20180926"
+redis-redisql:6379> zscan order.ship_date.index 0 match 201809124*
+1) "0"
+2) 1) "201809124:20180926"
+   2) "2"
+redis-redisql:6379> 
+redis-redisql:6379> zadd order.no.index 1 201809123
+(integer) 1
+redis-redisql:6379> zadd order.no.index 2 201809124
+(integer) 1
+redis-redisql:6379> zrange order.no.index 0 -1
+1) "201809123"
+2) "201809124"
+```
+
+
+
+2. LexicoGraphical Index
+
+```
+redis-redisql:6379> zadd product.name.index 0 "Sky Pole"\
+Invalid argument(s)
+redis-redisql:6379> zadd product.name.index 0 "Sky Pole"
+(integer) 1
+redis-redisql:6379> zadd product.name.index 0 "Bunny"
+(integer) 1
+redis-redisql:6379> 
+redis-redisql:6379> zadd product.name.index 0 "test"
+(integer) 1
+redis-redisql:6379> zadd product.name.index 0 "Star"
+(integer) 1
+redis-redisql:6379> ZRANGEBYLEX product.name.index [S +
+1) "Sky Pole"
+2) "Star"
+3) "test"
+redis-redisql:6379> ZRANGEBYLEX product.name.index [B [S
+1) "Bunny"
+redis-redisql:6379> 
+
+```
+
+
+
+3.  Hash 타입 인덱스
+
+책대로 안됨
+
+
+
+
+
+## 사용자 생성 및 인증/보안/Roles
+
+- Redis 서버는 인가된 사용자만  안전하게 데이터를 관리할 수 있도록 다양한 액세스 권한과 인증 방법들을 제공하고 있음
+
+1. **액세스 컨트롤 권한(Access Control Privilege)**
+
+- RDB에서도 가장 기본적인 접속 권한 중에 하나가 액세스 컨트롤임
+- 미리 DB내 사용자 계정과  암호를 생성해 두고 redis 서버에 접속하려는 사용자에게 계정과 암호로 인증 허가를 받음
+- 클러스터를 구성하면 conf 파일 내에 requirepass, masterauth 파라미터를 통해 클러스터 전역에 인증관련 설정을 해야함
+
+2. **인증 방법(Authorization Methd)**
+
+- redis는 2가지 인증 방법을 제공함
+- 첫번째는 os 인증방법임 conf파일에 접속할 클라이언트의 ip를 미리 지정함 
+- 두번째는 internal 인증 방법임 auth 명령어로 미리 생성해둔 사용자 계정과 암호를 입력하여 권한을 부여받는 방법임
+- 
+
