@@ -978,5 +978,79 @@ redis-redisql:6379>
 2. **Hash-List 모델**
 
 - 주문 공통테이블과 주문 상세 테이블은 대표적인 Hash-List 데이터 모델로 설계 가능함 (마스터 디테일 구조)
-- 
+
+```
+redis-redisql:6379> hmset order:201809123 customer_name "sup2is" emp_name "Magee"
+OK
+redis-redisql:6379> hgetall order:201809123
+1) "customer_name"
+2) "sup2is"
+3) "emp_name"
+4) "Magee"
+redis-redisql:6379> 
+redis-redisql:6379> 
+redis-redisql:6379> lpush order_detail:201809123 "<item_id>1</item_id><product_name>Bunny Boots </product_name><item_price>135</item_price><qty>500</qty><price>67000</price>" "<item_id>2</item_id><product_name>ProSki Boots</product_name><item_price>380 </item_price><qty>400</qty><price>152000</price>" 
+(integer) 2
+redis-redisql:6379> 
+redis-redisql:6379> lrange order_detail:201809123 0 1
+1) "<item_id>2</item_id><product_name>ProSki Boots</product_name><item_price>380 </item_price><qty>400</qty><price>152000</price>"
+2) "<item_id>1</item_id><product_name>Bunny Boots </product_name><item_price>135</item_price><qty>500</qty><price>67000</price>"
+redis-redisql:6379> 
+```
+
+3. **List-List 모델**
+
+- 제품 테이블과 카테고리 테이블은 대표적인 List-List로 풀어갈 수 있는 데이터 구조임 이 데이터 구조는 N:M 으로 표현 가능함
+
+```
+redis-redisql:6379> lpush product:p1001 "{ pname : 'Asus EP121 M50', cname : { [ cname1 : c1000, cname2 : c1002, cname3 : c1003 ] }" 
+(integer) 1
+redis-redisql:6379> lrange product:p1001 0 -1 
+1) "{ pname : 'Asus EP121 M50', cname : { [ cname1 : c1000, cname2 : c1002, cname3 : c1003 ] }"
+redis-redisql:6379> 
+redis-redisql:6379> 
+redis-redisql:6379> keys *
+1) "product:p1001"
+redis-redisql:6379> 
+redis-redisql:6379> 
+redis-redisql:6379> lrange product:p1001 0 1
+1) "{ pname : 'Asus EP121 M50', cname : { [ cname1 : c1000, cname2 : c1002, cname3 : c1003 ] }"
+redis-redisql:6379> 
+redis-redisql:6379> 
+redis-redisql:6379> lpush category:c1000 "{ cname : 'Tablet', pname : { [ pname1 : p1001 , pname2 : p1002 ] } }" 
+(integer) 1
+redis-redisql:6379> lrange category:c1000 0 -1 
+1) "{ cname : 'Tablet', pname : { [ pname1 : p1001 , pname2 : p1002 ] } }"
+redis-redisql:6379> 
+```
+
+4. **Set/Sorted Set-List 모델**
+
+- RDB에서 셀프조인으로 자기 자신테이블을 참조하는 형태를 Set/Sorted로 구현 가능함
+
+```
+redis-redisql:6379> SADD employee "id:1101, name:JMJoo, age:25, telephone:01038641858"  "id:1102, name:YHKim, age:21, parent_id:1101, childlen_id:1103"   "id:1103, name:KOHong, age:38, parent_id:1102, ancestor_id:1101"
+(integer) 3
+redis-redisql:6379> 
+redis-redisql:6379> SMEMBERS employee
+1) "id:1102, name:YHKim, age:21, parent_id:1101, childlen_id:1103"
+2) "id:1103, name:KOHong, age:38, parent_id:1102, ancestor_id:1101"
+3) "id:1101, name:JMJoo, age:25, telephone:01038641858"
+```
+
+## 논리적 DB 설계
+
+- 하나의 redis 서버는 여러 개의 데이터베이스로 구성됨
+- 기본적으로 논리적 데이터베이스 16개를 생성 가능하나 필요에따라 더 많은 데이터베이스 생성 가능
+- 사용자가 생성하는 수십~수백개의 테이블은 데이터의 성격, 비지니스 룰, 관리 방안, 성능 이슈에 따라 여러개의 논리적 DB에 분산 저장하는 것이 원칙임 이런 기술을 스트라이핑 기법이라고 하며 가장 보편적인 설계 및 저장 기술임
+- 하나의 데이터베이스에 모든 테이블과 인덱스를 생성 관리하다 보면 얘기치 못한 다양한 장애가 발생함 이런 경우 장애 범위가 너무 넓어서 복구가 힘들고 타격이 큼 따라서 유연성 있게 여러 개의 데이터베이스에 분산 저장하는것이 좋음
+
+
+
+## swapDB 설계
+
+- redis 4.0 에 새로운 기능
+- RDB에서 임시 테이블스페이스 또는 임시 데이터베이스와 유사한 구조임
+
+
 
