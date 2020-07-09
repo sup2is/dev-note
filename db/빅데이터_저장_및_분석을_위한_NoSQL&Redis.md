@@ -873,5 +873,110 @@ redis-redisql:6379>
 - redis는 2가지 인증 방법을 제공함
 - 첫번째는 os 인증방법임 conf파일에 접속할 클라이언트의 ip를 미리 지정함 
 - 두번째는 internal 인증 방법임 auth 명령어로 미리 생성해둔 사용자 계정과 암호를 입력하여 권한을 부여받는 방법임
+
+
+
+# #4 Redis Data Modeling
+
+## 키-밸류 데이터 모델링 개념
+
+### 용어 설명
+
+
+
+| RDB            | Redis          |
+| -------------- | -------------- |
+| Table          | Table          |
+| Column         | Field(Element) |
+| Primary Key    | Key            |
+| Foreign Key    | Link           |
+| Not Null, null | X              |
+| Check          | HyperLogLogs   |
+| Unique         | X              |
+
+- 기본적으로 데이터를 저장하는 테이블은 RDB와 redis가 용어가 같음
+- 하나의 테이블을 구성하고 있는 요소는 Field 또는 Element라고 칭함
+- 모든 데이터는 각각 한개의 Key와 한개 이상의 Field 를 갖고 있음 1:N
+- redis에서 제약조건은 없음
+- HyperLogLogs를 통해 Check 조건의 데이터를 저장할 수 있음
+
+
+
+### Redis 데이터 모델링 가이드라인
+
+- Redis 구축을 위한 데이터 모델 유형은 Redis에서 제공하는 데이터 유형에 따라 결정됨
+
+1. **Hash 데이터 모델**
+
+- Redis의 Hash 데이터 모델과 가장 유사한 RDB 데이터 모델은 부모 - 자식 테이블임
+- 대표적으로 주문 <- 운송 테이블을 예로 들면 주문이 없으면 운송도 없음 운송데이터가 있으려면 반드시 주문 데이터가 있어야함
+- 이런 경우 해시 데이터 모델을 선택
+
+2. **List 데이터 모델**
+
+- Redis의 List 데이터 모델과 가장 유사한 RDB 데이터 모델은 마스터 - 디테일 테이블임
+- 하나의 주문 전표에서 Master 테이블은 상세 테이블에 대한 공통 정보를 저장하기 위한 데이터 구조이고 Detail 테이블은 항목 번호 1부터 7까지의 상세 정보를 저장하게 되는 데이터 구조임
+- 마스터와 디테일을 모두 합치게 되면 하나의 완전한 데이터 구조로 표현하게되는데 이때 Hash-List 모델을 사용하면됨
+- 이 List는 객체지향 프로그래밍언어의 배열 구조와 유사함
+
+3. **Set/Sorted Set**
+
+- 이 모델과 가장 유사한 RDB 데이터 모델은 계층형 테이블임
+- 테이블이 자기 자신을 재귀적으로 바라보고 있으면 Self-Reference라고 하는데 이때 이 모델을 사용하면 됨
+
+4. **HyperLogLogs 데이터 모델**
+
+- 이 모델과 가장 유사한 RDB 데이터 모델은 Check-제약 조건에 해당됨
+- 해당 컬럼에 저장할 데이터가 원치 않는 데이터 입력이 되지 않도록 할 경우 이 모델을 사용하면 됨
+
+
+
+###  데이터 모델
+
+1. Hash-Hash 모델
+
+**Redis서버에서 설계할 수 있는 데이터 모델의 유형**
+
+1. Hash-Hash Data Model
+2. Hash-List Data Model
+3. List-List Data Model
+4. Set/Sorted Set-List Data Model
+5. HyperLogLogs Data Model
+
+
+
+1. **Hash-Hash Data Model**
+
+- 주문테이블과 운송테이블은 대표적인 Hash-Hash 테이블로 설계할 수 있음
+
+```
+redis-redisql:6379> hmset order:201809123 customer_name "sup2is" emp_name "magee"
+OK
+redis-redisql:6379> hgetall order_201809123
+(empty array)
+redis-redisql:6379> hgetall order:201809123
+1) "customer_name"
+2) "sup2is"
+3) "emp_name"
+4) "magee"
+redis-redisql:6379> hmset translate:201803123 translate_no 73421 customer_name "sup2is" address "seoul"
+OK
+redis-redisql:6379> 
+redis-redisql:6379> 
+redis-redisql:6379> hgetall translate:201809123
+(empty array)
+redis-redisql:6379> hgetall translate:201803123
+1) "translate_no"
+2) "73421"
+3) "customer_name"
+4) "sup2is"
+5) "address"
+6) "seoul"
+redis-redisql:6379> 
+```
+
+2. **Hash-List 모델**
+
+- 주문 공통테이블과 주문 상세 테이블은 대표적인 Hash-List 데이터 모델로 설계 가능함 (마스터 디테일 구조)
 - 
 
