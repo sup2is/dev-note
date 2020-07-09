@@ -111,7 +111,617 @@
 
 
 
+# #2 Redis 설치 및 데이터 처리
 
+## 주요 특징
+
+- Redis는 **RE**mote **DI**rectory **S**ystem 의 약어로 Vmware 가 스폰서였고 지금은 RedisLab에 의해 상용 라이센스가 개발되어 지원되고 있음
+
+
+
+1. Redis는 키밸류 데이터베이스로 분류되는 NoSQL이며 2009년 Salvatore Sanfilippo가 처음 개발했고 2015년부터 RedisLab에 의해 상용 SW가 개발어 지원중임
+2. 키밸류 DB면서 대표적인 인메모리 기반의 데이터 처리 및 저장 기술을 제공하기 때문에 다른 NoSQL 제품에 비해 상대적으로 빠른 Read/Write가 가능함
+3. String, Set, Sotred Set, Hash, List, HyperLogLogs 유형의 데이터를 저장할 수 있음
+4. Dump 파일과 AOF(Append Of File) 방식으로 메모리 상의 데이터를 디스크에 저장할 수 있음
+5. Master/Slave Replication 기능을 통해 데이터의 분산 복제 기능을 제공하며 Query Off Loading 기능을 통해 Master는 Read/Write를 수행하고 Slave는 Read만 수행할 수 있음
+6. 파티셔닝을 통해 동적인 스케일 아웃인 수평 확장이 가능함
+7. Expriation 기능은 일정 시간이 지났을 때 메모리 상의 데이터를 자동 삭제할 수 있음
+
+
+
+**레디스 주요 업무 영역**
+
+1. 임메모리 DB가 제공하는 최대 장점인 빠른 쓰기 읽기 작업은 가능하지만 데이터를 메모리에 저장할 수 없기 때문에 지속적인 관리가 요구되는 환경에서는 제한적일 수밖에 없음 기업의 비지니스 영역과 데이터 성격에 따라 다르겠지만 보통 세컨더리 DB로 사용됨
+2. 주된 영역은 데이터 캐싱을 통한 빠른 쓰기/읽기 작업, IOT 를 활용한 데이터 수집 및 처리 영역, 실시간 분석 및 통계 분석 영역 등등
+3. MQ 머신러닝, 검색엔진 영역에서 기존 RDB와 타 NoSQL에 비해 효율적으로 사용 가능
+
+
+
+## 제품 유형
+
+1. **커뮤니티 에디션**
+2. **엔터프라이즈 에디션**
+
+
+
+## 다운로드 및 설치
+
+
+
+
+
+...
+
+
+
+
+
+## 데이터 처리
+
+### 용어 설명
+
+1. Table: 하나의 DB에서 데이터를 저장하는 논리적 구조(RDB의 논리적 개념인 테이블과 동일함)
+2. Data Sets: 테이블을 구성하는 논리적 단위 하나의 데이터 셋은 하나의 Key와 한개 이상의 Field/Element로 구성됨
+3. Key: 하나의 Key는 하나 이상의 조합된 값으로 표현 가능함예를 들어 주문번호 또는 주문번호 + 순번 등등
+4. Values: 해당 Key에 대한 구체적인 데이터 값을 표현함 밸류는 하나 이상의 Field 또는 Element로 구성됨
+
+
+
+### 데이터 crud
+
+- set: 데이터를 저장
+- get: 저장된 데이터 검색
+- rename: 저장된 데이터 값을 변경
+- randomkey: 저장된 key 중 하나의 key를 랜덤하게 검색
+- keys: 저장된 모든 key를 검색
+- exist: 검색 대상 key가 존재하는지 여부
+- mset/mget 여러 개의 key와 value를 한번 저장하고 검색
+
+<br>
+
+- Redis에 데이터를 crud하기 위해서는 반드시 Redis 서버에서 제공하는 명령어를 사용하고 하나의 key에 대해 하나 이상의 field 또는 element로 표현해야함
+
+```
+some-redis:6379> 
+some-redis:6379> 
+some-redis:6379> set 1113 "HYEON"
+OK
+some-redis:6379> set 1114 "SEOP"
+OK
+some-redis:6379> get 1111
+"CHOI"
+some-redis:6379> get 1112
+"SUP2IS"
+some-redis:6379> keys *
+1) "1113"
+2) "1112"
+3) "1114"
+4) "1111"
+some-redis:6379> 
+some-redis:6379> keys *2
+1) "1112"
+some-redis:6379> 
+some-redis:6379> del 1112
+(integer) 1
+some-redis:6379> keys *
+1) "1113"
+2) "1114"
+3) "1111"
+some-redis:6379> rename 1113 1116
+OK
+some-redis:6379> keys *
+1) "1116"
+2) "1114"
+3) "1111"
+some-redis:6379> randomkey
+"1116"
+OK
+some-redis:6379> keys *
+(empty array)
+some-redis:6379> setex 1111 30 "choi"
+OK
+some-redis:6379> ttl 1111
+(integer) 27
+some-redis:6379> ttl 1111
+(integer) 24
+some-redis:6379> ttl 1111
+(integer) 23
+some-redis:6379> 
+some-redis:6379> ttl 1111
+(integer) 16
+some-redis:6379> 
+some-redis:6379> ttl 1111
+(integer) 2
+some-redis:6379> 
+some-redis:6379> 
+some-redis:6379> ttl 1111
+(integer) 0
+some-redis:6379> keys *
+(empty array)
+some-redis:6379> 
+some-redis:6379> ttl 1111
+(integer) -2
+some-redis:6379> mset 1113 "Nosql" 1115 "choi"
+OK
+some-redis:6379> get 1113
+"Nosql"
+some-redis:6379> get 1115
+```
+
+
+
+### 데이터 타입
+
+- strings: 문자, binary 유형 데이터 저장
+- List: 하나의 Key에 여러 개의 배열 값을 저장
+- Hash: 하나의 Key에 여러 개의 Fields와 Value로 구성된 테이블을 저장
+- Set Sorted set: 정렬되지 않은 String 타입 Set과 Hash를 결합한 타입 
+- Bitmaps: 0 & 1로 표현하는 데이터 타입
+- HyperLogLogs: Element 중에서 Unique  한 개수의 Element만 계산
+- Geospatial: 좌표 데이터를 저장 및 고나리하는 데이터 타입
+
+
+
+1. **Hash**
+
+- 컨테이너 타입중에 하나
+- Hash타입은 RDB에서 PK와 하나 이상의 컬럼으로 구성된 테이블 구조와 매우 흡사함
+- 하나의 Key는 오브젝트명과 하나 이상의 필드값을 콜론(:)기호로 결합하여 표현할 수 있음 ex: order:201809123
+- 문자 값을 저장할 때는 인용부호("")를 사용하며 숫자 값을 저장할 때는 이용 부호가 필요하지 않음
+- 기본적으로 필드 개수의 제한 없음
+- Hash 타입의 데이터를 처리할 때는 hmset,hget, hgetall, hkey, hlen 명령어를 사용함
+
+
+
+```
+
+some-redis:6379> hmset order:201809123 customer_name "Wanman & Sports" emp_name "Magee" total 601100 payment_type "Credit" order_filled "Y" shop_date 20180925
+
+OK
+some-redis:6379> 
+some-redis:6379> 
+some-redis:6379> hget order:2018*
+some-redis:6379> hget order:201809123 customer_name
+"Wanman & Sports"
+some-redis:6379> hget order:201809123 shop_date
+"20180925"
+some-redis:6379> hgetall order:201809123
+ 1) "customer_name"
+ 2) "Wanman & Sports"
+ 3) "emp_name"
+ 4) "Magee"
+ 5) "total"
+ 6) "601100"
+ 7) "payment_type"
+ 8) "Credit"
+ 9) "order_filled"
+10) "Y"
+11) "shop_date"
+12) "20180925"
+some-redis:6379> hexists order:201809123 product_name
+(integer) 0
+some-redis:6379> hexists order:201809123 customer_name
+(integer) 1
+some-redis:6379> 
+some-redis:6379> 
+some-redis:6379> hdel order:201809123 shop_date
+(integer) 1
+some-redis:6379> hgetall order:201809123
+ 1) "customer_name"
+ 2) "Wanman & Sports"
+ 3) "emp_name"
+ 4) "Magee"
+ 5) "total"
+ 6) "601100"
+ 7) "payment_type"
+ 8) "Credit"
+ 9) "order_filled"
+10) "Y"
+some-redis:6379> hmset order:201809123 ship_date 20180925
+OK
+some-redis:6379> hgetall order:201809123
+ 1) "customer_name"
+ 2) "Wanman & Sports"
+ 3) "emp_name"
+ 4) "Magee"
+ 5) "total"
+ 6) "601100"
+ 7) "payment_type"
+ 8) "Credit"
+ 9) "order_filled"
+10) "Y"
+11) "ship_date"
+12) "20180925"
+some-redis:6379> hkeys order:201809123
+1) "customer_name"
+2) "emp_name"
+3) "total"
+4) "payment_type"
+5) "order_filled"
+6) "ship_date"
+some-redis:6379> hvals order:201809123
+1) "Wanman & Sports"
+2) "Magee"
+3) "601100"
+4) "Credit"
+5) "Y"
+6) "20180925"
+some-redis:6379> hlen order:201809123
+(integer) 6
+```
+
+
+
+
+
+2. **List**
+
+- List타입은 기존의 관계형 테이블에는 존재하지 않는 데이터 유형이고 일반 프로그래밍 언어에서의 Array와 유사함
+- 기본적으로 String 타입의 경우 배열에 저장할 수 있는 데이터 크기는 512mb임
+- List타입의 데이터를 처리할때는 lpush, lrange, rpush, rpop, llen, lindex 명령어를 사용함
+
+```
+some-redis:6379> lpush order_detail:201809123 "<item_id>1</item_id><product_name>Bunnty Boots</product_name>" "<item_id>2</item_id><product_name>ProSki Boots</product_name>"
+(integer) 2
+some-redis:6379> 
+some-redis:6379> 
+some-redis:6379> lrange order_detail:201809123
+(error) ERR wrong number of arguments for 'lrange' command
+some-redis:6379> 
+some-redis:6379> lrange order_detail:201809123 0 10
+1) "<item_id>2</item_id><product_name>ProSki Boots</product_name>"
+2) "<item_id>1</item_id><product_name>Bunnty Boots</product_name>"
+some-redis:6379> keys *
+1) "order:201809123"
+2) "order_detail:201809123"
+some-redis:6379> rpush order_detail:201809123 "<item_id>3</item_id><product_name>Bunnty Boots</product_name>"
+(integer) 3
+some-redis:6379> 
+some-redis:6379> lrange order_detail:201809123 0 10
+1) "<item_id>2</item_id><product_name>ProSki Boots</product_name>"
+2) "<item_id>1</item_id><product_name>Bunnty Boots</product_name>"
+3) "<item_id>3</item_id><product_name>Bunnty Boots</product_name>"
+some-redis:6379> 
+some-redis:6379> rpop order_detail:201809123
+"<item_id>3</item_id><product_name>Bunnty Boots</product_name>"
+some-redis:6379> lrange order_detail:201809123 0 10
+1) "<item_id>2</item_id><product_name>ProSki Boots</product_name>"
+2) "<item_id>1</item_id><product_name>Bunnty Boots</product_name>"
+some-redis:6379> llen order_detail:201809123
+(integer) 2
+some-redis:6379> lindex order_detail:201809123 0
+"<item_id>2</item_id><product_name>ProSki Boots</product_name>"
+some-redis:6379> 
+some-redis:6379> lindex order_detail:201809123 1
+"<item_id>1</item_id><product_name>Bunnty Boots</product_name>"
+some-redis:6379> lindex order_deㅣㅔㅕtail:201809123 2
+(nil)
+some-redis:6379> lset order_detail:201809123 0 "<item_id>5</item_id><product_name>Bunnty Boots</product_name>"
+OK
+some-redis:6379> 
+some-redis:6379> lrange order_detail:201809123 0 10
+1) "<item_id>5</item_id><product_name>Bunnty Boots</product_name>"
+2) "<item_id>1</item_id><product_name>Bunnty Boots</product_name>"
+some-redis:6379> lpushx order_detail:201809123 "<item_id>4</item_id><product_name>Bunnty Boots</product_name>"
+(integer) 3
+some-redis:6379> lrange order_detail:201809123 0 10\
+(error) ERR value is not an integer or out of range
+some-redis:6379> 
+some-redis:6379> 
+some-redis:6379> lrange order_detail:201809123 0 10
+1) "<item_id>4</item_id><product_name>Bunnty Boots</product_name>"
+2) "<item_id>5</item_id><product_name>Bunnty Boots</product_name>"
+3) "<item_id>1</item_id><product_name>Bunnty Boots</product_name>"
+some-redis:6379> lpush order_detail:201809124 "{}
+Invalid argument(s)
+some-redis:6379> lpush order_detail:201809124 "{item_id:1, product_name:Bunny}"
+
+(integer) 1
+some-redis:6379> 
+some-redis:6379> lrange order_detail:201809124 0 10
+1) "{item_id:1, product_name:Bunny}"
+some-redis:6379> keys *
+1) "order_detail:201809124"
+2) "order:201809123"
+3) "order_detail:201809123"
+some-redis:6379> 
+```
+
+
+
+3. **Set**
+
+- List타입은 하나의 필드에 여러개의 배열 값을 저장할 수 있는 데이터구조라면 Set은 배열 구조가 아닌 여러개의 엘리먼트로 데이터 값을 표현함
+- Set타입의 데이터를 처리할 때는 sadd, smember, scard, sdiff, sunion 명령어를 사용함
+
+```
+some-redis:6379> sadd product "id:11, product_name:Sky Pole" "id:12, product_name:Bunny"
+(integer) 2
+some-redis:6379> sadd product "id:13, product_name:Pants"
+(integer) 1
+some-redis:6379> 
+some-redis:6379> smember product
+(error) ERR unknown command `smember`, with args beginning with: `product`, 
+some-redis:6379> smembers product
+1) "id:13, product_name:Pants"
+2) "id:12, product_name:Bunny"
+3) "id:11, product_name:Sky Pole"
+some-redis:6379> scard product
+(integer) 3
+some-redis:6379> sadd product_old "id:91, product_name:Old Sky Pole"
+(integer) 1
+some-redis:6379> 
+some-redis:6379> smembers product_old
+1) "id:91, product_name:Old Sky Pole"
+some-redis:6379> sdiff product product_old
+1) "id:13, product_name:Pants"
+2) "id:12, product_name:Bunny"
+3) "id:11, product_name:Sky Pole"
+some-redis:6379> 
+some-redis:6379> sdiff product_old product
+1) "id:91, product_name:Old Sky Pole"
+some-redis:6379> sdiffstore product_diff product product_old
+(integer) 3
+some-redis:6379> smembers product_diff
+1) "id:13, product_name:Pants"
+2) "id:12, product_name:Bunny"
+3) "id:11, product_name:Sky Pole"
+some-redis:6379> sunionstore product_new product product_old
+(integer) 4
+some-redis:6379> smembers product_new
+1) "id:91, product_name:Old Sky Pole"
+2) "id:13, product_name:Pants"
+3) "id:12, product_name:Bunny"
+4) "id:11, product_name:Sky Pole"
+some-redis:6379> srem product_new "id:11, product_name:Sky Pole"
+(integer) 1
+some-redis:6379> smembers product_new
+1) "id:91, product_name:Old Sky Pole"
+2) "id:13, product_name:Pants"
+3) "id:12, product_name:Bunny"
+some-redis:6379> 
+some-redis:6379> spop product_new 1
+1) "id:12, product_name:Bunny"
+some-redis:6379> smembers product_new
+1) "id:91, product_name:Old Sky Pole"
+2) "id:13, product_name:Pants"
+some-redis:6379> 
+```
+
+
+
+4. **Sourced Set 타입**
+
+- Sorted Set 타입은 Set타입과 동일하고 데이터 값이 분류된 상태면 정렬, 아니라며 그냥 Set타입임
+- 데이터를 처리할 때는 zadd, zrange, zcard, zcount, zrank, zrevrank 명령어를 사용함
+
+```
+(integer) 3
+some-redis:6379> 
+some-redis:6379> 
+some-redis:6379> zrange order_detail 201809123 0 -1
+(error) ERR syntax error
+some-redis:6379> zrange order_detail:201809123 0 -1
+1) "{item_id:1, product_name:Bunny}"
+2) "{item_id:2, product_name:Bunny2}"
+3) "{item_id:3, product_name:Bunny3}"
+some-redis:6379> zadd order_detail:201809123 3 "{item_id:4, product_name:Bunny4}"
+(integer) 1
+some-redis:6379> zrange order_detail:201809123 0 -1
+1) "{item_id:1, product_name:Bunny}"
+2) "{item_id:2, product_name:Bunny2}"
+3) "{item_id:3, product_name:Bunny3}"
+4) "{item_id:4, product_name:Bunny4}"
+some-redis:6379> zcard order_detail:201809123
+(integer) 4
+some-redis:6379> zrem order_dtail:201809123 "{item_id:1, product_name:Bunny}"
+(integer) 0
+some-redis:6379> 
+some-redis:6379> zrange order_detail:201809123 0 -1
+1) "{item_id:1, product_name:Bunny}"
+2) "{item_id:2, product_name:Bunny2}"
+3) "{item_id:3, product_name:Bunny3}"
+4) "{item_id:4, product_name:Bunny4}"
+some-redis:6379> zrank order_detail:201809123 "{item_id:1, product_name:Bunny}"
+(integer) 0
+some-redis:6379> zrank order_detail:201809123 "{item_id:1, product_name:Bunny}"
+(integer) 0
+some-redis:6379> zrank order_detail:201809123 "{item_id:2, product_name:Bunny2}
+"
+(integer) 1
+some-redis:6379> 
+```
+
+
+
+5. **Bit**
+
+- 이진수 데이터
+- setbit, getbit, bitcount
+
+
+
+6. **Geo**
+
+- 위치 정보 데이터의 분석 및 검색에 사용
+- geoadd, geopos, geodist, georadius, geohash
+
+
+
+7. **HyperLogLogs 타입**
+
+- RDB에서 Check 제약 조건과 유사함
+- pfadd, pfcount, pfmerge 명령어를 사용
+
+
+
+
+
+## Redis확장 Module
+
+- 레디스 소스를 활용해서 레디스 확장모듈을 만들었음
+
+**모듈종류**
+
+1. REJSON: JSON 타입을 이용해서 데이터를 처리할 수 있는 모듈
+2. RediSQL: Redis Server에서 SQL로  데이터를 저장할 수 있는 모듈
+3. RediSearch: Redis DB내에 저장된 데이터에 대한 검색엔진을 사용할 수 있는 모듈
+4. Redis-ML: 머신러닝 모델 서버를 Redis 서버에서 사용할 수 있는 모듈
+5. Redis-sPiped: Redis server로 전송되는 데이터를 암호화 할 수 있는 모듈
+
+<br>
+
+### REJSON
+
+- Redis 서버 내에서도 JSON데이터 타입 저장을 가능하게 해주는 모듈
+- 도커로 올림
+
+```
+[root@kafka-broker-base-1 rejson]# docker run -d -p 6379:6379 --name redis-redisjson --network mybridge redislabs/rejson
+
+[root@kafka-broker-base-1 rejson]# docker run -it --net mybridge --rm redis redis-cli -h redis-redisjson
+```
+
+
+
+```
+redis-redisjson:6379> JSON.SET 1101 . '"CHOI"'
+OK
+redis-redisjson:6379> JSON.GET 1101
+"\"CHOI\""
+redis-redisjson:6379> JSON.TYPE 1101
+string
+redis-redisjson:6379> JSON.STRLENT 1101
+(error) ERR unknown command `JSON.STRLENT`, with args beginning with: `1101`, 
+redis-redisjson:6379> JSON.STRLEN 1101
+(integer) 4
+redis-redisjson:6379> JSON.STRAPPEND 1101 . '"SEOUL"'
+(integer) 9
+redis-redisjson:6379> JSON.GET 1101
+"\"CHOISEOUL\""
+redis-redisjson:6379> JSON.NUMINCRBY orderno . 1
+(error) ERR could not perform this operation on a key that doesn't exist
+redis-redisjson:6379> JSON.NUMINCRBY orderno . 1
+(error) ERR could not perform this operation on a key that doesn't exist
+redis-redisjson:6379> 
+redis-redisjson:6379> 
+redis-redisjson:6379> JSON.SET orderno . 2018redis-redisjson:6379> JSON.NUMINCRBY orderno 1
+"2019"
+redis-redisjson:6379> JSON.NUMINCRBY orderno 2
+"2021"
+redis-redisjson:6379> JSON.SET amoreinterestingexample . '[true, {"age": 52}, null]'
+OK
+redis-redisjson:6379> JSON.GET amoreinterestingexample 
+"[true,{\"age\":52},null]"
+redis-redisjson:6379> json.get amoreinterestingexample [1].age
+"52"
+redis-redisjson:6379> json.del amoreinterestingexample 
+(integer) 0
+redis-redisjson:6379> json.del amoreinterestingexample [-1]
+(integer) 0
+redis-redisjson:6379> json.get amoreinterestingexample [1].age
+(nil)
+redis-redisjson:6379> json.get amoreinterestingexample
+(nil)
+redis-redisjson:6379> JSON.SET array_data . []
+OK
+redis-redisjson:6379> jsonarrappend array_data . 0
+(error) ERR unknown command `jsonarrappend`, with args beginning with: `array_data`, `.`, `0`, 
+redis-redisjson:6379> JSON.ARRAPPEND array_data . 0
+(integer) 1
+redis-redisjson:6379> json.get array_data
+"[0]"
+redis-redisjson:6379> JSON.ARRINSERT array_data . 0 -1 -2
+(integer) 3
+redis-redisjson:6379> json.get array_data
+"[-1,-2,0]"
+redis-redisjson:6379> JSON.ARRTRIM array_data . 1 1
+(integer) 1
+redis-redisjson:6379> json.get array_data
+"[-2]"
+redis-redisjson:6379> JSON.ARRPOP array_data
+"-2"
+redis-redisjson:6379> json.arrpop array_da
+(error) WRONGTYPE Operation against a key holding the wrong kind of value
+redis-redisjson:6379> json.arrpop array_data
+(nil)
+redis-redisjson:6379> json.set 1101 . '{"name":"choi", "age":"27"}'
+OK
+redis-redisjson:6379> 
+redis-redisjson:6379> JSON.OBJLEN 1101
+(integer) 2
+redis-redisjson:6379> JSON.OBJkeys 1101
+1) "name"
+2) "age"
+```
+
+
+
+### REDISQL
+
+- REDISQL을 사용하면 Redis 서버와 RDB인 SQLite를 연동해서 사용 가능
+
+```
+[root@kafka-broker-base-1 rejson]# docker run -d -p 6379:6379 --name redis-redisql --network mybridge siscia/redisql:latest
+
+[root@kafka-broker-base-1 rejson]# docker run -it --net mybridge --rm redis redis-cli -h redis-redisql
+```
+
+
+
+
+
+```
+redis-redisql:6379> REDISQL.CREATE_DB SALES
+OK
+redis-redisql:6379> REDISQL.EXEC "CREATE TABLE emp(no int, name text, address text, deptno int);"
+(error) Wrong number of arguments, it accepts 3, you provide 2
+redis-redisql:6379> 
+redis-redisql:6379> 
+redis-redisql:6379> REDISQL.EXEC SALES "CREATE TABLE emp(no int, name text, address text, deptno int);"
+1) DONE
+2) (integer) 0
+redis-redisql:6379> 
+redis-redisql:6379> REDISQL.EXEC "INSERT INTO emp VALUES (1101, 'CHOI', 'SEOUL', 10);"
+(error) Wrong number of arguments, it accepts 3, you provide 2
+redis-redisql:6379> 
+redis-redisql:6379> REDISQL.EXEC SALES "INSERT INTO emp VALUES (1101, 'CHOI', 'SEOUL', 10);"
+1) DONE
+2) (integer) 1
+redis-redisql:6379> 
+redis-redisql:6379> REDISQL.EXEC SALES "SELECT * FROM emp"
+1) 1) (integer) 1101
+   2) "CHOI"
+   3) "SEOUL"
+   4) (integer) 10
+redis-redisql:6379> 
+```
+
+
+
+
+
+## Lua Function & Script
+
+1. Lua는 가볍고 내장 가능한 스크립트 언어, 절차형, 객체지향, db비간 프로그래밍을 수행 가능
+2. 간단한 프로시저와 배열로 결합 가능하고 동적으로 코딩 가능하며 가상머신 기반에서 바이트 코드를 해석하여 실행 가능하고 증분 가비지 컬렉션으로 메모리를 자동 관리
+3. Lua는 브라질리오 데 자네이로 교황청 카톨릭 PUC-Rio 팀에서 개발 및 유지보수중
+4. Redis Sever에 내장된 Lua 인터프리터를 통해 미리 작성된 Lua 스크립트 또는 function 사용 가능
+5. Redis Server는 다양한 Lua function을 제공하고 이러 인해 검색, 수정 ,삭제 가능
+
+
+
+<br>
+
+- 기본문법은 어느정도 한계가 있기 때문에 Lua, java, ruby같은 언어로 연동할 수 있음
+
+
+
+**Lua의 특징**
+
+1. 초경량 스크립트중 하나이고 절차형 프로그래밍, 객체지향 프로그램이 가능하고 데이터베이스를 기반으로 하는 프로그래밍을 할 수 있는 특징
+2. 간단한 절차형 프로시저와 배열로 데이터를 저장 및 결합 가능하고 동적으로 코딩, 가상 머신 기반에서 바이트 코드를 해석하여 실행할 수 있음 증분 가비지 컬렉션으로 메모리를 자동 관리할 수 있음
+3. 다양한 함수를 제공하고 crud를 할 수 있음 대표적으로 eval, evalsha 함수
 
 
 
