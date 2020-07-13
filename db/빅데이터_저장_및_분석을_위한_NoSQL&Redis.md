@@ -1054,3 +1054,347 @@ redis-redisql:6379> SMEMBERS employee
 
 
 
+# #5 Redis 아키텍쳐
+
+## Redis 아키텍쳐
+
+1. 메모리 영역
+
+- Resident Area: 사용자가 Redis 서버에 접속해서 처리하는 모든 데이터가 가장 먼저 저장되는 영역이고 실제 작업이 수행되는 공간이여서 WorkingSet영역이라고 표현
+- Data Structure: Redis 서버를 운영하다보면 발생하는 다양한 정보와 서버 상태를 모니터링 하기 위해 수집한 상태 정보를 저장하고 관리하기 위한 메모리 공간을 Data Structure 영역이라고 함
+
+2. 파일 영역
+
+- AOF 파일: Redis는 모든 데이터를 메모리 상에 저장하고 관리하는 인 메모리 기반의 데이터 처리 기술을 제공함 하지만 사용자의 필요에 따라 지속적으로 데이터를 저장할 필요가 있는데 이를 위해 제공되는게 AOF 파일임 <- 스냅샷
+- DUMP 파일: AOF 파일과 같이 사용자 데이터를 디스크 상에 저장할 수 있지만 소량의 데이터를 일시적으로 저장할 때 사용되는 파일
+
+3. 프로세스 영역
+
+- Server Process: Redis 인스턴스를 관리해주며 사용자가 요구한 작업을 수행하는 프로세스임 Redis Server 프로세스는 4개의 멀티스레드로 구성됨
+- Client Process: 사용자 애플리케이션에 의해 실행되는 명령어를 실행하기 위해 제공되는 프로세스
+
+<br>
+
+
+
+```
+info MEMORY
+
+info stats
+```
+
+- Hit: 메모리로 부터 동일한 데이터가 발견된 경우 hit 증가
+- misses: 동일한 데이터를 발견하지 못한 경우 증가 
+
+
+
+**Redis 서버 스레드**
+
+- main thread: Redis 서버에 수행되는 대부분의 명령과 이벤트를 처리하는 역할 수행
+- sub thread1(BIO-Close-File): 스레드 1은 AOF에 데이터를 Rewrite할 때 기존 파일은 Close하고 새로운 AOF파일에 write할 때 사용
+- sub thread2(BIO-AOF-Resync): 스레드 2는 AOF에 쓰기 작업을 수행할 때 사용
+- sub thread3(BIO-Lazy-Free): 스레드 3은 UNLINK, FLUSHALL, FLUSHDB명령어를 실행할 때 빠른 성능을 보장하기 위해 백그라운드에서 사용됨
+
+
+
+## 시스템 & Disk 사양
+
+1. 노드 수
+
+- 하나의 스탠드얼론 서버를 구축하는 경우 마스터 1대 슬레이브 1대 센티넬서버 1대로 구성하는 경우 최소 3대의 서버가 요구됨 마스터와 슬레이브는 사용자의 실제 데이터를 저장하는 서버이기 때문에 최적화된 서버 사양이어야 하지만 센티넬 서버는 사용자의 데이터를 저장하지 않기때문에 최소 사양으로 구성해야 함
+
+2. CPU Core수
+
+- 작은 규모 : 4core 이하
+- 중간 규모 : 4~8 core
+- 큰 규모 : 8~16 core 이상
+
+3. RAM 크기
+
+- Redis 서버를 위한 최소 권장 사양은 14~15GB임 이 크기는 하나의 시스템이 총 16GB의 메모리 크기를 갖고 있다면 그중에 약 90~95 공간을 Redis 서버가 사용할 수 있어야 한다는 것을 의미함 
+- 작은 규모 : 16GB 이하
+- 중간 규모 : 32~64GB 이하
+- 큰 규모 : 64~128 이상
+
+4. 스토리지 타입
+
+- SSD가 좋긴한데 저렴하게 구축하려면 SATA 타입을 사용하면 됨
+- 하지만 Redis 자체가 메모리기반이기때문에 스토리지에 큰 비중을 두지 않아도 됨
+
+5. 스토리지 크기
+
+- 최소 스토리지 크기 = 사용자 데이터의 총 크기 + (RAM * 3)
+- 권장 스토리지 크기 = 사용자 데이터의 총 크기 + (RAM * 6)
+
+6. 네트워크
+
+- 최소 네트워크환경은 1G 권장은 10G
+
+## 메모리 운영 기법
+
+- 타 NoSQL 제품들은 거의 파일시스템 기반인데 레디스는 인메모리 기반임 그래서 좋은 성능을 기대할 수 있음
+- 필요에따라 디스크에DUMP, AOF 형태로 저장 가능
+- 모든 데이터를 메모리에 저장하는건 불가능함
+- redis 4.0부터는 LRU와 LFU 알고리즘을 지원함
+
+1. LRU 알고리즘
+
+- 최근에 처리된 데이터들을 메모리 영역에 배치시키고 오래전에 처리된 데이터는 메모리로부터 제거하여 최근 사용된 데이터들이 최대한 메모리상에 존재할 수 있도록 유지하는 것임
+
+
+
+```
+vi redis_5000.conf
+
+Maxmeory <- Redis 인스턴스를 위한 총 메모리 크기
+maxmemory-sample <- LRU 알고리즘에 의한 메모리 운여
+
+#모니터링
+redis-cli -p 50000 --lru-test 100000000
+```
+
+
+
+2. (Least Frequently Used) 알고리즘
+
+- LRU의 최대 단점은 그 모든 데이터들이 재사용 및 재 검색되는 것은 아니다 라는 것임
+- 그 중에서 자주 참조되는 데이터만 배치하고 그렇지 않은 데이터들은 메모리로부터 제거하여 자주 참조되는 데이터들이 배치도리 수 있도록 운영하는 방법을 LFU 알고리즘이라고 함
+
+```
+vi redis_5000.conf
+
+lfu-log-factor 10 <- LFU 알고리즘에 의한 메모리 운영 default 10
+lfu-decay-time 1
+```
+
+
+
+## LazyFree 파라미터
+
+- 메모리 운영은 Redis 서버에서 매우 중요한 성능 포인트 중 하나임
+- Redis인스턴스에게 할당된 메모리 영역이 최대 임계치에 도달하는데 이 경우 연속적인 범위 키 값이 동시에 삭제되는 오퍼레이션이 실행되면 메모리 부족과 프로세스의 지연 처리로 인해 성능 지연 문제가 발생할 수 있음
+- 이런 성능 지연 문제를 해소화하는 방법은 Redis 인스턴스를 위한 메모리영역의 크기를 충분히 할당하는 것과 더불어 LazyFree 파라미터를 설정해 주는 것임
+- LazyFree 파라미터는 별도의 백그라운드 쓰레드를 통해 입력과 삭제 작업이 지연되지 않고 연속적으로 수행될 수 있도록 해줌
+- LazyFree 쓰레드는 앞서 Redis 아키텍처에 소개되었던 서버 프로세스의 4개 스레드 중 하나임
+
+```
+vi redis_5000.conf
+
+
+lazyfree-lazy-eviction no <- yes 권장 unlink로 삭제하고 새 키 저장
+lazyfree-lazy-expire no <- yes 권장 unlink로 만기된 키 삭제
+lazyfree-lazy-server-del no <- yes 권장 unlink로 데이터 변경
+slave-lazy-flush no <- yes 권장 복제 서버가 삭제 후 복제할 때 flushall async 명령어로 삭제
+```
+
+
+
+
+
+1. lazyfree-lazy-eviction
+
+- 메모리 영역이 Full 되었을 때 연속적인 범위의 Key값을 삭제하면 기존 메모리 영역에 저장되어 있던 데이터는 Del 명령어에 의해 삭제되는데 이 작업은 서버 프로세스의 main trhead에 의해 실행되면서 블로킹현상이 발생함 이 값을 yes로 설정하면 del 명령어가 아닌 unlink 명령어가 실행되는데 이 명령어는 sub thread3에 의해 백그라운드에서 수행되서 블로킹 현상을 피할 수 있음
+
+2. lazyfree-lazy-expire
+
+- expire 명령을 실행하면 메모리 상에 무효화된 키 값을 삭제하는데 내부적으로 DEL명령어가 실행되면서 블로킹 현상이 발생함
+- 이 파라미터를 yes로 설정하면 unlink 명령어가 실행되면서 블로킹 현상을 피할 수 있음
+
+3. lazyfree-lazy-server-del
+
+- 메모리 상에 이미 저장되어 있는 키 값에 대해 SET 또는 RENAME 명령어를 실행하면 DEL 명령어가 실행되면서 블로킹현상이 발생함 이것 역시 unlink를 사용하기 위해 yes로 설정
+
+4. slave-lazy-flush
+
+- master-slave 또는 partition-replication 서버 환경에서 복제 서버는 마스터 서버의 데이터를 복제할 때 변경된 부분에 대해서 만 부본 복제하는 경우도 있지만 때에 따라서는 기존 복제 데이터를 모두 삭제한 후에 다시 복제하는 경우도 있음 이 경우 기존 복제 데이터를 빠른 시간 내에 삭제하고 동시에 다시 복제 작업을 빠르게 수행해야함 이값을 yes로 설정하면 동기화 작업을 수행 할 수 있음
+
+
+
+## 데이터 Persistence
+
+- Redis 서버는 디스크 데이터 저장 관리 기술을 기본적으로 제공함 Redis 서버를 재시작한 후 파일에 저장해둔 데이터를 다시 메모리로 업로더 할 수 있음
+
+```
+vi redis_5000.conf
+
+save 60 1000
+
+appendonly yes
+appendonlyname "appendonly.aof"
+```
+
+
+
+1. RDB 파일을 이용하여 저장하는 방법
+
+- save 명령어를 사용해서 일정한 주기마다 일정한 개수의 key 데이터-셋 값을 데스크 상에 dump.rdb 파일로 저장하는 방법
+- 사용자가 저장 주기와 저장 단위를 결정할 수 있고 시스템 자원이 최소환으로 요구된다는 최대 장점이 있지만 데이터를 최종 저장한 이후 새로운 저장이 수행되는 시점 전에 시스템에 장애가 발생하는 경우 데이터 유실이 발생할 수 있기 때문에 지속성이 떨어지는 단점이 있음
+- RDB 파일에는 SAVE 명령어를 실행한 시점에 메모리 상에 저장된 모든 데이터를 스탭샷 형태로 저장해줌
+
+
+
+2. AOF 명령어를 이용하여 저장하는 방법
+
+- redis shell 에서 bgrewriteaof 명령어를 실행하 ㄴ이후에 입력 수정 삭제되는 모든 데이터를 저장해줌
+
+
+
+| AOF                                                         | RDB                                                 |
+| ----------------------------------------------------------- | --------------------------------------------------- |
+| 시스템 자원이 집중적으로 요구 지속적인 쓰기작업             | 시스템 자원이 최소한으로 요구 특정 시점에 쓰기 작업 |
+| 마지막 시점까지 데이터 복구가 가능                          | 지속성이 떨어짐                                     |
+| 대용량 데이터 파일로 복구 작업시 복구 성능이 떨어짐         | 복구시간이 빠름                                     |
+| 저장 공강이 압축되지 않기 때문에 데이터 양에 따라 크기 결정 | 저장 공간이 압축되기 때문에 최소 필요               |
+
+
+
+## Copy on Write
+
+- redis는 인메모리 기반이기때문에 충분한 메모리 공간을 확보하는 것은 시스템의 원활한 운영과 관리를 위해 반드시 요구되는 핵심 포인트 중 하나임
+- 메모리 상에 로더 되어 있는 데이터를 하나의 부모 프로세스가 참조하고 있는 와중에 자식 프로세스가 동시에 참조 관계를 가지게 되는 경우 서버 프로세스는 별도의 저장공간에 이를 복제하게 되는데 이와 같은 경우를 copy on write라 고 표현함
+- copy on write가 빈번하게 발생하게 되면 해당 오퍼레이션은 지연되며 이는 redis server 전체의 성능 지연 문제로 이어짐
+
+**copy on write가 발생하는 경우**
+
+1. SAVE 파라미터에의해 주기적으로 RDB 파일을 생성할 때
+
+- 명령어 또는 고나련 파라미터는 redis 워킹셋 영역에 저장되어 있는 데이터를 디스크의 dump.rdb 파일로 저장할 때 사용됨 이 경우 copy on write가 발생하는 대표적인 경우임
+
+2. BGSAVE 명령어에 의해 RDB 파일을 저장할 때
+
+- 마찬가지로 copy on write 가 발생함
+
+3. BGREWRITEAOF 명령어에 의해 AOF 파일을 저장할 때
+
+- SAVE, BGSAVE는 dump,rdb 파일에 쓰기 작업이 발생한다면 BGREWRITE는 appendonly,aof 파일에 쓰기 작업이 발생하느 ㄴ경우이며 Copy on write 발생
+
+4. auto-aof-rewrite-percentage 파라미터에 의해 aof 파일을 재저장 할 때
+
+- AOF 파일이 가득 채워진 상태에서 계속적으로 데이터를 저장해야 하는 경우, AOF 파일을 비우고 처음부터 다시 쓰기작업을 수행하는 경우도 발생함. 성능 이슈가발생하는 비지니스 환경에서 해당 파라미터의 적극적인 사용은 권장하지 않음
+
+5. Master-Slave, Partition-Replication Server 환경으로 구성될 때
+
+- Master-Slave 또는 Partition-Replication Server는 Master 서버의 데이터를 Slave 서버에 복제할 때 Copy on Write가 발생함
+
+
+
+## Benchmark For Redis
+
+- 보통 6개월 ~1년 사이에 다양한 문제로 인해 성능 이슈들이 발생함
+- 이유는 데이터베이스가 서버에 최적화 되어있지 않았기 때문인데 그 원인을 찾아서 문제를 해결하려면 실제 성능 이슈가 이뤄진 곳에서 찾아야함
+- 하지만 이런 시스템환경을 임의로 만드는건 거의 불가능한 일임
+- Redis 서버는 redis-benchmark.exe를 통해 실제와 같은 데이터를 임의로 발생시켜 성능 이슈가 발생할 수 있는 가상 상태를 만들어 성능 최적화 작업을 수행할 수 있게 해줌
+
+```
+#session1
+redis-cli -p 6379 -r 100 -i info | grep used_meory_human:
+
+
+#session2
+redis-benchmark -p 5000 -q -n 100000
+
+
+redis-benchmark -p 5000 -t set,lpush -q -n 100000
+
+
+```
+
+
+
+
+
+## 관리 명령어
+
+| param                                            | 설명                                                         |
+| ------------------------------------------------ | ------------------------------------------------------------ |
+| info                                             | Redis 서버의 현재 상태 확인                                  |
+| sleelct                                          | ㄲㄷ얀 ㄴㄷㄱㅍㄷㄱ sodp todtjdehldj dlTsms 유fh             |
+| dbsize                                           | 현재 데이터베이스내에 생성되어 있는 keys의 수                |
+| swapdb                                           | 현재 데이터베이스에 할당할 swap db 생성                      |
+| flushall/flushdb                                 | 현재 생성되어 있는 모든 keys 및 db 삭제                      |
+| client list<br />client getname<br />client kill | 현재 redis server에 접속되어 있는 client 정보 조회<br />client 명 조회<br />해당 client 제거 |
+| time                                             | Redis server의 현재 시간                                     |
+
+
+
+```
+redis-cli -p --stat <- 서버 상태 모니터링
+
+info memory
+
+info cpu
+
+info keyspace
+
+
+```
+
+
+
+## Data Export & Import
+
+- 계속 설명하는 것처럼 기본적으로 메모리로 관리하지만 데이터를 영속시키기 위해 디스크에 저장시켜야함
+
+- .rdb 파일 export & import 
+
+```
+./redis-cli -p 6379 --rdb ~/dump.rdb
+```
+
+- appendonly 명령어에ㅐ 의해 export된 .aof 파일 import 
+
+```
+./redis-cli -p 6379 --pape < appendonly.aof
+```
+
+- text 파일 export
+
+```
+redis-cli -p 6000 --csv --scan > 20180329_data.csv
+```
+
+
+
+## Redis Serialization Protocol & Mass Insertion
+
+1. Luke Protocol을 이용한 업로드 방식
+
+- 대량의 데이터를 redis 클라이언트를 통해 redis 서버로 저장해야하는 경우들이 종종 발생함 대부분의 사용자들이 전형적인 redis 명령어로 작성된 데이터 파일을 생성하여 입력하는 방식인데 좋은 방식이 아님 클라이언트 레벨에 작성된 텍스트파일의 명령어는 네트워크를통해 redis 서버로 전송되어야 하고 다시클라이언트로 전달되는 방식이기때문에 빠른성능을 보장할 수 없음 
+
+```
+vi test_data.txt
+set 1101 CHOI
+set 1102 123
+set 1103 SUP2IS
+
+
+cat test_data.txt | ../src/redis-cli -p 6379 --pipe
+```
+
+
+
+2. Request Response Protocol을 이용한 업로드 방식
+
+- Luke Protocol을 이용한 업로드 방식은 성능 지연문제임
+- 이것을 해소시킬 방법은 RESP 방식임
+- 자세한 설명은 생략함
+- 쉽고 간단하게 데이터를 표현 가능 등등의 장점이 있음
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
