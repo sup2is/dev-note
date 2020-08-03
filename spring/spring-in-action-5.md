@@ -108,7 +108,30 @@ public class HomeControllerTest {
 
 
 
+# #2 웹 애플리케이션 개발하기
 
+- @CreditCardNumber는 Luhn 알고리즘 검사에 합격한 유효한 신용카드 번호를 validate 해줌
+
+## 요약
+
+- 스프링은 스프링 MVC 라는 강력한 웹 프레임워크를 제공하는데, 스프링 MVC는 스프링 애플리케이션의 웹 프론트엔드 개발에 사용함
+- 스프링 MVC는 애노테이션을 기반으로 하며, @RequestMapping, @GetMapping, @PostMapping과 같은 애노테이션을 사용해서 요청 처리 메서드를 선언할 수 있음
+- 대부분의 요청 처리 메서드들은 마지막에 Thymeleaf 템플릿과 같은 논리 뷰 이름을 반환함. 모데이터와 함께 해당 요청을 전달하기 위함임
+- 스프링 MVC는 자바 빈 유효성 검사 api와 Hibernamte Validator 등의 유효성 검사 api 구현 컴포넌트를 통해 유효성 검사를 지원함
+- 모델 데이터가 없거나 처리할 필요가 없는 HTTP GET 요청을 처리할 때는 뷰 컨트롤러를 사용할 수 있음
+- Thymeleaf에 추가하여 스프링은 다양한 뷰 템플릿을 지원함
+
+
+
+
+
+# #3 데이터로 작업하기
+
+## JDBC를 사용해서 데이터 읽고 쓰기
+
+- 스프링 JDBC 지원은 JdbcTemplate 클래스에 기반을 둠모든 형식적이고 상투적인 코드 없이 개발자가 rdb에 대한 sql 연산을 수행할 수 있는 방법을 제공함
+- jdbctemplate.update()는 upsert 가능
+- 
 
 ### 
 
