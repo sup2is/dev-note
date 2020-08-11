@@ -266,11 +266,320 @@ public class HomeControllerTest {
 
 
 
+# #9 스프링 통합하기
+
+## 간단한 통합 플로우 선언하기
+
+- 애플리케이션은 통합 플로우를 통해서 외부 리소스나 애플리케이션 자체에 데이터를 수신 또는 전송할 수 있으며 스프링 통합은 이런 통합 플로우를 생성하게 해줌
+- 파일 시스템에 데이터를 쓰는 통합 플로우 작성
+
+```java
+package me.sup2is;
+
+import org.springframework.integration.annotation.MessagingGateway;
+import org.springframework.integration.file.FileHeaders;
+import org.springframework.messaging.handler.annotation.Header;
+
+@MessagingGateway(defaultRequestChannel = "textInChannel")
+public interface FileWriterGateway {
+
+    void writeToFile(@Header(FileHeaders.FILENAME) String filename, String data);
+}
+```
+
+* 알아서 이 인터페이스의 구현체를 스프링이 생성해줌
+* defaultRequestChannel은 해당 인터페이이스의 메서드 호출로 생성된 메시지가 이 속성에 지정된 메시지 채널로 전송된다느 ㄴ것을 나타냄
+* 여기에선 writeTofile 의 호출로 생긴 메시지가 textInChannel이라는 채널로 전송됨
+
+```java
+package me.sup2is;
+
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.integration.annotation.ServiceActivator;
+import org.springframework.integration.annotation.Transformer;
+import org.springframework.integration.file.FileWritingMessageHandler;
+import org.springframework.integration.file.support.FileExistsMode;
+import org.springframework.integration.transformer.GenericTransformer;
+
+import java.io.File;
+
+@Configuration
+public class FileWriterIntegrationConfig {
+
+    @Bean
+    @Transformer(inputChannel = "textInChannel", outputChannel = "fileWriterChannel")
+    public GenericTransformer<String, String> upperCaseTransFormer() {
+        return String::toUpperCase;
+    }
+
+    @Bean
+    @ServiceActivator(inputChannel = "fileWriterChannel")
+    public FileWritingMessageHandler fileWriter() {
+        FileWritingMessageHandler handler = new FileWritingMessageHandler(new File("C:\\Users\\ChoiHyeonSeop\\temp.txt"));
+        handler.setExpectReply(false);
+        handler.setFileExistsMode(FileExistsMode.APPEND);
+        return handler;
+    }
+
+}
+
+```
+
+- 대충 파일 쓰기 채널과 파일 읽기채널 부분 설정한거임
+- 스프링 통합 자바 dsl 구성을 쓰면 더 간소화 할 수 있음
+
+```java
+    @Bean
+    public IntegrationFlow fileWriterFlow() {
+        return IntegrationFlows.from(MessageChannels.direct("textInChannel"))
+                .<String, String>transform(t -> t.toUpperCase())
+                .channel(MessageChannels.direct("fileWriterChannel"))
+                .handle(Files
+                        .outboundAdapter(new File("C:\\Users\\ChoiHyeonSeop\\temp.txt"))
+                        .fileExistsMode(FileExistsMode.APPEND)
+                        .appendNewLine(true)
+                ).get();
+        
+    }
+```
+
+
+
+## 스프링 통합의 컴포넌트 살펴보기
+
+- 통합 플로우는 하나 이상의 컴포넌트로 구성됨
+- 통합 플로우에서 각 컴포넌트의 역할
+  - 채널: 한 요소로부터 다른 요소로 메시지를 전달
+  - 필터: 조건에 맞는 메시지가 플로우를 통과하게 해줌
+  - 변호나기: 메시지 값을 변경하거나 메시지 페이로드의 타입을 다른 타입으로 변환
+  - 라우터: 여러 채널 중 하나로 메시지를 전달하며 대개 메시지 헤더를 기반으로 함
+  - 분배기: 들어오는 메시지를 두 개 이상의 메시지로 분할하며, 분할된 각 메시지는 다른 채널로 전송
+  - 집적기: 분배기와 상반된 것으로 별개의 채널로부터 전달되는 다수의 메시지를 하나의메시지로 결합함
+  - 서비스 액티베이터: 메시지를 처리하도록 자바 메서드에 메시지를 넘겨준 후 메서드의 반환값을 출력 채널로 전송
+  - 채널 어댑터: 외부 시스템에 채널을 연결함. 외부 시스템으로부터 입력을 받거나 쓸 수 있음
+  - 게이트웨이: 인터페이스를 통해 통합플로우로 데이터를 전달
+
+### 메시지 채널
+
+- 파이프라인을 통해서 메시지가 이동하는 수단 채널은 스프링 통합의 다른 부분을 연결하는 통로
+- PublishSubscribeChannel: 하나 이상의 컨슈머로 전달됨 컨슈머가 여럿일 때는 모든 컨슈머가 해당 메시지를 수신함
+- QueueChannel: FIFO 방식으로 컨슈머가 가져갈 때까지 큐에 저장됨 큐잉모델
+- PriorityChannel: QueueChannel과 유사하지만 FIFO 방식 대신 메시지의 우선순위를 기반으로 컨슈머가 메시지를 가져감
+- RendezvousChannel: QueueChannel과 유사하지만 컨슈머가 메시지를 수신할 때까지 메시지 전송자가 채널을 차단함 전송자와 컨슈머를 동기화함
+- DirectChannel: PublishSubscribeChannel과 유사하지만 전송자와 동일한 스레드로 실행되는 컨슈머를 호출하여 단일 컨슈머에게 메시지를 전송함 이 채널은 트랜잭션 지원
+- ExecjutorChannel: DirectChannel과 유사하지만 TaskExecutor를 통해서 메시지가 전송됨 이 채널 타입은 트랜잭션을 지원하지 않음
+- FluxMessageChannel: 프로젝트 리액터의 플럭스를 기반으로 하는 리액티브 스트림즈 퍼블리셔 채널임
+
+- 기본적으로 자동 생성되고 DirectChannel을 사용
+
+```java
+@Bean
+public MessageChannel orderChannel() {
+  return new PublishSubscribeChannel()
+}
+```
+
+- 빈으로 등록한 메서드이름이 채널의 이름이됨
+
+```java
+@ServiceActivator(inputChannel="orderChannel", poller=@Poller(fixedRate="1000"))
+```
+
+- orderChannel은 QueueChannel임
+- 이 서비스 액티베이터는 저 채널로 부터 매 1초당 1번씩 읽을 메시지가 있는지 확인함
+
+### 필터
+
+- 필터는 통합 파이프라인의 중간에 위치할 수 있고 플로우의 전 단계로부터 다음 단계로의 메시지 전달을 허용 또는 불허함
+
+```java
+@Filter(inputCjhannel="numberChannel", outputChannel="evenNumberChannel")
+public boolean evenNumberFilter(Integer num) {
+  return number % 2 == 0;
+}
+```
+
+- 짝수만 보내는 필터
+
+### 변환기
+
+- 메시지 값의 변경이나 타입을 변환하는 일을 수행함
+
+```java
+@Transformer(inputChannel="numberChannel", outputChannel="romanNumberChannel")
+public GenericTransformer<Integer, String> romanNumTransformer() {
+  return RomanBumbers::toRoman;
+}
+```
+
+- DSL로도 가능 transform();
+
+### 라우터
+
+- 전달 조건을 기반으로 통합 플로우 내부를 분기함
+- 메시지에 적용된 조건을 기반으로 서로 다른 채널로 메시지를 전달함
+
+```java
+
+    @Bean
+    @Router(inputChannel = "numberChannel")
+    public AbstractMessageRouter evenOddRouter() {
+        return new AbstractMessageRouter() {
+            @Override
+            protected Collection<MessageChannel> determineTargetChannels(Message<?> message) {
+                Integer num = (Integer) message.getPayload();
+                if(num % 2 == 0) {
+                    return Collections.singleton(evenChannel());
+                }else {
+                    return Collections.singleton(oddChannel());
+                }
+            }
+        };
+    }
+
+    @Bean
+    public MessageChannel evenChannel() {
+        return new DirectChannel();
+    }
+
+    @Bean
+    public MessageChannel oddChannel() {
+        return new DirectChannel();
+    }
+
+```
+
+## 
+
+### 분배기
+
+- 통합 플로우에서 하나의 메시지를 여러 개로 분할하여 독립적으로 처리하는 것이 유용할 수 있음
+- 분배기를 사용할 수 있는 중요한 두가지 경우
+  - 메시지 페이로드가 같은 타입의 컬렉션항목들을 포함하며, 각 메시지 페이로드 별로 처리하고자 할 때 예를 들어 여러 가지 종류의 제품이 있으며, 제품리스트를 전달하는 메시지는 각각 한 종류 제품의 페이로드를 갖는 다수의 메시지로 분할 될 수 있다.
+  - 연관된 정보를 함께 전달하는 하나의 메시지 페이로드는 두 개 이상의 서로 다른 타입 메시지로 분할될 수 있다. 예를 들어 주문 메시지는 배달 정보 대금 청구 정보 주문 항목 정보를 전달할 수 있으며, 각 정보는 서로 다른 하위 플로우에서 처리될 수 있다. 이 경우는 일반적으로 분배기 다음에 페이로드 타입 별로 메시지를 전달하는 라우터가 연결된다. 적합한 하위 플로우에서 데이터가 처리되도록 하기 위해서다.
+
+```java
+public class OderSplitter {
+  public Collection<Object> splitOrderIntoParts(PurchaseOrder po) {
+    ArrayList<Object> parts = new ArrayList<>();
+    parts.add(po.getBillingInfo());
+    parts.add(po.getLineItems());
+    return parts;
+  }
+}
 
 
 
 
+...
+
+@Bean
+@Splitter(inputChannel="poChannel", outputChannel="splitOrderChannel")
+public OrderSplitter orderSplitter() {
+    return new OrderSplitter();
+}
+
+
+
+...
+    
+    
+    
+@Bean
+@Router(inputChannel="splitOrderChannel")
+public MessageRouter splitOrderRouter() {
+    PayloadTypeRouter router = new PayloadTypeRouter();
+    router.setChannelMapping(BillingInfo.class.getname(), "billingInfoChannel");
+    router.setChannelMapping(List.class.getname(), "lineItemsChannel");
+    return router;
+}
 
 
 
 
+//다시 lineItemsChannel로 들어오는 List를 처리하고싶다면 ?
+@Splitter(inputChannel="lineItemsChannel", outputChannel="lineItemChannel")
+public List<LineItem> lineItemSplitter(List<LineItem> lineItems) {
+    return lineItems;
+}
+
+
+```
+
+### 서비스 액티베이터
+
+- 입력 채널로부터 메시지를 수신하고 이 메시지를 MessageHandler 인터페이스를 구현한 클래스에 전달함
+- 스프링 통합은 MessageHandler를 구현한 여러 클래스를 제공함
+
+```java
+    @Bean
+    @ServiceActivator(inputChannel ="someChannel")
+    public MessageHandler sysoutHandler() {
+        return message -> System.out.println("message payload: " + message.getPayload());
+    }
+
+```
+
+```java
+    @Bean
+    @ServiceActivator(inputChannel ="someChannel", outputChannel = "completeChannel")
+    public GenericHandler<Order> orderHandler(OrderRepository orderRepository) {
+        return (o, messageHeaders) -> orderRepository.save(); 
+    }
+```
+
+
+
+### 게이트웨이
+
+- 애플리케이션이 통합 플로우로 데이터를 제출하고 선택적으로 플로우의 처리 결과인 응답을 받을 수 있는 수단임.
+- 스프링 통합에 구현된 게이트웨이는 애플리케이션이 통합 플로우로 메시지를 전송하기 위해 호출할 수 있는 인터페이스로 구체화 되어 있음
+- FileWriterGateway는 단방향 게이트웨이.
+
+```java
+package me.sup2is;
+
+import org.springframework.integration.annotation.MessagingGateway;
+import org.springframework.stereotype.Component;
+
+@Component
+@MessagingGateway(defaultRequestChannel = "inChannel", defaultReplyChannel = "outChannel")
+public interface UpperCaseGateway {
+    String uppercase(String in);
+}
+
+```
+
+- 스프링이 알아서 구현체를 제공함
+
+### 채널 어댑터
+
+- 채널 어댑터는 통합 플로우의 입구와 출그를 나타냄 데이터는 인바운드 채널 어댑터를 통해 통합 플로우로 들어오고 아웃바운드 채널 어댑터를 통해 통합 플로우에서 나감
+
+```java
+
+    @Bean
+    @InboundChannelAdapter(poller = @Poller(fixedRate = "1000", errorChannel = "numberChannel"))
+    public MessageSource<Integer> numberSource(AtomicInteger source) {
+        return () -> new GenericMessage<>(source.getAndIncrement());
+    }
+
+```
+
+- 이 빈은 주입된 AutomicInteger로부터 numberChannel 이라는 이름의 채널로 매초 마다 한번씩 숫자를 전달함
+- 메시지 핸들러로 구현되는 서비스 액티베이터는 아웃바운드 채널 어댑터로 자주 사용됨 특히 데이터가 애플리케이션 자체에 전달될 필요가 있을때
+
+### 엔드포인트 모듈
+
+- 약 24개 이상있음 다양한 외부 시스템과의 통합을 위해 채널 어댑터가 포함된 엔드포인트 모듈을 스프링 통합이 제공함
+
+
+
+## 요약
+
+- 스프링 통합은 플로우를 정의할 수 있게 해준다. 데이터는 애플리케이션으로 들어오거나 나갈 때 플로우를 통해 처리할 수 있다.
+- 통합 플로우는 xml, java, java dsl을 사용해서 정의할 수 있다.
+- 메시지 게이트웨이와 채널 어댑터는 통합 플로우의 입구나 출구의 역할을 한다.
+- 메시지는 플로우 내부에서 변환, 분할, 집적, 전달될 수 있으며, 서비스 액티베이터에 의해 처리될 수 있다.
+- 메시지 채널은 통합 플로우의 컴포넌트들을 연결한다.
