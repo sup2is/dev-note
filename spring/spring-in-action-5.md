@@ -583,3 +583,314 @@ public interface UpperCaseGateway {
 - 메시지 게이트웨이와 채널 어댑터는 통합 플로우의 입구나 출구의 역할을 한다.
 - 메시지는 플로우 내부에서 변환, 분할, 집적, 전달될 수 있으며, 서비스 액티베이터에 의해 처리될 수 있다.
 - 메시지 채널은 통합 플로우의 컴포넌트들을 연결한다.
+
+# #10 리액터 개요
+
+- 명령형 코드: 순차적으로 연속되는 작업, 각 작업은 한번에 하나씩 그리고 이전 작업 다음에 실행됨
+- 리액티브 코드: 데이터 처리를 위해 일련의 작업들이 정의되지만 이 작업들은 병렬로 실행될 수 있음
+
+## 리액티브 프로그래밍 이해하기
+
+- 리액티브 프로그래밍은 명령형 프로그래밍의 대안이 되는 패러다임임
+- 리액티브 프로그래밍은 본질적으로 함수적이면서 선언적임
+
+### 리액티브 스트림 정의하기
+
+- 리액티브 스트림은 넷플릭스, 라이트밴드, 피보탈의 엔지니어들에 의해 2013년 말에 시작됨
+- 동시에 여러 작업을 수행하여 더 큰 확장성을 얻게 해줌
+- 백 프레셔는 데이터를 소비하는 컨슈머가 처리할 수 있는 만큼으로 전달 데이터를 제한함으로써 지나치게 빠른 데이터 소스로부터의 데이터 전달 폭주를 피할 수 있는 수단임
+- 리액티브 스트림은 4개의 인터페이스인 publisher, subscriber, subscription, Processor 로 구분됨
+- publisher는 하나의 Subscription당 하나의 Subscriber에 발행하는 데이터를 생성함 publisher 인터페이스에는 subscriber가 publisher를 구독 신청할 수 있는 subscriber() 메서드가 한개있음
+- subscriber가 구독 신청되면 publisher로부터 이벤트를 수신 가능함 이 이벤트들은 subscriber 인터페이스의 메서드를 통해 전송됨 일반적인 펍섭 모델인듯
+
+## 리액터 시작하기
+
+- 리액티브 프로그래밍은 명령형 프로그래밍과 매우 다른 방식으로 접근해야함
+
+```java
+Mono.just("Craig")
+    .map(n -> n.toUpperCase())
+    .map(cn -> "Hello, " + cn + "!")
+    .subscribe(System.out::println)
+```
+
+- Mono와 Flux는 리액터의 두가지 핵심 타입 중하나이고 모두 리액티브 스트림의 Publisher 인터페이스를 구현한것임
+- Flux는 0, 1 또는 다수의 데이터를 갖는 파이프라인이고 Mono는 하나의 데이터 항목만 갖는 데이터셋에 최적화된 리액티브 타입임
+
+### 리액티브 플로우의 다이어그램
+
+- 리액티브 플로우는 마블 다이어그램으로 나타내곤 함 마블 다이어그램의 제일 위에는 Flux나 Mono를 통해 전달되는 데이터의 타임라인을 나타내고 중앙에는 오퍼레이션을 제일 밑에는 결과로 생성되는 Flux나 Mono의 타임라임을 나타냄.
+
+## 리액티브 오퍼레이션 적용하기
+
+- Flux와 Mono는 리액터가 제공하는 가장 핵심적인 구성 요소임
+- Flux와 Mono가 제공하는 오퍼레이션들은 두 타입을 함께 결합하여 데이터가 전달될 수 있는 파이프라인을 생성함
+- Flux와  Mono에는 500개 이상의 오퍼레이션이 있으며, 각 오퍼레이션은 다음과 같이 분류됨
+  - 생성 오퍼레이션
+  - 조합 오퍼레이션
+  - 변환 오퍼레이션
+  - 로직 오퍼레이션
+
+### 리액티브 타입 생성하기
+
+- 스프링에서 리액티브 타입을 사용할 때는 리퍼지터리나 서비스로부터 Flux나 Mono가 제공되므로 우리의 리액티브 타입을 생성할 필요가 없음
+- 데이터를 발행하는 새로운 리액티브 발행자를 생성해야 할 때가 있음
+- 각각 생성 오퍼레이션을 제공함
+
+**객체로부터 생성하기**
+
+```java
+    @Test
+    public void createAFlux_just() {
+        Flux<String> fruitFlux = Flux.just("Apple", "Orange", "Grape", "Banana", "Strawberry");
+        fruitFlux.subscribe(f -> System.out.println(f));
+
+        StepVerifier.create(fruitFlux)
+                .expectNext("Apple")
+                .expectNext("Orange")
+                .expectNext("Grape")
+                .expectNext("Banana")
+                .expectNext("Strawberry")
+                .verifyComplete();
+        
+
+    }
+```
+
+- 구독자가 있어야 데이터가 전달됨
+- 테스트할때는 StepVerifier를 사용할 것
+- StepVerifier는 해당 리액티브 타입을 구독한 뒤에 스트림을 통해전달되는 데이터에 ㅐ해 어셔션을 적용함
+
+**컬렉션으로부터 생성하기**
+
+- flux는 또한 배열, Iterable객체, 자바 Stream 객체로부터도 생성될 수 있음
+
+```java
+
+    @Test
+    public void createAFlux_fromArray() {
+        //given
+        String[] fruits = new String[] {"Apple", "Orange", "Grape", "Banana", "Strawberry"};
+        //when
+
+        Flux<String> fruitFlux = Flux.fromArray(fruits);
+
+        //then
+        StepVerifier.create(fruitFlux)
+                .expectNext("Apple")
+                .expectNext("Orange")
+                .expectNext("Grape")
+                .expectNext("Banana")
+                .expectNext("Strawberry")
+                .verifyComplete();
+    }
+```
+
+- 이외에도 fromIterable(), fromStream() 이 있음
+
+**Flux 데이터 생성하기**
+
+- 데이터 없이 매번 새 값으로 증가하는 숫자를 방출하는 카운터역할의 flux만 필요하면 range()를 사용하면됨
+
+```java
+@Test
+public void test() {
+    //given
+    Flux<Integer> range = Flux.range(1, 5);
+    //when
+
+    //then
+    StepVerifier.create(range)
+            .expectNext(1)
+            .expectNext(2)
+            .expectNext(3)
+            .expectNext(4)
+            .expectNext(5)
+            .verifyComplete();
+}
+```
+- interval()로도 가능, 기작 값과 종료 값대신 값이 방출되는 시간이나 간격 주기를 지정
+
+```java
+    @Test
+    public void createAFlux_interval() {
+        //given
+        Flux<Long> take = Flux.interval(Duration.ofSeconds(1)).take(5);
+        //when
+
+        //then
+        StepVerifier.create(take)
+                .expectNext(0L)
+                .expectNext(1L)
+                .expectNext(2L)
+                .expectNext(3L)
+                .expectNext(4L)
+                .verifyComplete();
+    }
+
+```
+
+### 리액티브 타입 조합하기
+
+- 두 개의 리액티브 타입을 결합해야 하거나 하나의 Flux를 두 개 이상의 리액티브 타입으로 분할해야 하는 경우가 있을 수 있
+
+**리액티브 타입 결합하기**
+
+- 하나의 Flux를 다른 것과 결합하려면 mergeWith()로 조합
+
+```java
+    @Test
+    public void mergeFlux() {
+        Flux<String> fruitFlux1 = Flux.just("Apple", "Orange")
+                .delayElements(Duration.ofMillis(500));
+        Flux<String> fruitFlux2 = Flux.just("Grape", "Banana", "Strawberry")
+                .delaySubscription(Duration.ofMillis(250))
+                .delayElements(Duration.ofMillis(500));
+
+        Flux<String> merged = fruitFlux1.mergeWith(fruitFlux2);
+
+        //then
+        StepVerifier.create(merged)
+                .expectNext("Apple")
+                .expectNext("Grape")
+                .expectNext("Orange")
+                .expectNext("Banana")
+                .expectNext("Strawberry")
+                .verifyComplete();
+    }
+```
+
+- delayElements()를 사용해서 조금 느리게 방출되도록할 수 있음
+- delaySubscription()으로도 조금 느리게 구독 및 방출할 수 있음
+- 이런식으로하면 두 객체가 결합되면서 한 개씩 섞이게 됨
+- 이런식으로 완벽하게 섞어서 동작하게하려면 zip()을 사용하면 됨
+
+```java
+    @Test
+    public void zipFluxes() {
+        //given
+        Flux<String> fruitFlux1 = Flux.just("Apple", "Orange");
+        Flux<String> fruitFlux2 = Flux.just("Grape", "Banana", "Strawberry");
+        //when
+        Flux<Tuple2<String, String>> zip = Flux.zip(fruitFlux1, fruitFlux2);
+        //then
+
+        StepVerifier.create(zip)
+                .expectNextMatches(p ->
+                        p.getT1().equals("Apple") && p.getT2().equals("Grape"))
+                .expectNextMatches(p ->
+                        p.getT1().equals("Orange") && p.getT2().equals("Banana"))
+                .expectNextMatches(p ->
+                        p.getT1().equals("Strawberry"));
+
+
+    }
+
+
+
+```
+
+- 객체로 묶을수도 있음 
+
+```java
+    @Test
+    public void zipFluxesToObject() {
+        //given
+        Flux<String> fruitFlux1 = Flux.just("Apple", "Orange");
+        Flux<String> fruitFlux2 = Flux.just("Grape", "Banana", "Strawberry");
+        //when
+        Flux<String> zip = Flux.zip(fruitFlux1, fruitFlux2, (s, s2) -> s + "and " + s2);
+        //then
+
+        StepVerifier.create(zip)
+                .expectNext("Apple and Grape")
+                .expectNext("Orange and Banana")
+                .expectNext("Strawberry");
+
+    }
+```
+
+**먼저 값을 방출하는 리액티브 타입 선택하기**
+
+- 먼저 값만 가져오는거인거같음
+
+```java
+    @Test
+    public void firstFlux() {
+        //given
+        Flux<String> fruitFlux1 = Flux.just("Apple", "Orange")
+                .delaySubscription(Duration.ofMillis(200));
+        Flux<String> fruitFlux2 = Flux.just("Grape", "Banana", "Strawberry");
+        //when
+
+        Flux<String> first = Flux.first(fruitFlux1, fruitFlux2);
+
+        //then
+        StepVerifier.create(first)
+                .expectNext("Grape")
+                .expectNext("Banana")
+                .expectNext("Strawberry")
+                .verifyComplete();
+    }
+```
+
+- fruitFlux1은 늦게나오기때문에 fruitFlux2만 가져옴
+
+### 리액티브 스트림의 변환과 필터링
+
+**리액티브 타입으로부터 데이터 필터링하기**
+
+- skip()으로 맨 앞부터 원하는 개수의 항목을 무시할 수 있음
+
+```java
+
+    @Test
+    public void skipFew() {
+        //given
+        Flux<String> fruitFlux = Flux.just("Apple", "Orange", "Grape", "Banana", "Strawberry")
+                .skip(3);
+        //when
+
+        //then
+        StepVerifier.create(fruitFlux)
+                .expectNext("Banana")
+                .expectNext("Strawberry");
+
+    }
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
