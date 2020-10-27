@@ -272,7 +272,7 @@ https://gmlwjd9405.github.io/2018/05/10/data-structure-heap.html
 
 # 인터페이스와 추상클래스와의 차이
 
-
+https://yaboong.github.io/java/2018/09/25/interface-vs-abstract-in-java8/
 
 
 
@@ -309,7 +309,14 @@ https://gmlwjd9405.github.io/2018/05/10/data-structure-heap.html
 
 
 
-# http란 ?
+# http에 대한 모든것
+
+- tcp/ip를 사용하는 응용 프로토콜
+- method는 get과 post가 있고
+- get은 일반적으로 url 파라미터를 사용해서 데이터를 전송하는 반면 post는 body라는 스펙을 활용해서 데이터를 전송함
+- 가장 중요한 개념으로 요청과 응답이 있음
+- 비연결성 프로토콜
+- 서버와 클라이언트가 있음
 
 
 
@@ -347,7 +354,15 @@ https://gmlwjd9405.github.io/2018/05/10/data-structure-heap.html
 
 
 
+# JVM 구조
+
+
+
 # JVM GC 동작 방식
+
+https://johngrib.github.io/wiki/jvm-memory/
+
+
 
 
 
