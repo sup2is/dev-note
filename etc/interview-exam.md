@@ -299,6 +299,22 @@ https://gmlwjd9405.github.io/2018/05/10/data-structure-heap.html
 
 https://yaboong.github.io/java/2018/09/25/interface-vs-abstract-in-java8/
 
+- 자바8에서 interface에 default 메서드를 추가할 수 있음으로써 사실 분류가 조금 더 모호해졌다고 생각함
+- 추상클래스는 필드 나 메서드의 접근제어자를 public, protected, private 을 가질 수 있는 반면 인터페이스의 필드는 기본적으로 public static 임. 메서드도 기본적으로 public 을가짐
+- 자바에서는 다중상속이 안되기때문에 기본적으로 추상클래스는 중첩하지 않는 이상 한개의 부모만 가질 수 있으나 인터페이스는 다중 구현이 가능함
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -338,7 +354,8 @@ https://yaboong.github.io/java/2018/09/25/interface-vs-abstract-in-java8/
 
 - tcp/ip를 사용하는 응용 프로토콜
 - method는 get과 post가 있고
-- get은 일반적으로 url 파라미터를 사용해서 데이터를 전송하는 반면 post는 body라는 스펙을 활용해서 데이터를 전송함
+- get은 일반적으로 url 파라미터를 사용해서 데이터를 전송하고 정보를 조회하는 개념으로 사용함
+- 반면 post는 리소스를 생성 및 변경하기위해 설계되었고  body라는 스펙을 활용해서 데이터를 전송함
 - 가장 중요한 개념으로 요청과 응답이 있음
 - 비연결성 프로토콜
 - 서버와 클라이언트가 있음
@@ -354,10 +371,44 @@ https://yaboong.github.io/java/2018/09/25/interface-vs-abstract-in-java8/
 ## Representitional State Transfer
 
 - 자원을 이름으로 구분하여 해당 자원의 상태를 주고 받는 모든 것을 의미함
+
+- 모든 자원에 고유한 uri를 부여해 활용하는 방법
+
 - rest는 http 프로토콜을 그대로 사용하기 떄문에 웹의 장점을 최대한 활용할 수 있는 아키텍처 스타일
+
 - 무상태성, 캐시처리 가능, 계층화, Code-on-demand 등의 특징이 있음
 
+- 3가지 구성 요소
+
+  - 자원: 모든 자원은 고유한 id를 가짐
+  - 행위: 자원에 대한 행위를 나타냄으로써 get, post, put, delete 등이 있음
+  - 표현: 클라이언트가 서버에 요청했을때 응답, json xml 등이 있음
+
+  
+
 # 웹서비스에 접속할때 어떠한 from - to 에 대한 설명
+
+
+
+- 사용자가 브라우저 탐색기에 도메인주소를를 입력하면 해당 스위치 라우터 등등 물리적인 장비를 지나서 도메인서버에 도착함
+- 도메인서버는 os에 입력된 dns 서버인데 여기에서 해당 도메인에 맞는 ip를 제공받음
+- 이후에 다시 물리적인 장비를 거쳐서 도착지 ip에 도착하게되면
+- 웹서버나 와스서버에 도착하게되고 이후에 우리가 기본적으로 알고 있는 서블릿컨테이너가 서블릿을 생성함
+- 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -407,6 +458,9 @@ osi7계층에 비해 조금 더 단순한 구조
 
 # HTTPS 동작 방식
 
+- 기본 http에 secure가 들어간 방식임
+- ssl 인증서를 사용함
+
 
 
 # TCP와 UDP
@@ -436,12 +490,28 @@ osi7계층에 비해 조금 더 단순한 구조
 
 - 펑셔널 인터페이스를 도입하고 람다를 도입해서 별도의 익명 클래스를 생성하지 않고 메서드 몸체만 넘길 수 있는 문법을 들임
 - 스트림을 도입해서 파이프라인 프로그래밍을 가능하게함
+- 옵셔널
+- 날짜 관련 기능
+- 인터페이스 default 메서드 기능
 
 
 
 # JVM 구조
 
+![](https://media.vlpt.us/images/litien/post/a65da4a8-5dc4-422b-b91e-cafeafe464d3/image.png)
 
+
+
+
+
+## runtime data area
+
+- method 영역: 클래스 멤버 변수, 메서드 정보, 타입정보등이 생성됨
+- heap 영역: 동적으로 생성된 오브젝트와 배열이 저장되느 gc의 대상이 되는 곳
+- stack 영역: 지역변수 파라미터 등이 생성되고 실제 객체는 heal에 있지만 해당 레퍼런스만 stack에 있음 스레드별로 개별적인 stack을 가짐
+- pc register: 현재 쓰레드가 실행되는 부분의 주소와 명령을 저장함
+- native method stack: 자바 외 언어로 작성된 네이티브 코드를 위한 메모리 영역
+- 
 
 # JVM GC 동작 방식
 
@@ -449,17 +519,45 @@ https://johngrib.github.io/wiki/jvm-memory/
 
 
 
+- java는 기본적으로 매니지드 언어임 메모리 관리를 jvm이 담당해서함
+- 그렇다면 사용되지 않는, 더이상 참조가 null인 객체를 정리해주는애가 필요한데 그게 바로 GC임
+- GC 개발자들은 모든 객체들은 대부분 생성 이후 사라진다 라는 사실을 알고 있음
+- 따라서 매 순간 모든 객체들을 탐색해서 이 객체의 참조가 null인지 체크하는것은 매우 비효율적인 방식임 따라서 객체의 공간을 논리적으로 나뉘어 young generation, tenured generation으로 분리함
+- young generation엔 eden영역과 두개의 survivor 영역이 있음 객체가 처음 생성될때는 eden 영역에 있고 객체가 참조될때마다 aging 시켜서 어느정도 객체가 참조되면 survivor영역으로 이동시킴
+- 이런식으로 객체를 관리하는데 young generation에 지정한 메모리가 어느정도 찼을때는 minor gc를 동작시킴
+- 객체가 어느정도 aging 되면 tenured 영역으로 이동되고 메모리가 어느정도 찼을때 major gc가 동작함
+
+
+
 
 
 # GC의 종류
 
+- serial gc: 싱글 스레드 기반으로 동작하고 아무래도 싱글 스래드인 만큼 아주 소형 애플리케이션에 적합함
 
+- parallel gc: 멀티 스레드 기반으로 동작하고 minor gc와 major gc 옵션이 별도로 존재함 parallel gc는 기본적으로 minor gc와 major gc 모두 병렬로 실행하지만 만약 major gc를 싱글로 하고싶다면 parallel compaction 기능을 끄면 됨 <- 안좋음
+
+- concurrent gc: 전체 처리량보다 응답 시간이 더 중요한 경우에 사용할 것 프로세서가 gc와 처리역할을 나누어 일하기 때문에 일시정지가 짧아짐
+
+- 이외에도 g1gc, concurrent gc 등이 있음
+
+  
 
 # DB에서 index에 대한 설명
 
+- 기본적으로 데이터베이스 테이블에서 특정 레코드를 기반으로 검색할때는 full scan을 함
+- 이 경우 검색의 속도가 저하되기 때문에 index라는 개념을 도입할 수 있음
+- index는 책에서 목차와 같은 개념으로 사용되고 우리가 특정 원하는 내용에 도달하기위해서 목차를 기반으로 검색하는것과 개념이 비슷함
+- index는 b-tree를 사용함
+- 검색의 효율은 증가하나 로우의 추가 삭제의 경우 실행속도가 저하됨
 
 
 
+
+
+# 쿼리문 실행 순서
+
+- from -> where -> group by -> having -> seleect -> order by
 
 # Active-Active , Active-Standby
 
@@ -469,13 +567,23 @@ https://johngrib.github.io/wiki/jvm-memory/
 
 ## PSA
 
-- Portab
+- Portable Service Abstract라는 뜻으로 직역하면 편한 추상화 서비스인데 환경의 변화와 관계 없이 일관된 방식의 기술 접근환경을 추상화 시킨것이다.
+- 예를들어 어떤 서블릿 컨테이너를 사용하던지 단지 스프링을 사용하는 개발자들은 @GetMapping과 같은 추상화된 애너테이션을 사용함으로써 어떤 was 엔진에도 사용할 수 있음을 나타냄
+- datasouce와 @transactional 애너테이션도 마찬가지임 각종 dbms들은 트랜잭션방식이 각각 전부 다르나 스프링을 사용하는 개발자들은 단순히 @transaction 애너테이션을 통해 트랜잭션 효과를 얻을 수 있음
 
 ## IoC / DI
+
+- ioc는 제어의 역행이라는 뜻을 가졌음 과거에는 개발자들이 객체들의 라이프사이클을 관리했으나 spring에서 이 개념을 도입함으로써 개발자들이 더이상 객체들의 라이프사이클을 관리하지않고 스프링에서 관리하도록 함
+- di는 ioc를 구현할 수 있는 방법인데 실제 객체를 사용할때는 spring이 객체 라이프사이클을 관리하는 빈 컨테이너에서 주입을 받아서 사용하는 개념임
 
 
 
 ## AOP
+
+- aop는 관점지향 프로그래밍의 약자임 객체지향 프로그래밍과는 조금 다르게 관점을 기반으로 프로그래밍함 예를 들어 인증, 로그같이 공통되게 사용되는 기능적인 역할을 하는 코드를 재활용하여 사용할 수 있도록 만들어줌
+- aop는 주로 proxy와 cglib을 활용한 바이트코드기반 방식이 있음
+- proxy 방식은 기존 코드에 변경이 없고 해당 기능을 추가할 수 있는 프록시 객체를 별도로 생성함 이 방식은 interface가 정의되어 있고 interface에 대한 명세를 기반으로 프록시 객체를 생성함
+- cglib 방식은 dynamic proxy 방식에서 interface가 반드시 필요하다는 제약이 없음 cglib은 target class를 상속받아서 생성되는데 바이트코드를 조작하여 동작함 이방식에서는 final, private과 같이 override가 불가능한 경우 해당 메서드에 대한 aspect를 제공할 수 없다는 단점
 
 
 
@@ -498,10 +606,65 @@ https://johngrib.github.io/wiki/jvm-memory/
 - 10칸짜리 배열로 .. thread safe한 배열
 - final int[] arr = new int[];
 - set 부분을 sychronized로 걸듯 ...
+- 음 .. 그리고 first와 last idx를 멤버변수로 갖고
+- add시 last를 한개씩 넣고
+- pollFirst 시 0 번째 리턴 후
+- idx 라는 변수를 두고 할 듯
+- 
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
 # 비동기와 동기, 블락킹과 넌블락킹
+
+## 동기
+
+- 동기방식은 하나의 스레드가 어떤 작업을 요청함에 있어서 그 작업이 완전히 완료된 이후에 나머지 작업을 수행할 수 있음
+
+
+
+## 비동기
+
+- 비동기는 동기방식과는 다르게 하나의 스레드가 어떤 작업을 요청하더라도 기존에 수행하던 작업은 계속 작업함 결론적으로 어떤 작업 요청에 대해 기다리지 않음 그래서 작업이 요청되었을때 수행할 콜백 메서드라는 개념이 있음
+
+## 블락킹
+
+- 어떤 스레드 A에서 작업도중 새로운 작업을 다른 주체에게 요청했을때 해당 작업이 완료될때까지 기다림
+
+
+
+## 넌 블락킹
+
+- 어떤 스레드 A에게 작업 도중 새로운 작업을 다른 주체에게 요청했을때 스레드 A의 작업은 멈추지 않고 B의
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -537,10 +700,6 @@ https://johngrib.github.io/wiki/jvm-memory/
 
 
 # ssl 동작방식
-
-
-
-
 
 ## 대칭키 암호화 방식
 
@@ -580,9 +739,14 @@ https://johngrib.github.io/wiki/jvm-memory/
 
 # 페이지 캐싱 방법
 
-## LRU
+## LRU Least Resently Used
 
-## LFU
+- 가장 오랫동안 참조되지 않은 페이지를 교체하는 방법
+- 자바에서 linkedhashmap을 사용해서 구현 가능함
+
+## LFU Least  Frequently Used
+
+- 가장 적은 참조 횟수를 가진 페이지를 교체하는 방법
 
 
 
@@ -633,7 +797,29 @@ https://johngrib.github.io/wiki/jvm-memory/
 
 
 
+```
+function int fibonaci(int i) {
+	if(i == 0) {
+	  return 0
+	}
+	if(i == 1) {
+	  return 1
+	}
+	return fibonacci(i - 2) + fibonacci(i - 1);
+}
+```
+
+
+
+
+
+
+
 # 퀵소트와 힙소트를 그림으로 설명
+
+# swap 메모리
+
+- ram에 용량이 부족할 경우 프로세스가 임시 저장되는 공간
 
 
 
