@@ -2,6 +2,20 @@
 
 
 
+# Blocking vs Non-Blocking
+
+- 호출되는 함수가 바로 리턴하느냐 마냐가 관심사
+- 호출된 함수가 바로 리턴해서 호출한 함수에게 제어권을 넘겨주고 호출한 함수가 다른일을 할 수 있는 기회를 줄 수 있으면 non blocking
+- 호출된 함수가 자신의 작업을 모두 마칠 때까지 호출한 함수에게 제어권을 넘겨주지 않고 대기하게 만든다면 blocking
+
+
+
+# Synchronous/ Asynchronous
+
+- 호출되는 함수의 작업 완료 여부를 누가 신경쓰냐가 관심사
+- 호출되는 함수에게 callback을 전달해서, 호출되는 함수의 작업이 완료되면 호출되는 함수가 전달받은 callback을 실행하고, 호출하는 함수는 작업 완료 여부를 신경쓰지 않으면 async
+- 호출하는 함수가 호출되는 함수의 작업 완료후 리턴을 기다리거나 또는 호출되는 함수로부터 바로 리턴 받더라도 작업 완료 여부를 호출하는 함수 스스로 계혹 확인하며 신경쓰면 sync
+
 # 테스트 코드란?
 
 - 테스트코드는 코드의 품질을 높여주고 버그에 대해 방어적일 수 있음
@@ -481,6 +495,28 @@ osi7계층에 비해 조금 더 단순한 구조
 - 비연결형 프로토콜
 - 빠른 전송을 기대할 수 있으나 데이터의 순서는 신뢰할 수 없음
 
+
+
+
+
+# 3way hand shake
+
+
+
+![](https://t1.daumcdn.net/cfile/tistory/99087C405C18E3CD28)
+
+- tcp 연결수립시에 클라이언트 서버측에서 하는 행위
+- syn -> syn + ack -> ack
+
+
+
+# 4way hand shake
+
+![](https://t1.daumcdn.net/cfile/tistory/2152353F52F1C02835)
+
+- tcp 연결 종료시에 클라이언트 서버에서 하는 행위
+- FIN -> ACK -> FIN -> ACK
+
 # 서버에 트래픽이 몰릴때 어떻게 응답속도를 개선시킬지 ?
 
 - 병목지점을 모니터링한 후에 만약 네트워크 지연으로 인한 병목이라면 스케일 아웃을 통해서 응답속도를 개선
@@ -620,53 +656,12 @@ https://johngrib.github.io/wiki/jvm-memory/
 
 
 
+# 뮤텍스와 세마포어
 
-
-
-
-
-
-# 비동기와 동기, 블락킹과 넌블락킹
-
-## 동기
-
-- 동기방식은 하나의 스레드가 어떤 작업을 요청함에 있어서 그 작업이 완전히 완료된 이후에 나머지 작업을 수행할 수 있음
-
-
-
-## 비동기
-
-- 비동기는 동기방식과는 다르게 하나의 스레드가 어떤 작업을 요청하더라도 기존에 수행하던 작업은 계속 작업함 결론적으로 어떤 작업 요청에 대해 기다리지 않음 그래서 작업이 요청되었을때 수행할 콜백 메서드라는 개념이 있음
-
-## 블락킹
-
-- 어떤 스레드 A에서 작업도중 새로운 작업을 다른 주체에게 요청했을때 해당 작업이 완료될때까지 기다림
-
-
-
-## 넌 블락킹
-
-- 어떤 스레드 A에게 작업 도중 새로운 작업을 다른 주체에게 요청했을때 스레드 A의 작업은 멈추지 않고 B의
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+- 동시성과 관련된 용어인데
+- 공유된 자원을 다른 프로세스가 함께 사용하지 못하도록 하는 것
+- 뮤텍스는 오직 0과 1로만 이루어져있고 오직 한개의 프로세스만이 자원에접근 가능하고
+- 세마포어는 세마포어의 변수만큼의  프로세스가 접근할 수 있음
 
 
 
@@ -824,3 +819,65 @@ function int fibonaci(int i) {
 
 
 # 진수변환 프로그래밍
+
+
+
+
+
+# String과 StringBuilder, String Buffer
+
+
+
+- String은 java에서 불변임 따라서 "abc"라는 문자열에 "d"라는 문자열을 붙여서 "abcd" 라는 문자열을 만들때 기존에 "abc" 가 있는 메모리 주소값의 값을 "abcd"로 변경하는게 아니라 기존에 있던 "abc"와는 별개로 "abcd"를 만들어냄 이런 결과는 string을 +연산자로 대량연산한다면 성능에 안좋을 수 있음
+- 따라서 +연산의 경우 string builder나 string buffer를 사용해야 하는데 string buffer와 string builder의 차이는 thread-safe에 있음 string buffer가 thread safe함
+
+
+
+
+
+# jvm에서 static 변수와 class 변수
+
+https://www.linkedin.com/pulse/static-variables-methods-java-where-jvm-stores-them-kotlin-malisciuc/
+
+
+
+# ConcurrentHashMap
+
+https://highlyscalable.blogspot.com/2014/06/java-concurrenthashmap.html
+
+
+
+# ReentrantLock
+
+https://www.crocus.co.kr/1558
+
+
+
+# Synchronized
+
+https://coding-start.tistory.com/68
+
+https://limkydev.tistory.com/64
+
+https://www.baeldung.com/java-synchronized
+
+# mybatis # $ 차이
+
+https://rh-cp.tistory.com/71
+
+https://java119.tistory.com/39
+
+
+
+# AtomicInteger
+
+https://codechacha.com/ko/java-atomic-integer/
+
+
+
+# OSIV
+
+https://kingbbode.tistory.com/27
+
+
+
