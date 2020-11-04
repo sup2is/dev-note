@@ -1084,4 +1084,37 @@ https://kingbbode.tistory.com/27
 - http header는 비연결성이라 매번 연결을 해야함
 - 만약 이값이 true라면 소켓을 열어두고 열려있는 소켓을 통해 통신함
 
-# 
+
+
+
+
+# java의 volatile
+
+- 하나의 trhead가 write하고 나머지 thread가 읽는 상황인 경우 보통의 경우 cpu cache에서 값을 가져오기때문에 데이터 정합성에 문제가 있을 수 있으나
+- volatile로 선언하면 main memory 내에서 read & write를 직접하기 때문에 값 불일치를 어느정도 해결할 수 있음
+- 만약 동시에 write한다면 반드시 동기화를 보장해줘야함
+
+
+
+# java의 transient
+
+- 직렬화시 제외하고싶은 필드에 선언하는 키워드
+
+
+
+# AtomicInteger
+
+- java에서 동시성을 보장하는 방법은 synchronized, Atomic, volatile 세가지인데 그중 하나임
+- CAS compare and swap 알고리즘을 사용함
+- cas는 현재 쓰레드에 저장된 값과 메인 메모리에 저장된 값을 비교하여 일치하느 ㄴ경우 새로운 값으로 교체하고 일치하지 않으면 실패시키고 다시 재시도함
+- 아래는 실제로 AtomicInteger내부에서 compareAndSet() 메서드를 호출하는 부분임
+
+```java
+    do {
+        prev = get();
+        next = updateFunction.applyAsInt(prev);
+    } while (!compareAndSet(prev, next));
+```
+- class 내부에 이런 do while이 굉장히 많음
+- volatile로 이미 묶어놨지만 여러 thread가 write하기 때문에 안정성을 보장할 수 없음 따라서 CAS 알고리즘으로 완벽하게 동시성을 보장함
+
