@@ -499,7 +499,354 @@ public Job footballJob() {
 }
 ```
 
+- 이 경우 다시시작할 수 없는 작업을 다시 시작하면 JobRestartException이 발생함
 
+```java
+Job job = new SimpleJob();
+job.setRestartable(false);
+
+JobParameters jobParameters = new JobParameters();
+
+JobExecution firstExecution = jobRepository.createJobExecution(job, jobParameters);
+jobRepository.saveOrUpdate(firstExecution);
+
+try {
+    jobRepository.createJobExecution(job, jobParameters);
+    fail();
+}
+catch (JobRestartException e) {
+    // expected
+}
+```
+
+- 위처럼 두번째 시도에서는 JobRestartException이 발생함
+
+
+
+# Intercepting Job Execution
+
+- Job 실행 과정에서 사용자 지정 코드가 실행될 수 있도록 수명주기의 다양한 이벤트에 대한 알림을 받는 것이 유용할 수 있음
+- SimpleJob은 적절한 시간에 JobListener를 호출하여 이를 허용함
+
+```java
+public interface JobExecutionListener {
+
+    void beforeJob(JobExecution jobExecution);
+
+    void afterJob(JobExecution jobExecution);
+
+}
+```
+
+- JobListener는 작업에 리스너를 설정하여 SimpleJob에 추가할 수 있음
+- 리스너를 추가하는 방법
+
+```java
+@Bean
+public Job footballJob() {
+    return this.jobBuilderFactory.get("footballJob")
+                     .listener(sampleListener())
+                     ...
+                     .build();
+}
+```
+
+- Job의 성공 여부에 관계없이 afterJob 메서드가 호출되는점에 유의할 것
+- 성공 또는 실패를 결정해야 하는 경우 다음과 같이 JobExecution에서 가져올 수 있음
+
+```java
+public void afterJob(JobExecution jobExecution){
+    if (jobExecution.getStatus() == BatchStatus.COMPLETED ) {
+        //job success
+    }
+    else if (jobExecution.getStatus() == BatchStatus.FAILED) {
+        //job failure
+    }
+}
+```
+
+- 이 인터페이스에 해당하는 애너테이션은 다음과 같음
+  - @BeforeJob
+  - @AfterJob
+
+
+
+# JobParametersValidator
+
+- xml 네임 스페이스에 선언되거나 AbstactJob의 하위 클래스를 사용하는 job은 런타임시 job parameter에 대한 유효성 검사기를 선택적을 ㅗ선안할 수 있음
+- 예를 들어 작업이 모든 필수 매개 변수로 시작되었다고 주장해야할 때 유용함
+- 간단한 선택잭 매개 변수의 조합을 제한하는데 사용할 수 있는 DefaultJobParametersValidator가 있고 더 복잡한 제한 조건의 영우 인터페이스를 직접구현 가능
+
+```java
+@Bean
+public Job job1() {
+    return this.jobBuilderFactory.get("job1")
+                     .validator(parametersValidator())
+                     ...
+                     .build();
+}
+```
+
+
+
+
+
+# Java Config
+
+- java 기반 구성에는 @EnableBatchProcessing 애너테이션과 두 개의 builder라는 컴포넌트가 있음
+- @EnableBatchProcessing은 spring에서 제공하는 EnableXXX 와 유사하게 동작함
+- 이 애너테이션인 일괄 배치 작업을 위한 기본 구성을 제공함
+- 이 기본 구성 내에서 StepScope의 인스턴스가 자동 연결될 수 있는 여러 Bean과 함께 생성됨
+  - `JobRepository`: bean name "jobRepository"
+  - `JobLauncher`: bean name "jobLauncher"
+  - `JobRegistry`: bean name "jobRegistry"
+  - `PlatformTransactionManager`: bean name "transactionManager"
+  - `JobBuilderFactory`: bean name "jobBuilders"
+  - `StepBuilderFactory`: bean name "stepBuilders"
+
+- 이 구성의 핵심 인터페이스는 BatchConfigurer임
+- 컨텐스트 내에서 DataSource를 필요로함 이 데이터 소스는 JobRepository에서 사용됨
+- @EnableBatchProcessing 는 하나의 구성 클래스에만 있으면 됨
+- 기본 구성이 있으면 사용자는 제공된 빌더 팩토리를 사용하여 job을 구성할 수 있음
+
+```java
+@Configuration
+@EnableBatchProcessing
+@Import(DataSourceConfiguration.class)
+public class AppConfig {
+
+    @Autowired
+    private JobBuilderFactory jobs;
+
+    @Autowired
+    private StepBuilderFactory steps;
+
+    @Bean
+    public Job job(@Qualifier("step1") Step step1, @Qualifier("step2") Step step2) {
+        return jobs.get("myJob").start(step1).next(step2).build();
+    }
+
+    @Bean
+    protected Step step1(ItemReader<Person> reader,
+                         ItemProcessor<Person, Person> processor,
+                         ItemWriter<Person> writer) {
+        return steps.get("step1")
+            .<Person, Person> chunk(10)
+            .reader(reader)
+            .processor(processor)
+            .writer(writer)
+            .build();
+    }
+
+    @Bean
+    protected Step step2(Tasklet tasklet) {
+        return steps.get("step2")
+            .tasklet(tasklet)
+            .build();
+    }
+}
+```
+
+
+
+# Configuring a JobRepository
+
+- @EnableBatchProcessing을 사용할 때 JobRepository가 즉시 제공됨
+- 앞서 설명한 것처럼 JobRepository는 JobExecution, StepExceution과 같은 Spring Batch내의 다양한 영속 도메인 객체의 기본 crud작업에 사용됨
+- datasource가 제공되지않으면 map기반으로 동작함
+
+```java
+...
+// This would reside in your BatchConfigurer implementation
+@Override
+protected JobRepository createJobRepository() throws Exception {
+    JobRepositoryFactoryBean factory = new JobRepositoryFactoryBean();
+    factory.setDataSource(dataSource);
+    factory.setTransactionManager(transactionManager);
+    factory.setIsolationLevelForCreate("ISOLATION_SERIALIZABLE");
+    factory.setTablePrefix("BATCH_");
+    factory.setMaxVarCharLength(1000);
+    return factory.getObject();
+}
+...
+```
+
+- 위에 나열된 구성 옵션은 datasource 및 transactionManager를 제외하고는 필요하지 않음
+- 설정되어있지 않으면 위에 표시된 기본값이 사용됨
+- VARCHAR는 최대 2500까지됨
+
+
+
+# Transaction Configuration for the JobRepository
+
+- 네임스페이스 또는 제공된 FactoryBean을 사용하는 경우 저장소 주변에 트랜잭션 advice가 자동으로 생성됨
+- jobrepository 메서드가 트랜잭션이 아닌 경우 동작이 제대로 정의되지 않았습니다?
+- create * 메서드 속성의 격리 수준은 작업이 시작될 때 두 프로세스가 동시에 동일한 작업을 시작하려고 하면 하나만 성공하도록 별도로 지정됨 해당 메서드의 기본 격리수준운 SERIALIZABLE임
+- create * 메서드에 대한 호출이 매우 짧아서 문제를 일으킬 가능성은 거의 없음
+- 격리수준을 재정의할 수 있음
+
+```java
+// This would reside in your BatchConfigurer implementation
+@Override
+protected JobRepository createJobRepository() throws Exception {
+    JobRepositoryFactoryBean factory = new JobRepositoryFactoryBean();
+    factory.setDataSource(dataSource);
+    factory.setTransactionManager(transactionManager);
+    factory.setIsolationLevelForCreate("ISOLATION_REPEATABLE_READ");
+    return factory.getObject();
+}
+```
+
+- 네임스페이스 또느 ㄴ팩토리 빈을 사용하지 않는 경우 AOP를 사용하여 저장소의 트랜잭션 동작을 구성하는것도 중요함
+
+```java
+@Bean
+public TransactionProxyFactoryBean baseProxy() {
+	TransactionProxyFactoryBean transactionProxyFactoryBean = new TransactionProxyFactoryBean();
+	Properties transactionAttributes = new Properties();
+	transactionAttributes.setProperty("*", "PROPAGATION_REQUIRED");
+	transactionProxyFactoryBean.setTransactionAttributes(transactionAttributes);
+	transactionProxyFactoryBean.setTarget(jobRepository());
+	transactionProxyFactoryBean.setTransactionManager(transactionManager());
+	return transactionProxyFactoryBean;
+}
+```
+
+# Changing the Table Prefix
+
+- JobRepository의 수정 가능한 또다른 속성은 메타 데이터 테이블의 테이블 접두사임 기본적으로 모두 BATCH로 시작됨
+- 동일한 스키마 내에 메타 데이터 테이블 세트가 두개이상일때 필요함
+
+```java
+// This would reside in your BatchConfigurer implementation
+@Override
+protected JobRepository createJobRepository() throws Exception {
+    JobRepositoryFactoryBean factory = new JobRepositoryFactoryBean();
+    factory.setDataSource(dataSource);
+    factory.setTransactionManager(transactionManager);
+    factory.setTablePrefix("SYSTEM.TEST_");
+    return factory.getObject();
+}
+```
+
+
+
+# In-Memory Repository
+
+- 도메인 개체를 데이터베이스에 유지하지 않으려는 시나리오가 있음
+- 속도, 상태유지가 필요 없을 때 사용
+- Spring 배치는 작업 저장소의 매모리 내 맵 버전을 제공함
+
+```java
+// This would reside in your BatchConfigurer implementation
+@Override
+protected JobRepository createJobRepository() throws Exception {
+    MapJobRepositoryFactoryBean factory = new MapJobRepositoryFactoryBean();
+    factory.setTransactionManager(transactionManager);
+    return factory.getObject();
+}
+```
+
+- 메모리 저장소는 휘발성이므로 jvm 인스턴스간에 다시 시작할 수 없음 또 동일한 매개변수를 가진 두개의 작업 인스턴스가 동시에 시작된다는 것을 보장할 수 없고 다중 스레드 작업 또는 로컬 파티션 단계에서 사용하기에 적합하지 않음
+- 위 기능이 필요하다면 데이터베이스 버전을 사용할 것
+
+> 그러나 저장소 내에 롤백 의미가 있고 비즈니스 논리가 여전히 트랜잭션 (예 : RDBMS 액세스) 일 수 있기 때문에 트랜잭션 관리자를 정의해야합니다. 테스트 목적으로 많은 사람들이 ResourcelessTransactionManager가 유용하다고 생각합니다.?
+
+
+
+# Non-standard Database Types in a Repository
+
+
+
+- 지원되는 플랫폼 목록에 없는 데이터베이스 플랫폼을 사용하는 경우에 사용할 수 있음
+- 네임스페이스 바로 가기 대신 원시 JobRepositoryFactoryBean을 사용해서 데이터베이스 유형을 가장 근접하게 일치하도록 설정할 수 있음
+
+```java
+// This would reside in your BatchConfigurer implementation
+@Override
+protected JobRepository createJobRepository() throws Exception {
+    JobRepositoryFactoryBean factory = new JobRepositoryFactoryBean();
+    factory.setDataSource(dataSource);
+    factory.setDatabaseType("db2");
+    factory.setTransactionManager(transactionManager);
+    return factory.getObject();
+}
+```
+
+- 플랫폼간 주요 차이점은 주로 기본 키 증가 전략이므로 incrementerFactory를 재정의해야 할 수 있음
+- 작동안되면 SimpleJobRepository가 의존하는 다양한 Dao 인터페이스를 구현하고 일반적인 Spring 방식으로 수동 연결하는 것
+
+
+
+# Configuring a JobLauncher
+
+- @EnableBatchProcessing을 사용할 때 JobRegistry가 즉시 제공됨
+- JobLauncher 인터페이스의 가장 기본적인 구현은 SimpleJobLauncher임
+
+```java
+...
+// This would reside in your BatchConfigurer implementation
+@Override
+protected JobLauncher createJobLauncher() throws Exception {
+	SimpleJobLauncher jobLauncher = new SimpleJobLauncher();
+	jobLauncher.setJobRepository(jobRepository);
+	jobLauncher.afterPropertiesSet();
+	return jobLauncher;
+}
+...
+```
+
+- JobExecution이 확보되면 Job의 실행 메서드로 전달되어 다음 이미지와 같이 JobExecution을 호출자에게 반환함
+
+![](https://docs.spring.io/spring-batch/docs/current/reference/html/images/job-launcher-sequence-sync.png)
+
+- http 요청에서 시작하려고 할때 문제가 발생함 이 시나리오에서는 SimpleJobLauncher가 호출자에게 즉시 반환되도록 비동기적으로 시작해야 함
+- 이는 일괄 처리와 같은 장기 실행 프로세스에 필요한 시간 동안 http 요청을 열어두는것은 좋지 않음
+
+![](https://docs.spring.io/spring-batch/docs/current/reference/html/images/job-launcher-sequence-async.png)
+
+- 즉시 반환하도록 구성된 SimpleJobLauncher
+
+```java
+@Bean
+public JobLauncher jobLauncher() {
+	SimpleJobLauncher jobLauncher = new SimpleJobLauncher();
+	jobLauncher.setJobRepository(jobRepository());
+	jobLauncher.setTaskExecutor(new SimpleAsyncTaskExecutor());
+	jobLauncher.afterPropertiesSet();
+	return jobLauncher;
+}
+```
+
+# Running a Job
+
+- 배치 작업을 시작하려면 최소한 작업을 시작할 job과 JobLauncher라는 두가지가 필요함 
+- 둘 다 동일한 컨텍스트 또는 다른 컨텍스트 내에 포함될 수 있음
+- 예를 들어, 명령 줄에서 작업을 시작하는 경우 새 JVM이 각 작업에 대해 인스턴스화되므로 모든 작업에 고유 한 JobLauncher가 있습니다. 그러나 HttpRequest의 범위 내에서 웹 컨테이너 내에서 실행하는 경우 일반적으로 비동기 작업 시작을 위해 구성된 하나의 JobLauncher가 있으며 여러 요청이 작업을 시작하기 위해 호출됩니다.
+
+
+
+
+
+## Running Jobs from the Command Line
+
+## The CommandLineJobRunner
+
+## ExitCodes
+
+## Running Jobs from within a Web Container
+
+
+
+> ※상단에 4개는 커맨드라인에서 job을 실행하는방법, web container 기반에서 http 요청으로 job을 실행하는 방법에 대해서 이야기함 당장 필요하지 않아서 패스
+
+
+
+# Advanced Meta-Data Usage
+
+![](https://docs.spring.io/spring-batch/docs/current/reference/html/images/job-repository.png)
+
+- JobLauncher는 JobRepository를 사용하여 새 JobExecution 객체를 생성하고 실행함.
 
 
 
