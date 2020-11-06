@@ -202,6 +202,306 @@ public Job footballJob() {
 - JobExecution은 작업을 실행하려는 단일 시도의 기술적 개념을 나타냄
 - 실행은 실패 또는 성공으로 끝날 수 있지만 해당 실행에 해당 하는 JobInstance는 실행이 성공적으로 완료되지 않는 한 완료된 것으로 간주되지 않음
 - 첫번째 실행과 동일한 Jobparameters를 사용하여 다시 실행하면 새 JobExecution이 생성됨 그러나 여전히 하나의 JobInstance만 있음
+- Job은 작업의 정의와 실행 방법을 정의하고 JobInstance는 실행을 함께 그룹화하고 재시작 의미 체계를 활성화함
+- JobExecution은 실행 중에 실제로 발생한 일에 대한 기본 저장소 메커니즘이고 다음 속성을 가짐
+
+
+
+| Property          | Definition                                                   |
+| ----------------- | ------------------------------------------------------------ |
+| Status            | 실행 상태를 나타내는 BatchStatus, 실행중에는 STARTED, 실패하면 FAILED, 성공적으로 완료되면 COMPLETE |
+| startTime         | 실행이 시작된 현재 시스템 시간을 나타내는 java.util.Date     |
+| endTime           | 성공 여부에 관계없이 실행이 완료된 현재 시스템 시간을 나타내는 java.util.Date임 작업이 아직 완료되지 않은 경우 필드는 비어있음 |
+| exitStatus        | 실행 결과를 나타내는 ExitStatus, 호출자에게 반환되는 종료 코드가 포함되어 있기 때문에 가장 중요함. 작업이 아직 완료되지 않은 경우 필드는 비어있음 |
+| createTime        | JobExecution이 처음 지속되었을 때 현재 시스템 시간을 나타내는 java.util.Date임, 작업이 아직 시작되지 않았을 수 있지만 작업 수준 ExecutionContexts를 관리하기 위해 항상 있음? |
+| lastUpdated       | JobExecution이 ㅏ지막으로 지속된 시간을 나타내는 java.util.Date임 작업이 아직 시작되지 않은 경우 이필드는 비어있음 |
+| executionContext  | 실행 사이에 유지되어야 하는 사용자 데이터가 포함된 peroperty bag임 |
+| failureExceptions | 작업 실행 중에 발생한 예외 목록, 작업 실패 중에 둘 이상의 예외가 발생하느 ㄴ경우 유용할 수 있음 |
+
+- 예를 들어 1월 1일에 대한 작업이 오후 9시에 실행되고 9:30분에 실패하면 배치 메타 데이터 테이블에는 다음 항목이 작성됨
+
+**BATCH_JOB_INSTANCE**
+
+| JOB_INST_ID | JOB_NAME    |
+| ----------- | ----------- |
+| 1           | EndOfDayJob |
+
+**BATCH_JOB_EXECUTION_PARAMS**
+
+| JOB_EXECUTION_ID | TYPE_CD | KEY_NAME      | DATE_VAL   | IDENTIFYING |
+| ---------------: | ------- | ------------- | ---------- | ----------- |
+|                1 | DATE    | schedule.Date | 2017-01-01 | TRUE        |
+
+**BATCH_JOB_EXECUTION**
+
+| JOB_EXEC_ID | JOB_INST_ID | START_TIME       | END_TIME         | STATUS |
+| ----------- | ----------- | ---------------- | ---------------- | ------ |
+| 1           | 1           | 2017-01-01 21:00 | 2017-01-01 21:30 | FAILED |
+
+- 작업이 실패했기 때문에 중단된 지점에서 시작해서 다시 시도함
+- 실패한 배치가 다시 재실행되고 원래 작업이 실패한 배치가 실행된 이후 실행됨
+- 별도의 JobInstance일 경우 Spring Batch는 동시에 실행되는 것을 중지하려고 시도하지 않음 (다른 JobInstance가 이미 실행 중일때 동일한 JobInstance를 실행하려고 하면 JobExecutionAlreadyRunningException이 발생함)
+- 아래 테이블을 보면 이해가 좀 쉬울듯
+
+**BATCH_JOB_INSTANCE**
+
+| JOB_INST_ID | JOB_NAME    |
+| ----------- | ----------- |
+| 1           | EndOfDayJob |
+| 2           | EndOfDayJob |
+
+**BATCH_JOB_EXECUTION_PARAMS**
+
+| JOB_EXECUTION_ID | TYPE_CD | KEY_NAME      | DATE_VAL            | IDENTIFYING |
+| ---------------- | ------- | ------------- | ------------------- | ----------- |
+| 1                | DATE    | schedule.Date | 2017-01-01 00:00:00 | TRUE        |
+| 2                | DATE    | schedule.Date | 2017-01-01 00:00:00 | TRUE        |
+| 3                | DATE    | schedule.Date | 2017-01-02 00:00:00 | TRUE        |
+
+**BATCH_JOB_EXECUTION**
+
+| JOB_EXEC_ID | JOB_INST_ID | START_TIME       | END_TIME         | STATUS    |
+| ----------- | ----------- | ---------------- | ---------------- | --------- |
+| 1           | 1           | 2017-01-01 21:00 | 2017-01-01 21:30 | FAILED    |
+| 2           | 1           | 2017-01-02 21:00 | 2017-01-02 21:30 | COMPLETED |
+| 3           | 2           | 2017-01-02 21:31 | 2017-01-02 22:29 | COMPLETED |
+
+# Step
+
+- Step은 배치 잡의 독립적이고 순차적인 단계를 캡슐화하는 도메인 개체임
+- 모든 잡은 전적으로 하나 이상의 Step으로 구성됨
+- Step에는 실제 배치 처리를 정의하고 제어하는데 필요한 모든 정보가 포함되어 있음
+- 주어진 Step의 내용은 Job을 작성하는 개발자의 재량에 달려있음 ...ㅋ
+- 간단한 Step은 파일에서 데이터베이스로 로드하고 코드도 복잡하지 않음
+- 복잡한 Step은 복잡한 비지니스 규칙이 있을 수 있음
+- Job과 마찬가지로 Step도 고유한 JobExecution과 개별 Step Execution이 있음
+
+![](https://docs.spring.io/spring-batch/docs/current/reference/html/images/jobHeirarchyWithSteps.png)
+
+
+
+# StepExecution
+
+- Step을 실행하려는 단일 시도를 나타냄
+- JobExecution과 유사하게 Step이 실행될 때마다 새 StepExecution이 생성됨
+- 이전 Step이 실패하여 Step 실행에 실패하면 실행이 지속되지 않음
+- StepExecution은 해당 Step이 실제로 시작될 때만 생성됨
+- Step의 실행은 StepExeution 클래스의 객체로 표현됨
+- 각 실행에는 해당 Step과 JobExecution에 대한 참조와 커밋 및 롤 백 수, 시작 및 종료 시작과 같은 트랜잭션 관련 데이터가 포함됨.
+- 각 Step실행에는 다시 시작하는데 필요한 통계 또는 상태 정보와 같이 개발자가 일괄 싱행해서 유지해야하는 모든 데이터가 포함된 ExecutionContext가 포함됨 다음 표는 StepExecuton의 속성임
+
+| Property         | Definition                                                   |
+| ---------------- | ------------------------------------------------------------ |
+| Status           | 실행 상태를 나타내는 BatchStatus, 실행중에는 STARTED, 실패하면 FAILED, 성공적으로 완료되면 COMPLETE |
+| startTime        | 실행이 시작된 현재 시스템 시간을 나타내는 java.util.Date     |
+| endTime          | 성공 여부에 관계없이 실행이 완료된 현재 시스템 시간을 나타내는 java.util.Date임 작업이 아직 완료되지 않은 경우 필드는 비어있음 |
+| exitStatus       | 실행 결과를 나타내는 ExitStatus, 호출자에게 반환되는 종료 코드가 포함되어 있기 때문에 가장 중요함. 작업이 아직 완료되지 않은 경우 필드는 비어있음 |
+| executionContext | 실행 사이에 유지되어야 하는 사용자 데이터가 포함된 peroperty bag임 |
+| readCount        | 성공적으로 읽은 항목의 수                                    |
+| writeCount       | 성공적으로 기록한 항목의 수                                  |
+| commitCount      | 이 실행을 위해 커밋된 트랜잭션의 수                          |
+| rollbackCount    | Step을 제어하는 비지니스 트랜잭션이 롤백 된 횟수             |
+| readSkipCount    | 읽기에 실패하여 항목을 건너 뛴 횟수                          |
+| processSkipCount | 프로세스가 실패하여 망목을 건너 뛴 횟수                      |
+| filterCount      | ItemProcessor에 의해 필터링 된 항목의 수                     |
+| writeSkipCount   | 쓰기 실패하여 항목을 건너 뛴 횟수                            |
+
+# ExecutionContext
+
+- ExecutionContext는 개발자가 StepExecution 개체 또는 JobExecution 개체로 범위가 지정된 영구 상태를 저장할 수 있도록 프레임워크에 의해 유지되고 제어되는 키/값 쌍의 컬렉션을 나타냄
+- Quartz에 익숙한 사람들에게는 JobDataMap과 매우 유사함
+- 가장 좋은 사용 예는 다시 시작하는 것임
+- 예를 들어 플랫 파일 입력을 사용하여 개별 행을 처리하는 동안 프레임워크는 커밋 지점에서 ExecutionContext를 주기적으로 유지함
+- 이렇게하면 실행 중에 치명적인 오류가 발생하거나 전원이 꺼진 경우에도 ItemReader가 상태를 저장할 수 있음
+- 다은 예제와 같이 현재 읽은 줄 수를 컨텍스트에 입력하면 프레임워크가 나머지 작업을 수행함
+
+```
+executionContext.putLong(getKey(LINES_READ_COUNT), reader.getPosition());
+```
+
+- EndOfDay예제를 예로 사용하여 파일을 데이터베이스에 로드하는 loadData Step이 있다고 가정하면 첫번째 실행이 실패한 후 메타 데이터 테이블은 다음 예와 같음
+
+
+
+**BATCH_JOB_INSTANCE**
+
+| JOB_INST_ID | JOB_NAME    |
+| ----------- | ----------- |
+| 1           | EndOfDayJob |
+
+**BATCH_JOB_EXECUTION_PARAMS**
+
+| JOB_INST_ID | TYPE_CD | KEY_NAME      | DATE_VAL   |
+| ----------- | ------- | ------------- | ---------- |
+| 1           | DATE    | schedule.Date | 2017-01-01 |
+
+**BATCH_JOB_EXECUTION**
+
+| JOB_EXEC_ID | JOB_INST_ID | START_TIME       | END_TIME         | STATUS |
+| ----------- | ----------- | ---------------- | ---------------- | ------ |
+| 1           | 1           | 2017-01-01 21:00 | 2017-01-01 21:30 | FAILED |
+
+**BATCH_STEP_EXECUTION**
+
+| STEP_EXEC_ID | JOB_EXEC_ID | STEP_NAME | START_TIME       | END_TIME         | STATUS |
+| ------------ | ----------- | --------- | ---------------- | ---------------- | ------ |
+| 1            | 1           | loadData  | 2017-01-01 21:00 | 2017-01-01 21:30 | FAILED |
+
+**BATCH_STEP_EXECUTION_CONTEXT**
+
+| STEP_EXEC_ID | SHORT_CONTEXT       |
+| ------------ | ------------------- |
+| 1            | {piece.count=40321} |
+
+- 이 경우 Step은 40분 동안 실행되었고 파일의 행을 나타내는 40321개의 piece를 처리했음 이 값은 프렘이워크에서 각 커밋 직전에 업데이트되며 ExecutionContext 내의 항목에 해당하는 여러 행을 포함할 수 있음
+- 커밋 전에 알림을 받으려면 다양한 StepListener 구현 중 하나가 필요함
+- 이전 예와 마찬가지로 작업이 다음날 다시 시작한다고 가정하고 다시 시작하면 마지막 실행의 ExecutionContext 값이 데이터베이스에서 재구성됨.
+- ItemReader가 열리면 다음 예제와 같이 컨텍스트에 저장된 상태가 있는지 확인하고 거기에서 초기화 할 수 있음
+
+```java
+if (executionContext.containsKey(getKey(LINES_READ_COUNT))) {
+    log.debug("Initializing for restart. Restart data is: " + executionContext);
+
+    long lineCount = executionContext.getLong(getKey(LINES_READ_COUNT));
+
+    LineReader reader = getReader();
+
+    Object record = "";
+    while (reader.getPosition() < lineCount && record != null) {
+        record = readLine();
+    }
+}
+```
+
+- 이 경우 위코드가 실행된 후 40,322부터 Step을 다시 시작할 수 있음
+- ExecutionContext는 실제 행 자체에 대해 유지해야 하는 통계에도 사용할 수 있음
+- 예를 들어 플랫 파일에 여러 라인에 걸쳐 존재하는 처리 주문이 포함된 경우 처리된 주문수를 저장해야 다음 주소로 이메일을 보낼 수 있음 ?
+- 프레임워크는 개별 JobInstance로 올바르게 범위를 지정하기 위해 개발자를 위해 이것들을 저장함
+- 예를들어 위의 EndOfDay 예제를 사용하여 1월 1일 실행이 두번째로 다시 시작되면 프레임워크는 동일한 JobInstance임을 인식하고 개별 단계를 기준으로 ExecutionContext를 데이터베이스에서 가져옴 StepExecution의 일부로 Step 자체에 전달함
+- 반대로 1월2일 실행의 경우 프레임워크는 다른 JobInstance임을 인식하므로 빈 컨텍스트를 Step에 전달해야함 올바른 시간에 상태가 제공되도록 하기 위해 프레임워크가 개발자를 위해 내리는 이러한 유형의 결정이 많이 있음
+- 주어진 시간에 StepExecution당 정확히 하나의 ExecutionContext가 존재한다는 점도 중요함
+- ExecutionContext의 클라이언트는 공유 키 스페이스를 생성하므로 주의해야함
+- 따라서 값을 입력할 때 데이터를 덮어쓰지 않도록 주의해야함
+- JobExecution 당 하나 이상의 ExecutionContext가 있고 모든 StepExecution당 하나가 있다는 점에 주의해야 함
+
+```java
+ExecutionContext ecStep = stepExecution.getExecutionContext();
+ExecutionContext ecJob = jobExecution.getExecutionContext();
+//ecStep does not equal ecJob
+```
+
+- Step의 모든 커밋 지점에 저장되는 반면 Job으로 범위가 지저오딘 것은 모든 Step 실행 사이에 저장됨 ?
+
+
+
+# JobRepository
+
+- JobRepository는 위에서 언급한 모든 스테레오 타입에 대한 영속성 매커니즘임 JobLauncher, Job, Step 구현을 위한 CRUD 작업을 제공함
+- Job이 처음 시작되면 저장소에서 JobExecution을 가져오고 실행 과정에서 StepExecution 및 JobExceution 구현을 저장소로 전달하여 유지함
+- Java 구성을 사용할 때 @EnableBatchProcessing 애너테이션이 자동으로 구성되는 구성중 요소 하나로 JobRepository를 제공함
+
+
+
+# JobLauncher
+
+- JobLauncuer는 Job을 시작하기 위한 간단한 인터페이스를 나타냄
+
+```java
+public interface JobLauncher {
+
+public JobExecution run(Job job, JobParameters jobParameters)
+            throws JobExecutionAlreadyRunningException, JobRestartException,
+                   JobInstanceAlreadyCompleteException, JobParametersInvalidException;
+}
+```
+
+- 구현은 JobRepository에서 유효한 JobExecution을 가져와서 Job을 실행해야함
+
+
+
+# Item Reader
+
+- ItemReader는 한 번에 한 항목씩 Step에 대한 입력 검색을 나타내는 추상화 객체임
+- ItemReader가 제공할 수 있는 항목을 모두 사용하면 null을 반환하여 이를나타냄
+
+
+
+# Item Writer
+
+- ItemWriter는 한 번에 하나의 배치 처리 또는 항목 청크의 Step 출력을 나타내는 추상화 객체임
+- 일반적으로 ItemWriter는 다음에 받아야하는 입력에 대한 지식이 없고 현재 호출에서 전달된 항목만 알고 있음
+
+
+
+# Item Processor
+
+- ItemProcessor는 항목의 비지니스 처리를 나타내는 추상화임
+- ItemReader가 항목을 읽고 ItemWriter가 항목을 쓰는 동안 ItemProcessor는 다른 비지니스 처리를 변환하거나 적용할 수 있는 액세스 포인트를 제공함 항목을 처리하는 동안 항목이 유효하지 않다고 판단되면 null알 반환해 항목을 작성하지 않아야 함을 나타냄
+
+
+
+> ItemReader, Writer, Processor는  [Readers And Writers](https://docs.spring.io/spring-batch/docs/current/reference/html/readersAndWriters.html#readersAndWriters). 여기에서 확인
+
+
+
+
+
+
+
+
+
+# Configuring and Running a Job
+
+![](https://docs.spring.io/spring-batch/docs/current/reference/html/images/spring-batch-reference-model.png)
+
+- Job 개체는 Step에 대한 간단한 컨테이너처럼 보일 수 있지만 개발자가 알아야하는 구성 옵션이 많이 있음
+- Job이 실행되는 방법과 해당 실행중에 메타 데이터가 저장되는 방법에 대한 많은 고려사항이 있음
+- 여기에서는 Job의 다양한 구성 옵션과 런타입 관련 사항을 설명함
+
+
+
+# Configuring a Job
+
+- Job 인터페이스에는 여러가지 구현이 있고 이걸 빌더로 풀었음
+
+```java
+@Bean
+public Job footballJob() {
+    return this.jobBuilderFactory.get("footballJob")
+                     .start(playerLoad())
+                     .next(gameLoad())
+                     .next(playerSummarization())
+                     .end()
+                     .build();
+}
+```
+
+- Job에는 JobRepository가 필요함.
+- JobRepository의 구성은 BatchConfigurer를 통해 처리됨
+- 위의 예 3개의 Step 인스턴스로 구성된 작업을 보여줌. 작업 관련 빌더에는 병렬화, 선언적 흐름 제어, externalization 정의가 포함됨
+
+
+
+# Restartabliity
+
+- 특정 JobInstance에 대한 JobExecution이 이미 존재하는 경우 Job 시작은 다시시작으로 간주됨
+- 이상적으로는 모든 작업이 중단된 시점에서 시작할 수 있어야 하지만이것이 불가능한 시나리오가 있음
+- 이 시나리오에서 새 JobInstance가 생성되었는지 확인하는 것은 전적으로 개발자의 몫.
+- 항상 새 Jobinstance의 일부로 실행해야 하는 경우 다시 시작 가능 속성을 다음과같이 false로 지정할 수 있음
+
+```java
+@Bean
+public Job footballJob() {
+    return this.jobBuilderFactory.get("footballJob")
+                     .preventRestart()
+                     ...
+                     .build();
+}
+```
+
+
+
+
 
 
 
