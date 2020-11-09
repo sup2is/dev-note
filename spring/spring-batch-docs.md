@@ -842,33 +842,308 @@ public JobLauncher jobLauncher() {
 
 
 
-# Advanced Meta-Data Usage
+[Advanced Meta-Data Usage](https://docs.spring.io/spring-batch/docs/current/reference/html/job.html#advancedMetaData)
 
-![](https://docs.spring.io/spring-batch/docs/current/reference/html/images/job-repository.png)
+- [Querying the Repository](https://docs.spring.io/spring-batch/docs/current/reference/html/job.html#queryingRepository)
+- JobRegistry
+  - [JobRegistryBeanPostProcessor](https://docs.spring.io/spring-batch/docs/current/reference/html/job.html#jobregistrybeanpostprocessor)
+  - [`AutomaticJobRegistrar`](https://docs.spring.io/spring-batch/docs/current/reference/html/job.html#automaticjobregistrar)
+- [JobOperator](https://docs.spring.io/spring-batch/docs/current/reference/html/job.html#JobOperator)
+- [JobParametersIncrementer](https://docs.spring.io/spring-batch/docs/current/reference/html/job.html#JobParametersIncrementer)
+- [Stopping a Job](https://docs.spring.io/spring-batch/docs/current/reference/html/job.html#stoppingAJob)
+- [Aborting a Job](https://docs.spring.io/spring-batch/docs/current/reference/html/job.html#aborting-a-job)
 
-- JobLauncher는 JobRepository를 사용하여 새 JobExecution 객체를 생성하고 실행함.
-
-
-
-
-
-
-
-
-
+> 생략
 
 
 
 
 
+# Configuring a Step
+
+- step은 배치작업의 독립적이고 순차적인 단계를 캡슐화하고 실제 배치를 정의 제어하는데 필요한 도메인 개체임
+
+![](https://docs.spring.io/spring-batch/docs/current/reference/html/images/step.png)
+
+- 다음과 같이 builder 패턴사용가능
+
+```java
+/**
+ * Note the JobRepository is typically autowired in and not needed to be explicitly
+ * configured
+ */
+@Bean
+public Job sampleJob(JobRepository jobRepository, Step sampleStep) {
+    return this.jobBuilderFactory.get("sampleJob")
+    			.repository(jobRepository)
+                .start(sampleStep)
+                .build();
+}
+
+/**
+ * Note the TransactionManager is typically autowired in and not needed to be explicitly
+ * configured
+ */
+@Bean
+public Step sampleStep(PlatformTransactionManager transactionManager) {
+	return this.stepBuilderFactory.get("sampleStep")
+				.transactionManager(transactionManager)
+				.<String, String>chunk(10)
+				.reader(itemReader())
+				.writer(itemWriter())
+				.build();
+}
+```
+
+
+
+- `reader`: The `ItemReader` that provides items for processing.
+- `writer`: The `ItemWriter` that processes the items provided by the `ItemReader`.
+
+- `transactionManager`: Spring’s `PlatformTransactionManager` that begins and commits transactions during processing.
+
+- `repository`: The The Java-specific name of the `JobRepository` that periodically stores the `StepExecution` and `ExecutionContext` during processing (just before committing).
+
+- `chunk`: The XML-specific name of the dependency that indicates that this is an item-based step and the number of items to be processed before the transaction is committed.
+
+- jobRepository와 transactionManager는 모두 @EnableAtchProcessing을 통해서 제공됨, 기본사항임
+- itemProcessor는 optinal임
+
+# Chunk-oriented Processing
+
+- 스프링 배치는 청크지향 스타일을 사용함
+- 청크 지향 처리는 데이터를 한 번에 하나씩 읽고 트랜잭션 경계 내에서 기록되는 청크를 만드는 것을 말함
+- ItemReader에서 하나의 항목을 읽어서 ItemProcessor에 전달하고 집계함 읽은 항목 수가 커밋 간격과 같으면 ItemWriter가 전체 청크를 쓴 다음 트랜잭션이 커밋됨 
+
+![](https://docs.spring.io/spring-batch/docs/current/reference/html/images/chunk-oriented-processing.png)
+
+```java
+List items = new Arraylist();
+for(int i = 0; i < commitInterval; i++){
+    Object item = itemReader.read()
+    Object processedItem = itemProcessor.process(item);
+    items.add(processedItem);
+}
+itemWriter.write(items);
+```
+
+
+
+# The Commit Interval
+
+- PlatformTransactionManager를 사용해서 주기적으로 커밋하면서 항목을 읽고 씀
+- 커밋 간격이 1이면 각 개별 항목을 작성한 후 커밋함 <- 성능에 안좋음
+
+```java
+@Bean
+public Job sampleJob() {
+    return this.jobBuilderFactory.get("sampleJob")
+                     .start(step1())
+                     .end()
+                     .build();
+}
+
+@Bean
+public Step step1() {
+	return this.stepBuilderFactory.get("step1")
+				.<String, String>chunk(10)
+				.reader(itemReader())
+				.writer(itemWriter())
+				.build();
+}
+```
+
+- 위처럼 chunk를 10으로 준 경우 각 트랜잭션 내에서 10개의 항목이 처리됨 처리가 시작되면 트랜잭션이 시작되고 ItemReader에서 read가 호출 될 때마다 카운터가 증가함. 10에 도달하면 집계된 항목 목록이 ItemWriter에 전달되고 트랜잭션이 커밋됨
+
+
+
+# Configuring a Step for Restart
 
 
 
 
 
+# Setting a Start Limit
+
+- Step의 실행횟수? 를 제어하는 방법
+
+```java
+@Bean
+public Step step1() {
+	return this.stepBuilderFactory.get("step1")
+				.<String, String>chunk(10)
+				.reader(itemReader())
+				.writer(itemWriter())
+				.startLimit(1)
+				.build();
+}
+```
+
+- 다시실행하려고하면 StartLimitExeccededExeption 발생
+- 시작 제한의 기본값은 Integer.MAX_VALUE임
+
+# Restarting a Completed Step
+
+- 다시 실행시켜야하는 Step의 경우 완료 여부와 관계 없이 항상 실행시켜야 할 때
+
+```java
+@Bean
+public Step step1() {
+	return this.stepBuilderFactory.get("step1")
+				.<String, String>chunk(10)
+				.reader(itemReader())
+				.writer(itemWriter())
+				.allowStartIfComplete(true)
+				.build();
+}
+```
+
+- COMPLETED 상태는 건너뛰는데 allowStartIfComplete() 를 TRUE 로 설정하면 이 Step이 항상 실행되도록 하는것같음
+
+```java
+@Bean
+public Job footballJob() {
+	return this.jobBuilderFactory.get("footballJob")
+				.start(playerLoad())
+				.next(gameLoad())
+				.next(playerSummarization())
+				.end()
+				.build();
+}
+
+@Bean
+public Step playerLoad() {
+	return this.stepBuilderFactory.get("playerLoad")
+			.<String, String>chunk(10)
+			.reader(playerFileItemReader())
+			.writer(playerWriter())
+			.build();
+}
+
+@Bean
+public Step gameLoad() {
+	return this.stepBuilderFactory.get("gameLoad")
+			.allowStartIfComplete(true)
+			.<String, String>chunk(10)
+			.reader(gameFileItemReader())
+			.writer(gameWriter())
+			.build();
+}
+
+@Bean
+public Step playerSummarization() {
+	return this.stepBuilderFactory.get("playerSummarization")
+			.startLimit(2)
+			.<String, String>chunk(10)
+			.reader(playerSummarizationSource())
+			.writer(summaryWriter())
+			.build();
+}
+```
+
+Run 1:
+
+1. `playerLoad` runs and completes successfully, adding 400 players to the 'PLAYERS' table.
+2. `gameLoad` runs and processes 11 files worth of game data, loading their contents into the 'GAMES' table.
+3. `playerSummarization` begins processing and fails after 5 minutes.
+
+Run 2:
+
+1. `playerLoad` does not run, since it has already completed successfully, and `allow-start-if-complete` is 'false' (the default).
+2. `gameLoad` runs again and processes another 2 files, loading their contents into the 'GAMES' table as well (with a process indicator indicating they have yet to be processed).
+3. `playerSummarization` begins processing of all remaining game data (filtering using the process indicator) and fails again after 30 minutes.
+
+Run 3:
+
+1. `playerLoad` does not run, since it has already completed successfully, and `allow-start-if-complete` is 'false' (the default).
+2. `gameLoad` runs again and processes another 2 files, loading their contents into the 'GAMES' table as well (with a process indicator indicating they have yet to be processed).
+3. `playerSummarization` is not started and the job is immediately killed, since this is the third execution of `playerSummarization`, and its limit is only 2. Either the limit must be raised or the `Job` must be executed as a new `JobInstance`.
 
 
 
+# Configuring Skip Logic
+
+- 처리중 발생한 오류로 인해 step이 실패하지 않고 건너뛰어야하는 경우 사용
+
+```java
+@Bean
+public Step step1() {
+	return this.stepBuilderFactory.get("step1")
+				.<String, String>chunk(10)
+				.reader(flatFileItemReader())
+				.writer(itemWriter())
+				.faultTolerant()
+				.skipLimit(10)
+				.skip(FlatFileParseException.class)
+				.build();
+}
+```
+
+- 10번의 FlatFileParseExecption을 스킵함
+
+```java
+@Bean
+public Step step1() {
+	return this.stepBuilderFactory.get("step1")
+				.<String, String>chunk(10)
+				.reader(flatFileItemReader())
+				.writer(itemWriter())
+				.faultTolerant()
+				.skipLimit(10)
+				.skip(Exception.class)
+				.noSkip(FileNotFoundException.class)
+				.build();
+}
+```
+
+- 위 경우 Exception은 스킵하고 FileNotFoundException은 스킵안함
+- 메서드 호출순서는 중요하지않음
+
+
+
+# Configuring Retry Logic
+
+- 재시도관련
+
+```java
+@Bean
+public Step step1() {
+	return this.stepBuilderFactory.get("step1")
+				.<String, String>chunk(2)
+				.reader(itemReader())
+				.writer(itemWriter())
+				.faultTolerant()
+				.retryLimit(3)
+				.retry(DeadlockLoserDataAccessException.class)
+				.build();
+}
+```
+
+# Controlling Rollback
+
+```java
+@Bean
+public Step step1() {
+	return this.stepBuilderFactory.get("step1")
+				.<String, String>chunk(2)
+				.reader(itemReader())
+				.writer(itemWriter())
+				.faultTolerant()
+				.noRollback(ValidationException.class)
+				.build();
+}
+```
+
+- 기본적으로 itemwriter에서 발생한 모든예외로 트랜잭션이 롤백됨
+- 롤백을 건너뛰고싶을때 사용
+
+# Transactional Readers
+
+
+
+# Intercepting `Step` Execution
+
+- 
 
 
 
