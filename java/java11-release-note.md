@@ -8,13 +8,7 @@
 
 # Oracle Java 11 Release Note 
 
-https://www.oracle.com/java/technologies/javase/jdk-11-relnote.htm
-
-
-
-
-
-
+[https://www.oracle.com/java/technologies/javase/jdk-11-relnote.html](https://www.oracle.com/java/technologies/javase/jdk-11-relnote.html)
 
 
 
@@ -197,6 +191,197 @@ hotspot/compiler
 > 기본적으로 켜져있는 계층 형 컴파일 모드에서 VM은 사용 가능한 메모리와 컴파일 요청 수에 관계없이 CPU가 많은 시스템에서 많은 수의 컴파일러 스레드를 시작합니다. 스레드가 유휴 상태 일 때에도 (거의 항상) 메모리를 소비하기 때문에 리소스를 비효율적으로 사용하게됩니다.
 >
 > 이 문제를 해결하기 위해 시작 중에 각 유형의 컴파일러 스레드를 하나만 시작하고 추가 스레드의 시작 및 종료를 동적으로 처리하도록 구현이 변경되었습니다. 기본적으로 켜져있는 새 명령 줄 플래그로 제어됩니다.
+
+
+
+hotspot/gc
+**[➜](https://www.oracle.com/java/technologies/javase/jdk-11-relnote.html#JDK-8197831) JEP 333 ZGC A Scalable Low-Latency Garbage Collector (Experimental)**
+
+- Z Garbage Collector? 가 추가된듯
+- 일시중지시간이 10ms
+- 일시중지 시간이 힙 또는 live set size에 따라 증가하지 않음
+- 수백 수테라바이트 크기의 힙 처리
+- zgc는 concurrent garbage collector
+- 애플리케이션 실행중에도 동작하기 때문에 응답시간에 큰 영향이 없음
+- 현재는 실험기간이고 `-XX:+UnlockExperimentalVMOptions` 과 `-XX : + UseZGC`옵션으로 킬 수 있음
+- linux 64bit에서만 사용 가능
+
+> Linux / x64에서만 사용할 수 있습니다.
+>
+> 압축 된 oops 및 / 또는 압축 된 클래스 포인트 사용은 지원되지 않습니다. -XX : + UseCompressedOops 및 -XX : + UseCompressedClassPointers 옵션은 기본적으로 비활성화되어 있습니다. 활성화해도 효과가 없습니다.
+>
+> 클래스 언로드는 지원되지 않습니다. -XX : + ClassUnloading 및 -XX : + ClassUnloadingWithConcurrentMark 옵션은 기본적으로 비활성화되어 있습니다. 활성화해도 효과가 없습니다.
+>
+> Graal과 함께 ZGC를 사용하는 것은 지원되지 않습니다.
+
+
+
+hotspot/gc
+**[➜](https://www.oracle.com/java/technologies/javase/jdk-11-relnote.html#JDK-8174901) JEP 318 Epsilon, A No-Op Garbage Collector**
+
+-   Epsilon GC는 실험적으로 등장한 가비지 컬렉터
+- 메모리 할당만 처리하고 메모리 재 확보 메커니즘을 구현하지 않음
+- 다른 gc의 비용 / 이점을 대조하기 위해 성능 테스트에 유용함
+
+
+
+hotspot/jvmti
+**[➜](https://www.oracle.com/java/technologies/javase/jdk-11-relnote.html#JDK-8171119) JEP 331 Low-Overhead Heap Profiling**
+
+> JVMTI (JEP 331)를 통해 액세스 할 수있는 Java 힙 할당을 샘플링하는 낮은 오버 헤드 방식을 제공합니다.
+>
+> 다음 목표를 충족하도록 설계되었습니다.
+>
+> 기본적으로 지속적으로 활성화 할 수있을만큼 오버 헤드가 낮음
+> 잘 정의 된 프로그래밍 인터페이스 (JVMTI)를 통해 액세스 가능
+> 모든 할당을 샘플링 할 수 있습니다 (즉, 하나의 특정 힙 영역에 있거나 특정 방식으로 할당 된 할당으로 제한되지 않음).
+> 구현에 독립적 인 방식으로 정의 할 수 있습니다 (즉, 특정 GC 알고리즘 또는 VM 구현에 의존하지 않음).
+> 라이브 및 죽은 Java 객체에 대한 정보를 제공 할 수 있습니다.
+
+hotspot/runtime
+**[➜](https://www.oracle.com/java/technologies/javase/jdk-11-relnote.html#JDK-8010319) JEP 181 Nest-Based Access Control**
+
+- java 11에서 Java Virtual Machine은 nest라고 하는 새로운 엑세스 제어 컨텍스토르의 클래스 및 인터페이스 배열을 지원함
+- 중첩 클래스에 사용하는것같음
+- 참고 [https://sejoung.github.io/2018/09/2018-09-27-JEP_181/#JEP-181-Nest-Based-Access-Control](https://sejoung.github.io/2018/09/2018-09-27-JEP_181/#JEP-181-Nest-Based-Access-Control)
+
+
+
+
+
+security-libs
+**[➜](https://www.oracle.com/java/technologies/javase/jdk-11-relnote.html#JDK-8181595) JEP 324 Key Agreement with Curve25519 and Curve448**
+
+> JEP 324는 RFC 7748에 설명 된대로 Curve25519 및 Curve448을 사용하여 새로운 키 계약 체계의 구현을 추가합니다.이 구현은 Java Cryptography Architecture 서비스로 사용할 수 있지만 새로운 TLS 1.3 구현에 통합되지 않았습니다.
+
+
+
+security-libs/javax.crypto
+**[➜](https://www.oracle.com/java/technologies/javase/jdk-11-relnote.html#JDK-7007966) Added Brainpool EC Support (RFC 5639)**
+
+> SunEC 공급자는 RFC 5639, ECC (Elliptic Curve Cryptography) Brainpool 표준 곡선 및 곡선 생성에 정의 된대로 4 개의 추가 Brainpool 곡선을 지원하도록 향상되었습니다. 해당 EC 도메인 매개 변수는 brainpoolP256r1, brainpoolP320r1, brainpoolP384r1 및 brainpoolP512r1의 표준 이름과 함께 java.security.spec.ECGenParameterSpec 객체를 사용하여 생성 할 수 있습니다. SunJSSE 공급자는 이러한 브레인 풀 곡선을 지원하도록 아직 향상되지 않았습니다.
+
+
+
+
+
+security-libs/javax.crypto
+**[➜](https://www.oracle.com/java/technologies/javase/jdk-11-relnote.html#JDK-8189997) Enhanced KeyStore Mechanisms**
+
+> Jceks.key.serialFilter라는 새 보안 속성이 도입되었습니다. 이 필터가 구성된 경우 JCEKS 키 저장소는 SecretKeyEntry 내에 저장된 암호화 된 키 개체의 역 직렬화 중에이를 사용합니다. 구성되지 않았거나 필터 결과가 UNDECIDED 인 경우 (예 : 일치하는 패턴이 없음) jdk.serialFilter에 의해 구성된 필터가 참조됩니다.
+>
+> 시스템 속성 jceks.key.serialFilter도 제공되는 경우 여기에 정의 된 보안 속성 값을 대체합니다.
+>
+> 필터 패턴은 jdk.serialFilter와 동일한 형식을 사용합니다. 기본 패턴은 java.lang.Enum, java.security.KeyRep, java.security.KeyRep $ Type 및 javax.crypto.spec.SecretKeySpec을 허용하지만 나머지는 모두 거부합니다.
+>
+> 위 유형으로 직렬화되지 않는 SecretKey를 저장하는 고객은 키를 추출 할 수 있도록 필터를 수정해야합니다.
+
+
+
+
+
+security-libs/javax.crypto
+**[➜](https://www.oracle.com/java/technologies/javase/jdk-11-relnote.html#JDK-8205445) RSASSA-PSS Signature Support Added to SunMSCAPI**
+
+> RSASSA-PSS 서명 알고리즘 지원이 SunMSCAPI 공급자에 추가되었습니다.
+
+
+
+security-libs/javax.net.ssl
+**[➜](https://www.oracle.com/java/technologies/javase/jdk-11-relnote.html#JDK-8145252) JEP 332 Transport Layer Security (TLS) 1.3**
+
+- jdk 릴리즈에는 tls 1.3 구현이 포함됨
+  1. TLS protocol version name: TLSv1.3
+  2. SSLContext algorithm name: TLSv1.3
+  3. TLS cipher suite names for TLS 1.3: TLS_AES_128_GCM_SHA256, TLS_AES_256_GCM_SHA384
+  4. keyType for X509KeyManager: RSASSA-PSS
+  5. authType for X509TrustManager: RSASSA-PSS
+
+> 새로운 보안 속성 인 jdk.tls.keyLimits가 TLS 1.3에 추가되었습니다. 특정 알고리즘의 지정된 양의 데이터가 처리되면 post-handshake 키 및 IV 업데이트가 트리거되어 새 키가 파생됩니다.
+>
+> 새 시스템 속성 인 jdk.tls.server.protocols가 추가되어 SunJSSE 공급자의 서버 측에서 기본 활성화 된 프로토콜 제품군을 구성합니다.
+>
+> KRB5 암호 스위트 구현은 더 이상 사용하기에 안전한 것으로 간주되지 않기 때문에 JDK에서 제거되었습니다.
+>
+> TLS 1.3은 이전 버전과 직접 호환되지 않습니다. TLS 1.3은 이전 버전과의 호환성 모드로 구현할 수 있지만 TLS 1.3으로 업그레이드 할 때 고려해야 할 몇 가지 호환성 위험이 있습니다.
+
+1. TLS 1.3 uses a half-close policy, while TLS 1.2 and prior versions use a duplex-close policy. For applications that depend on the duplex-close policy, there may be compatibility issues when upgrading to TLS 1.3.
+2. The signature_algorithms_cert extension requires that pre-defined signature algorithms are used for certificate authentication. In practice, however, an application may use unsupported signature algorithms.
+3. The DSA signature algorithm is not supported in TLS 1.3. If a server is configured to only use DSA certificates, it cannot upgrade to TLS 1.3.
+4. The supported cipher suites for TLS 1.3 are not the same as TLS 1.2 and prior versions. If an application hard-codes cipher suites which are no longer supported, it may not be able to use TLS 1.3 without modifying the application code.
+5. The TLS 1.3 session resumption and key update behaviors are different from TLS 1.2 and prior versions. The compatibility impact should be minimal, but it could be a risk if an application depends on the handshake details of the TLS protocols.
+
+The System properties, `jdk.tls.client.protocols` and `jdk.tls.server.protocols`, can be used to configure the default enabled protocols accordingly in the SunJSSE provider if needed.
+
+
+
+security-libs/org.ietf.jgss:krb5
+**Support for AES Encryption with HMAC-SHA2 for Kerberos 5 Defined in RFC 8009**
+
+> RFC 8009에 정의 된 aes128-cts-hmac-sha256-128 및 aes256-cts-hmac-sha384-192의 Kerberos 5 암호화 유형이 지원됩니다. 이러한 암호화 유형은 기본적으로 활성화됩니다. 기본 설정 순서는 다음과 같습니다.
+
+```
+" aes256-cts-hmac-sha1-96 aes128-cts-hmac-sha1-96 aes256-cts-hmac-sha384-192 aes128-cts-hmac-sha256-128 des3-cbc-sha1 arcfour-hmac-md5 des-cbc-crc des-cbc-md5."
+```
+
+Users can use the `default_tkt_enctypes` and `default_tgs_enctypes` settings in the `krb5.conf` file to modify the list.
+
+
+
+
+
+tools/javac
+**[➜](https://www.oracle.com/java/technologies/javase/jdk-11-relnote.html#JDK-8193259) JEP 323: Local-Variable Syntax for Lambda Parameters**
+
+- [https://winterbe.com/posts/2018/09/24/java-11-tutorial/](https://winterbe.com/posts/2018/09/24/java-11-tutorial/)을 읽어볼것
+
+  Local variable type inference really shines with generics involved. In the next example `current` has a rather verbose type of `Map<String, List<Integer>>` which can be reduced to a single `var` keyword, saving you from typing a lot of boilerplate:
+
+  ```
+  var myList = new ArrayList<Map<String, List<Integer>>>();
+  
+  for (var current : myList) {
+      // current is infered to type: Map<String, List<Integer>>
+      System.out.println(current);
+  }
+  ```
+
+  As of Java 11 the `var` keyword is also allowed for lambda parameters which enables you to add annotations to those parameters:
+
+  ```
+  Predicate<String> predicate = (@Nullable var a) -> true;
+  ```
+
+  > Tip: In Intellij IDEA you can hover on a variable while holding `CMD/CTRL` to reveal the infered type of the variable (for keyboard junkies press `CTRL + J`).
+
+- var를 사용하면 람다 매개변수 선언할때 사용 가능
+- var를 사용하면 매개변수 형식 유추가되서 편리함
+- 람다 매개변수에 한개라도 사용하면 전부 var타입이어야함
+
+
+
+tools/launcher
+**[➜](https://www.oracle.com/java/technologies/javase/jdk-11-relnote.html#JDK-8192920) JEP 330 Launch Single-File Source-Code Programs**
+
+> 'shebang'파일 및 관련 기술을 사용하여 스크립트 내에서 사용하는 것을 포함하여 Java 소스 코드의 단일 파일로 제공되는 프로그램을 실행하도록 Java 실행 프로그램을 향상시킵니다.
+>
+> ... 쉬방 ..?
+
+
+
+# Removed Features and Options
+
+- 별로 필요하지 않을것같아서 스킵
+
+
+
+# Deprecated Features and Options
+
+- 별로 필요하지 않을것같아서 스킵
+
+
+
+
 
 
 
