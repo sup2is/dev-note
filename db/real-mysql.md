@@ -566,6 +566,88 @@ Table_open_cache_overflows	0
 
 
 
+### 트랜잭션 격리 수준과 잠금
+
+- 불필요한 레코드의 잠금 현상은 innodb의 넥스트 키 락 때문에 발생함
+- 이 넥스트 키 락을 필요하게 만드는 주 원인은 바로 복제를 위한 바이너리 로그 때문임
+- row based 로그를 사용하거나 바이너리 로그를 사용하지 않으면 갭락이나 넥스트 키 락의 사용을 대폭 줄이므로 더 많은 요청을 처리할 수 있게 됨
+- 다음 조합으로 mysql 서버가 기동하는 경우에 innodb에서 사용되는 대부분의 갭락이나 넥스트키락을 제거 가능
+
+| 버전           | 설정의 조합                                                  |
+| -------------- | ------------------------------------------------------------ |
+| mysql 5.0      | innodb_locks_unsafe_for_binlog=1<br /> 트랜잭션 격리 수준을 read commited로 설정 |
+| mysql 5.1 이상 | 바이너리 로그를 비활성화 트랜잭션 격리수준을 read-commited로 설정<br />레코드 기반의 바이너리 로그 사용<br />innodb_locks_unsafe_for_binlog=1<br />트랜잭션 격리 수준을 read-commited로 설정 |
+
+- 이 조합이라도 유니크키나 외래키에 대한 갭 락은 없어지지 않음
+
+
+
+### 레코드 수준의 잠금 확인 및 해제
+
+- 테이블락보다 레코드락이 더 복잡함
+- 5.0에서는 더힘들고 5.1부터는 확인이 좀 더 수월함
+- 5.0에서는 공통적으로 특정 테이블의 레코드를 변경하거나 삭제하려고 하는 쿼리가 표시되는 것이 일반적, 구 중에서 활성화상태면서 아무런 sql도 실행하지 않는 트랜잭션이 있다면 이것이 문제일 가능성이 높음
+- 근본적으로 찾기 어렵다면 오래기다리고 있는 트랜잭션의 커넥션을 모두 종료하는게 빠른 해결책
+- 5.1 이상에서는 INFORMATION_SCHEMA라는 DB에 INNODB_TRX, INNODB_LOCKS, INNODB_LOCK_WAIT라는 테이블을 사용할 것
+- INNODB_LOCKS는 어떤 잠금이 존재하는지 관리, INNODB_TRX는 어떤 트랜잭션이 어떤 클라이언트에 의해 기동되며 어떤 잠금을 기다리고 있는지, INNODB_LOCK_WAITS 테이블은 잠금에 의한 프로세스 간의 의존 관계를 관리하게됨
+
+
+
+## mysql의 격리 수준
+
+- read uncommited, read commited, repeatable read, rerializable 4가지로 나뉨
+- read uncommited, serializable 은 잘 사용되지 않음
+- innodb에서 repeatable read 격리수준에서는 phantom read가 발생하지 않음
+- 오라클은 read commited, mysql에는 repeatable read를 주로 사용함
+
+### READ UNCOMMITED
+
+- DIRTY READ, 정말 위험할 수 있음 사용하지 말 것
+
+### READ COMMITED
+
+-  오라클의 기본 격리 수준, 온라인 서비스에서 가장 많이 선택되는 격리 수준
+- 어떤 트랜잭션에서 데이터를 변경했더라도 COMMIT이 완료된 데이터만 다른 트랜잭션에서 조회할 수 있음
+- NOT REPEATABLE READ가 발생함
+
+### REPEATABLE READ
+
+- mysql innodb 엔진에서 기본적으로 사용, 바이너리 로그를 가진 mysql 장비에서는 최소 repeatable read 수준 이상을 사용해야함
+- mvcc를 사용함 rollback 가능성을 대비해 레코드를 언두 공간에 백업해두고 실제 레코드 변경
+- 어떤 트랜잭션 A와 B가 있다고 가정했을때 A 또는 B 에서 시작된 트랜잭션은 항상 같은값만 반환함
+- PHANTOM READ가 발생함
+
+### SERIALIZABLE
+
+- 이 레벨의 경우 읽기 작업도 공유잠금을 획득해야하는 매우 엄격한 격리 수준
+- mysql innodb에서는 repeatable read에서 phantom read가 발생하지 않으므로 쓸일이 없음
+
+
+
+- 사실 READ COMMITED와 REPEATABLE READ의 성능차이는 크지 않음
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+자동차 부품
+
+
+
 
 
 
