@@ -35,7 +35,6 @@
 **핸들러 api**
 
 - mysql 엔진의 쿼리 실행기에서 데이터를 쓰거나 읽어야 할 때는 각 스토리지 엔진에게 쓰기 또는 읽기 요청을 하는데 이러한 요청을 핸들러 요청이라고하고 여기에 사용되는 api를 핸들러 api라함
-  
 
 ### mysql 스레딩 구조
 
@@ -607,8 +606,8 @@ Table_open_cache_overflows	0
 ### READ COMMITED
 
 -  오라클의 기본 격리 수준, 온라인 서비스에서 가장 많이 선택되는 격리 수준
-- 어떤 트랜잭션에서 데이터를 변경했더라도 COMMIT이 완료된 데이터만 다른 트랜잭션에서 조회할 수 있음
-- NOT REPEATABLE READ가 발생함
+-  어떤 트랜잭션에서 데이터를 변경했더라도 COMMIT이 완료된 데이터만 다른 트랜잭션에서 조회할 수 있음
+-  NOT REPEATABLE READ가 발생함
 
 ### REPEATABLE READ
 
@@ -1212,22 +1211,197 @@ SELECT * FROM employees WHERE first_name='Aamer';
 
 **SIMPLE**
 
-- UNION이나 서브쿠리를 사용하지 않는 단순한 SELECT일 경우
+- UNION이나 서브쿼리를 사용하지 않는 단순한 SELECT일 경우
 - 쿼리 문장이 아무리 복잡해도 SIMPLE인 단위쿼리는 반드시 하나만 존재함
-- 일반적으로 제일 바깥
+- 일반적으로 제일 바깥쪽에 있는 select 단위 쿼리가 primary
 
 
 
 **PRIMARY**
 
 - UNION이나 서브쿼리가 포함된 SELECT 쿼리의 실행계획에서 가장 바깥에 있는 단위쿼리
-- 한개만 있음
+- 한개만 있음 쿼리의 제일 바깥 쪽에 있는 select 단위 쿼리가 primary로 표시됨
 
 
 
 **UNION**
 
+- union으로 결합하는 단위 select 쿼리 중 첫번째를 제외한 두 번째 select 부터는 select type이 union임
+
+```sql
+EXLPAIN
+SELECT * FROM (
+	(SELECT EMP_NO FROM EMPLOYEES E1 LIMIT 10)
+	UNION ALL
+    (SELECT EMP_NO FROM EMPLOYEES E2 LIMIT 10)
+    UNINO ALL
+    (SELECT EMP_NO FROM EMPLOYEES E3 LIMIT 10)
+)
+```
+
+- 위 쿼리중 E1 select만 DERIVED 타입이고 나머지는 UNION 타입으로 설정됨
+
+
+
+**DEPENDENT UNION**
+
+- 여기서 DEPENDENT는 UNION이나 UNION ALL로 결합된 단위 쿼리가 외부의 영향을 받은 것을 의미
+
+```sql
+SELECT E.FIRST_NAME,
+	(SELECT CONCAT('...') ...) FROM salaries s WHERE s.emp_no = e.emp_no
+	UNION
+    (SELECT CONCAT('...') ...) FROM dept_emp de WHERE s.emp_no = e.emp_no
+    ...
+FROM employees e
+WHERE e.emp_no=10001;
+```
+
+- 여기서 union은 외부 e 테이블의 emp_no에 의존하므로 DEPENDENT 타입
+- 일반적으로 서브쿼리는 먼저 실행되는 경향이 있는데 이 DEPENDENT는 절대 먼저 실행될 수 없기 때문에 서버 쿼리는 비효율적인 경우가 많음
+
+
+
+
+
+**UNION RESULT**
+
+- union 결과를 담아두는 테이블
+- mysql 에서 unon all이나 union 쿼리는 모두 union의 결과를 임시 테이블로 생성하게 되는데 실행 계획상에서 이 임시 테이블을 가리키는 라인의 select_type이 UNION RESULT임
+
+
+
+**SUBQUERY**
+
+- FROM 절 이외의 서브쿼리
+- FROM 절에 사용된 서브쿼리는 DERIVED라고 표시
+- SELECT 에 사용되는 쿼리를 네스티드 쿼리
+- WHERE 절에 사용되는 경우 서브쿼리
+- FROM 절에 사용되는 경우 파생테이블, 인라인뷰, 서브 셀렉트 라고함
+- 하나의 값만 반환하면 스칼라 서브쿼리
+- 컬럼 개수에 관계 없이 하나의 레코드만 반환하면 로우 서브 쿼리
+
+
+
+**DEPENDENT SUBQUERY**
+
+- 바깥쪽 테이블에 의존할 경우 DEPENDENT 서브쿼리라고함
+- 일반 서브쿼리보다 처리속도가 느릴떄가 많음
+
+
+
+**DERIVED**
+
+- 서브쿼리가 FROM절에 사용된 경우
+- 파생 테이블에는 인덱스가 없기 때문에 다른 테이블과 조인할 때 성능상 불리할 때가 많음
+- 가능하다면 DERIVED 형태의 실행 계획을 조인으로 해결할 수 있게 바꿔주는게 좋음
+- 쿼리 튜닝전 반드시 DERIVED 확인 불가피한 상황이 아니면 반드시 조인으로 풀것
+
+
+
+**UNCACHEABLE SUBQUERY**
+
+- 조건이 똑같은 서브쿼리는 다시 사용할 수 있게 캐시공간에 담아둠
+- 여기서 언급하는 서브 쿼리 캐시는 쿼리 캐시나 파생 테이블과는 전혀 무관한 기능
+- select type이 SUBQUERY인 경우 한번 캐시되면 계속 캐시된거 사용함
+- select type이 UNCACHEABLE SUBQUERY인 경우엔 캐시를 사용 못함
+  - 사용자 변수가 서브쿼리에 사용된 경우
+  - NOT-DETERMINISTIC 속성의 스토어드 루틴이 서브쿼리 내에 사용된 경우
+  - UUID()나 RAND()와 같이 호출할때마다 달라지는 함수가 서브쿼리에 사용된 경우
+
+
+
+**UNCACHEABLE UNION**
+
+- UNCACHEABLE + UNION
+
+
+
+### table 칼럼
+
+- mysql의 실행 계획은 단위 selet 쿼리 기준이 아니라 테이블 기준으로 표시됨
+- 테이블 없이 select하면 null이 나옴
+
+```sql
+select now()
+```
+
+- \<\> 으로 감싸졌다면 임시테이블임
+- `<derived2>` id가 2인 쿼리에서 생성된 임시테이블
+
+
+
+
+
+### type 컬럼
+
+- 쿼리의 실행 계획(explain 명령어)에서 type 이후의 칼럼들은 mysql 서버가 각 테이블의 레코드를 어떤 방식으로 읽었는지를 의미함
+- 일반적으로 쿼리 튜닝시 인덱스를 효율적으로 사용하는지 확인하는 것이 중요하므로 실행계획에서 type 칼럼은 반드시 체크해야함
+- type에 표시될 수 있는 버전 아래 순서대로 가장 빠른것부터 
+  - system
+  - const
+  - eq_ref
+  - ref
+  - fulltext
+  - ref_or_null
+  - unique_subquery
+  - index_subquery
+  - range
+  - index_merge
+  - index
+  - all
+- 12가지 방법중 all을 제외한 모두는 인덱스를 활용함 all은 인덱스를 사용하지 않고 풀스캔함
+- 하나의 단위 select 쿼리는 위의 접근 방법 중에서 단 하나만 사용 가능
+- 아래 설명은 가장 빠른순서대로 설명할 것이고 mysql 옵티마이저는 이런 접근 방식 + 비용을 함께 계싼해서 최소의 비용 드는 접근 방식을 선택함
+
+
+
+**system**
+
+- 레코드가 1건만 존재하는 테이블 또는 한건도 존재하지 않는 테이브을 참조하는 형태의 접근방법을 system이라함
+- innodb에서는 없고 myisam이나 memory에서 사용
+- 거의 안나옴
+
+
+
+**const**
+
+- 테이블의 레코드 건수에 관계 없이 쿼리가 프라이머리 키나 유니크 키 칼럼을 이용하는 where 조건절을 가지고 있으며 반드시 1건을 반환하는 쿼리의 처리 형식을 contst라함
+- 다른 dbms에서는 이것을 유니크 인덱스 스캔이라고도 표현함
+- 다중칼럼의 경우 const를 사용할 수 없고 ref로 표시됨
+- 다중칼럼도 전부 = 조건으로 걸면 const를 사용함
+- 실행계획이 const인 경우 mysql의 옵티마이저가 쿼리를 최적화하는 단계에서 모두 상수화 시킴.. 오
+
+
+
+**eq_ref**
+
+- eq_ref 접근 방법은 여러 테이블이 조인되는 쿼리의 실행 계획에서만 표시됨
+- 조인에서 처음 읽은 테이블의 칼럼 값을 그 다음 읽어야 할 테이블의 pk나 유니크 키 칼럼의 검색 조건에 사용할 떄를 eq_ref라 함
+- 이때 두번째 이후에 읽는 테이블의 type 칼럼에 eq_ref가 표시됨 두번째 이후에 읽히는 테이블을 유니크 키로 검색할 떄 그 유니크 인덱스는 not null 이어야 하며 다중 컬럼으로 만들어진 다중 칼럼으로 만들어진 pk나 유니크 인덱스라면 인덱스의 모든 칼럼이 비교 조건에 사용 되어야만 eq_ref 접근 방법이 사용될 수 있음
+- 즉 조인에서 두번쨰 이후에 읽는 테이블에서 반드시 1건만 존재한다는 보장이 있어야 사용할 수 있는 접근 방법
+
+```sql
+SELECT * FROM dept_emp de, employees e
+WHERE e.emp_no=de.emp_no AND de.dept_no 'd005';
+```
+
+- 여기서 e의 실행계획이 eq_ref가 됨
+
+
+
+
+
+**ref**
+
+- eq_ref와는 달리 조인의 순서와 관계 없이 사용되고 pk나 유니크키의 제약조건도 없음
 - 
+
+
+
+
+
+
 
 
 
