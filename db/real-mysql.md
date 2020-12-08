@@ -3348,11 +3348,118 @@ SELECT * FROM employees WHERE emp_no = 10001 FOR UPDATE;
 
 
 
+## UPDATE
+
+
+
+**UPDATE ... ORDER BY ... LIMIT N**
+
+- 정렬 후 상위 몇건만 업데이트도 가능함
+- 마스터 슬레이브 관계에서는 조심할 것
+
+
+
+### JOIN UPDATE
+
+- 두 개 이상의 테이블을 조인해 조인된 결과 레코드를 업데이터 하는 쿼리를 JOIN UPDATE라 함
+- 일반적으로 JOIN UPDATE는 조인되는 모든 테이블에 대해 읽기 참조만 되는 테이블은 읽기 잠금이 걸리고 칼럼이 변경되는 테이블을 쓰기 잠금이 걸림
+- 웹서비스, OLTP 같은 환경에서는 데드락 유발 가능성이 높아서 권장 x
+- 배치 프로그램이나 통계용 UPDATE문장에서는 유용함
+- 테이블의 조인 순서에 따라 성능이 좌우됨 
+- UPDATE를 SELECT로 변경해서 쿼리 실행계획을 확인할 수 있음
 
 
 
 
-### UPDATE
+
+## DELETE
+
+### DELETE ... ORDER BY ... LIMIT N
+
+
+
+### JOIN DELETE
+
+
+
+## 스키마 조작
+
+### 데이터베이스
+
+- 너무 기본이라 생략
+
+
+
+### 테이블
+
+**SHOW CREATE TABLE**
+
+- SHOW CREATE TABLE [TABLE_NAME]; 을 사용하면 MYSQL서버가 테이블의 메타정보를 읽어서 CREAT TABLE 스크립트를 작성해줌
+
+
+
+**RENAME TABLE**
+
+- 테이블의 이름 변경
+  - 생략
+- 테이블의 DB 변경
+  - RENAME TABLE db1.employees TO db2.employees
+  - 레코드 수에 관계 없이 특별한 경우가 아니면 빠르게완료됨 <- 같은 물리적 위치일때
+
+
+
+
+
+**테이블의 상태 조회**
+
+- 테이블이 만들어진 시간, 대략의 레코드 건수, 데이터 파일의 크기, 데이터 파일의 버전이나 레코드 포맷 등 중요한 정보를 조회할 수 있음
+- SHOW TABLE STATUS LIKE [TABLE_NAME]
+
+
+
+**테이블 구조 복사**
+
+- CREATE TABLE [COPY_NAME] LIKE [TARGET_NAME]
+- INSERT INTO temp_employees SELECT * FROM employees;
+
+
+
+**테이블 구조 및 데이터 복사**
+
+- CREATE TABLE .. AS SELECT 명령을 이용하면 다른 테이블로 부터 SELECT 된 결과를 이용해 새로운 테이블을 만들 수 있음
+- 이때 주의해야할 것이 CREATE TABLE 절에 칼럼 이름을 직접 명시해서 생성하는 경우 SELECT 하는 칼럼의 이름을 그대로 이용해야함
+
+
+
+**테이블 삭제**
+
+- 레코드 건수가 많은 테이블을 삭제하는 작업은 상당히 부하가 큰 작업임 서비스중에 삭제는 하지 말 것
+- 5.0, 5.1에서 테이블 삭제는 LOCK_open, 글로벌 잠금임 다른 테이블도 블러킹할 수 있음
+
+
+
+
+
+### 칼럼 변경
+
+- 기본적인건 생략
+
+
+
+**칼럼명 이외의 타입이나 NULL 여부를 변경하는 경우**
+
+- CHANGE COLUMN 말고 MODIFY COLUMN 키워드를 사용해야함
+
+**칼럼 변경을 위한 ALTER TABLE 진행 상황**
+
+- MYSQL 서버의 상태 값을 확인해보면 현재 어느정도 ALTER TABLE이 진행됐는지 알 수 있음
+- SHOW GLOBAL STATUS LIKE 'Handler%';
+  - Handler_read_rdn_next 상태 값은 풀 테이블 스캔 방식으로 테이블의 모든 레코드를 읽을 때 읽은 레코드 건수를 보여줌
+  - Handler_writer 상태값은 테이블에 INSERT 되는 레코드 건수를 보여줌
+
+
+
+
 
 
 
