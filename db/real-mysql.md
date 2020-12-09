@@ -3698,6 +3698,126 @@ LIMIT 0
 
 
 
+# #8 확장기능
+
+- 패스
+
+
+
+
+
+
+
+# #9 사용자 정의 변수
+
+- mysql 변수는 누가 생성하는가에 따라 크게 시스템 변수와 사용자 변수로 구분함 범위가 mysql 서버 전체인지 아니면 커넥션에 종속적인지에 따라 글보벌 변수, 세선변수로 나뉨 서버가 재시작되지 않고 변수를 변경할수있느냐로 동적변수, 정적변수가 있음
+- 사용자변수는 해당 커넥션에서만 유효하기때문에 항상 세션변수로 취급됨 그리고 동적변수임
+
+
+
+## 사용자 정의 변수 소개
+
+- 프로시저 함수 뿐 아니라 sql 문장에서도 사용할 수 있음
+- 해당 커넥션 내부에서만 산용 가능
+- @ 로 시작함
+- 타입을 정의하지 않고 저장하는 값에 의해서 그 타입이 정해짐
+- null도 지정 가능 초기화하지 않은 사용자 변수는 null임
+- SET 문장으로 값이 할당되고 생성도됨 = 또는 :=을 사용함
+
+```sql
+SET @var := 'My first user variable';
+SET @var = 'My first', @var2 = 'user variable';
+
+SELECT @var AS var1, CONCAT(@var1, ' ', @var2) AS var2;
+
+```
+
+- sql 문장에서의 연산 결과를 다시 사용자 변수에 할당하는것도 가능하고 sql 문장에서 표현식을 사용할 수 있는 곳에서는 언제나 사용자 변수를 사용할 수 있음
+
+```SQL
+SET @rownum=0;
+
+SELECT (@rownum:= @rownum+1) AS rownum, emp_no, first_name FROM employees LIMIT 5;
+
+```
+
+- 절대 동일 SQL 문장에서 변수에 값을 할당하고 동시에 값을 참조하지 말것
+- 사용자 정의 변수는 버전에 따라 일관되게 작동하지 않을 수 있다는 점을 항상 기억할 것
+- 사용자 변수는 애플리케이션처럼 고정적인 로직보다 일회성의 대량 작업에 더 적합할 때가 많음 예를 들어 일회성으로 데이터를 마이그레이션 하는 작업은 여러 차례 테스트를 진행하고 준비해서 단 한번 실행하지만 한번에 처리해야하는 레코드 건수가 많음 이럴때 사용자 변수를 사용하면 좋음
+- 사용자 정의 변수 사용시 고려사항
+  - MYSQL 5.0 미만의 버전에서는 변수명의 대소문자를 구분했지만 그 이상에선 구분하지 않음
+  - 사용자 정의 변수를 사용하는 쿼리는 MYSQL 쿼리 캐시 기능을 사용하지 못함
+  - 초기화되지 않은 변수는 문자열 타입의 NULL을 가짐
+  - 사용자 정의 변수의 연산 순서는 정해져있지 않음 MYSQL 보장하지 않음
+  - MYSQL의 버전에 따른 작동 방식이나 순서에 차이가 있기 때문에 여러 버전에 걸쳐서 사용은 주의할것
+
+
+
+
+
+## 사용자 변수의 기본 사용
+
+- 사용자변수는 커넥션간에 공유되지않지만 하나의 커넥션안에서는 공유됨
+- 커넥션 풀을 사용하는 일반적인 웹 프로그램에서 변수를 사용할 때마다 초기화하지 않으면 웹 프로그램 코드가 상호 영향을 미칠 수 있음
+- 사용자 변수를 초기화 하기 위해 항상 SELECT 쿼리 이전에 실행했어야했는데 FROM절에 넣어도 사용이 가능함
+
+
+
+
+
+## 사용자 변수의 적용 예제
+
+### N번째 레코드만 가져오기
+
+- 실제 1건의 레코드만 디스크에서 읽어오는 것은 아님
+- 레코드 건수가 많은 테이블에서는 주의
+
+```sql
+SELECT * FROM departments, (SELECT @rn:=0) x
+WHERE (@rn:=@rn+1) = 3
+ORDER BY dept_name;
+```
+
+
+
+###  누적 합계 구하기
+
+
+
+```SQL
+SELECT emp_no, salary, (@acc_salary:=@acc_salary+salary) AS acc_salary
+FROM salaries, (SELECT @acc_salary:=0) x
+LIMIT 10
+```
+
+
+
+### 그룹별 랭킹 구하기
+
+```sql
+SELECT
+	emp_no, first_anme, last_name, IF(@prev_firstname=first_name, @rank:=@rank+1, @rank:=1+LESAT(0, @prev_firstname:=first_name)) rank
+FROM employees, (SELECT @rank:=0) x1, (SELECT @prev_firstname:='DUMMY') x2
+WHERE first_name IN ('Georgi', 'Bezalel')
+ORDER BY first_name, last_name;
+```
+
+
+
+### 랭킹 업데이트하기
+
+- 생략
+
+### GROUP BY와 ORDER BY가 인덱스를 사용하지 못하는 쿼리
+
+- 생략
+
+
+
+## 주의사항
+
+- mysql에서 하나의 변수에대한 할당과 참조를 동시에하는데 있어서 안정적인 결과를 보장하지 않음
+
 
 
 
