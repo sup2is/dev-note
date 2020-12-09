@@ -3459,9 +3459,250 @@ SELECT * FROM employees WHERE emp_no = 10001 FOR UPDATE;
 
 
 
+### 인덱스 변경
+
+**인덱스 추가**
+
+- 5.1버전 이상의 innoDB테이블에 대해서는 플러그인 버전부터 데이터 자체는 그대로 두고, 인덱스만 생성하는 형태로 개선됨 그래서 5.0보다는 훨씬 빠름 예외적으로 pk가 추가되면 5.0처럼 모든 레코드들을 복사함
+- 추가 가능한 인덱스
+  - PRIMARY KEY: 테이블의 PK를 생성하는 키워드, 테이블이 어떤 스토리지 엔진이든지 사용할 수 있음
+  - UNIQUE INDEX: 키 값의 중복을 허용하지 않는 인덱스를 생성하는 키워드, 테이블의 스토리지 엔진에 관계없이 사용 가능
+  - FULLTEXT INDEX: 전문 검색 인덱스 MyISAM만 가능
+  - SPATIAL INDEX: 공간 검색 인덱스를 생성하는 키워드, MyISAM만 가능
+  - INDEX: 특별한 키워드를 명시하지 않고 INDEX키워드만 사용하면 중복이 허용되는 일반 보조 인덱스를 생성
+- USING 키워드로 인덱스 알고리즘을 사용할 지 명시할 수 있음 FULLTEXT, SPATIAL 제외
+- MYSQL의 각 컬럼의 정렬 순서는 무시하고 모두 ASC로 인덱스를 생성함
+
+**인덱스 조회**
+
+- SHOW INDEX FROM [TABLE_NAME];
+- 인덱스의 칼럼 단위로 한 라인씩 표시, 콜레이션이나 인덱스 알고리즘, 인덱스 기수성도 표시됨
 
 
 
+**인덱스 삭제**
+
+- 5.0이하에서는 테이블 자체를 복사하면서 처리해서 느리게 삭제됐으나 5.1이상의 InnoDB에서는 플러그인버전, 데이터 자체는 그대로 두고 인덱스만 삭제해서 매우 빠름 예외적으로 pk의 삭제는 오래걸림
+
+
+
+**칼럼 및 인덱스 변경을 모아서 실행**
+
+- 가능하다면 스키마 변경을 테이블 단위로 모아서 실행
+
+```SQL
+ALTER TABLE employees
+	DROP INDEX ix_firstname,
+	ADD INDEX ix_new_firstname (first_name),
+	ADD COLUMN emp_telno VARCHAR(15);
+```
+
+
+
+### 프로세스 조회
+
+- SHOW PROCESSLIST
+- MYSQL 서버에 접속된 클라이언트의 요청을 처리하고 있는 스레드 수만큼의 레코드가 표시됨
+
+
+
+### 프로세스 강제 종료
+
+- KILL QUERY 4288;
+  - 해당 스레드가 실행하고 있는 쿼리를 강제 종료
+- KILL 4288;
+  - 해당 스레드를 강제 종료
+
+
+
+### 시스템 변수 조회 및 변경
+
+- my.cnf, my.ini 같은 시스템변수를 SHOW VARIABLES라는 명령으로 조회 가능
+
+```SQL
+SHOW GLOBAL VARIABLES;
+SHOW GLOBAL VARIABLES LIKE ...
+SHOW SESSION VARIABLE ...
+SHOW VARIABLES ...
+```
+
+- MYSQL 시스템 변수 중에서는 동적으로 변경이 가능함 
+- SET GLOBAL, SET [variable_name] = 1000;
+
+
+
+### 경고나 에러 조회
+
+- 경고 메시지는 프로그램에서 간과해서는 안됨
+- SHOW WARNINGS 명령을 사용하면 경고메시지 확인 가능
+- 에러는 SHOW ERRORS
+
+
+
+**권한 조회**
+
+- SHOW PRIVILEGES
+
+
+
+## SQL 힌트
+
+- mysql 에서 4~5개가 사용할만한 힌트인데 쿼리 힌트로 성능을 상당히 개선할 수 있음
+- mysql은 이 힌트가 옵티마이저에게 영향을 끼치는 정도가 크므로 성능이 더 악화될수도 있음
+
+
+
+### 힌트의 사용법
+
+- mysql은 힌트가 sql의 일부로해석되어서 잘못쓰면 에러
+
+```sql
+SELECT * FROM employees USE INDEX (PRIMARY) WHERE emp_no=10001;
+SELECT * FROM employees /*! USE INDEX (PRIMARY)*/ WHERE emp_no=10001;
+```
+
+- 주석을 사용하면 다른 dbms에서에서도 사용할 수 있음
+
+
+
+
+
+### STRAIGHT_JOIN
+
+- STRAIGHT_JOIN은 옵티마이저 힌트이기도하면서 조인 키워드이기도함
+- STRAIGHT_JOIN은 SELECT나 UPDATE, DELETE 쿼리에서 여러 개의 테이블이 조인될 때 조인의 순서를 고정하는 역할을 함
+- 드리븐테이블, 드라이빙테이블에 대한 결정은 옵티마이저가 하는데 STRAIGHT_JOIN키워드를 쓰면 나열한 순서대로 조인을 수행함
+- STRAIGHT_JOIN조인은 신중하게 사용해야함
+  - 임시 테이블과 일반 테이블의 조인
+    - 임시 테이블을 드라이빙 테이블로 선정하는 것이 좋음 일반 테이블의 조인 칼럼에 인덱스가 없는 경우에는 레코드 건수가 적은 쪽을 드라이빙으로 선택하는게 좋음 예상과 반대로 되었을때만 STRAIGHT_JOIN를 사용할 것
+  - 임시 테이블끼리의 조인
+    - 일반적으로 크기가 작은 테이블을 드라이빙으로 선택하는 것이 좋음
+  - 일반 테이블끼리의 조인
+    - 레코드 건수가 적은 테이블을 드라이빙 으로 선택하는것이 좋음 
+    - 조인 칼럼에 인덱스가 없는 테이블을 드라이빙으로 선택하는 것이 좋음
+- 여기서 언급하는 레코드 건수라는 것은 조건을 만족하는 레코드 건수를 의미함
+
+
+
+### USE INDEX / FORCE INDEX /IGNORE INDEX
+
+- 2~3개의 칼럼이 포함된 인덱스는 MYSQL 옵티마이저가 최적의 인덱스를 충분히 선택할 수 있을 정도로 똑똑하기 때문에 너무 걱정하지 않아도 됨
+- 복잡한 인덱스에 대해 USE INDEX나 FORCEINDEX로 옵티마이저가 다른 인덱스를 선택하도로 유도할 수 있음
+  - USE INDEX
+    - 옵티마이저에게 특정 테이블의 인덱스를 사용하도록 권장
+  - FORCE INDEX
+    - USE INDEX보다 옵티마이저게에 미치는 영향이 더 강한 힌트임
+    - 거의 사용할일이 없음
+  - IGNORE INDEX
+    - 인덱스를 무시할때 사용
+  - USE INDEX FOR JOIN
+    - 테이블간의 조인, 레코드 검색하는 용도로 INDEX를 사용을 옵티마이저에게 알려줄 때
+  - USE INDEX FOR ORDER BY
+    - 명시된 인덱스를 ORDER BY 용도로만 사용하도록 제한함
+  - USE INDEX FOR GROUP BY
+    - 명시된 인덱스를 GROUP BY 용도로만 사용하도록 제한함
+- 가능하면 그때그때 옵티마이저가 실행 시점의 통계 정보를 가지고 실행 계호기을 선택하게 해주는 것이 가장 좋음
+
+
+
+### SQL_CACHE / SQL_NO_CACHE
+
+- SELECT 결과를 캐시에 담아둘지 여부를 쿼리에서 직접 선택할 수도 있는데 이때 SQL_CACHE/ SQL_NO_CACHE를 사용할 수 있음
+- 시스템 변수의 query_cache_type 에 따라 기본값이 변경됨
+- 일반적으로 쿼리 캐시를 사용하기때문에 SQL_CACHE보단 캐시를 사용하지 않는 SQL_NO_CACHE 명령어를 사용함
+
+
+
+### SQL_CALC_FOUND_ROWS
+
+- SELECT 쿼리에 LIMIT절이 사용될 때 조건을 만족하는 레코드가 LIMIT절에 명시된 수보다 많다면 LMIT에 명시된 건수만큼만 레코드를 찾고 즉시 쿼리 수행을 멈춤 
+- SQL_CALC_FOUND_ROWS를 사용하면 실제 반환하는 LIMIT 건수에 관계 없이 FOUND_ROWS() 라는 함수의 세션변수에 저장함
+- SQL_CALC_FOUND_ROWS 힌트를 사용하기보단 쿼리 튜닝하는데 집중할 것
+
+
+
+## 쿼리 성능 테스트
+
+**캐시**
+
+- 운영체제의 캐시
+
+  - MYSQL 서버는 운영체제의 파일 시스템 관련 기능을 이용해 데이터 파일을 읽어옴
+
+  - 일반적으로 대부분의 운영체제는 한번 읽은 데이터는 운영체제가 관리하는 별도의 캐시영역에 보관해뒀다가 반환함 
+
+  - 운영체제가 가지고 있는 캐시나 버퍼가 전혀 없는 상태에서 쿼리의 성능을 테스트하려면 MYSQL 서버를 재시작하거나 캐시 삭제 명령어를 실행하고 테스트하는것이 좋음
+
+  - ```shell
+    ##캐시나 버퍼의 내용을 디스크와 동기화함
+    shell> sync
+    ## 운영체제에 포함된 캐시의 내용을 초기화함
+    shell> echo 3 > /proc/sys/vm/drop_caches
+    ```
+
+- MySQL 서버의 버퍼 풀 (innodb 버퍼풀, myisam의 키 캐시)
+
+  - 운영처제의 버퍼나 캐시와 마찬가지로 mysql 서버에도 데이터 파일의 내용을 페이지 단위로 캐시하는 기능을 제공함
+  - innodb는 버퍼 풀, myisam은 키 캐시
+  - mysql 서버에 포함된 키 캐시나 버퍼 풀을 초기화하려면 mysql서버를 재시작해야함
+  - 처음 실행했을 때의 결과는 버리고 여러번 테스트해서 그결과를 기준으로 판단하느 ㄴ것이 좋음
+
+- MySQL 쿼리 캐시
+
+  - SQL_NO_CACHE힌트를 추가해서 쿼리 성능을 테스트할 것
+  - RESET QUERY CACHE는 가급적 자제
+
+- 독립된 MYSQL 서버
+
+  - 네트워크 등등의 고려사항을 제외하고 실제 순수 쿼리성능을 직접 테스트해보는게 좋음
+
+
+
+
+
+
+
+- 실제 쿼리 성능테스트는 워밍업상태, 콜드상태에서 진행할지도 고려해야함
+- 일반적으로 워밍업상태에서 테스트하는편
+- 간단한 쿼리의 성능 비교 테스트에서는 특별히 영향을 미칠만한 프로세스나 다른 쿼리가 실행되고 있는지 확인한 후 쿼리 캐시만 사용하지 않도록 설정하고 테스트를 진행해도 괜찮음
+
+
+
+### 쿼리의 성능 테스트
+
+- 전체 레코드 수가 많다면 LMIT 0;을 사용해서 실제 쿼리의 수행시간만 나타내는 방법이 있음
+
+```SQL
+SELECT SQL_CACL_FOUND_ROWS SQL_NO_CACHE STRAIGHT_JOIN
+e.first_name, d.dept_name
+FROM departments d, dept_emp de, employees e
+WHERE e.emp_no=de.emp_no AND d.dept_no=de.dept_no
+LIMIT 0
+```
+
+- 클라이언트에게 쿼리를 제공하지 않기때문에 네트워크 통신 비용을 배재할수밖에 없음
+- MYSQL PAGER 옵션으로 어느정도 테스트 가능함 생략
+
+
+
+### 쿼리 프로파일링
+
+- MYSQL에서 쿼리가 처리되는 동안 각 단계별 작업에 시간이 얼마나 걸렸는지 확인할 수 있다면 쿼리의 성능을 예측하거나 개선하는데 많은 도움이 될 것임
+- 5.1 이상에서만 지원되고 프로파일링 활성화를 해야함
+- SET PROFILING=1;
+- SHOW PROFILES으로 최근 15개 쿼리에 대해서만 저장되고 profiling_history_size로 100개까지 저장할 수 있음
+- SHOW PROFILE로 가장 최근 1개의 쿼리에 대한 프로파일링 정보를 볼 수 있고 SHOW PROFILE FOR QUERY [QUERY_NUMBER]로 프로파일링 할 쿼리 번호를 직접 지정할 수 있음
+- CPU, MEMORY, SOURCE 등등의 키워드도 사용할 수 있음
+
+
+
+
+
+
+
+
+
+### 
 
 
 
