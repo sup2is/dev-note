@@ -1787,6 +1787,8 @@ WHERE emp_no BETWWEN 10001 AND 10100 AND gender= 'f';
 
 ## MySQL의 주요 처리 방식
 
+- 
+- 
 - 아래 설명하는 내용은 풀 테이블 스캔을 제외한 나머지 모두 스토리지 엔진이 아니라 mysql 엔진에서 처리되는 내용임
 - mysql 엔진에서 부가적으로 처리하는 작업은 대부분 성능에 취약함
 - mysql 엔진에서 처리하는 작업을 알아두면 쿼리 튜닝에 상당히 도움이 됨
@@ -4034,6 +4036,8 @@ PARTITION BY RANGE (YEAR (reg_date)) (
 
 **레인지 파티션의 분리와 병합**
 
+
+
 - 단순 파티션의 추가
 
   - ```sqlite
@@ -4389,8 +4393,7 @@ SELECT @result;
 
 - CREATE FUNCTION 으로 생성하고 모든 입력 파라미터는 읽기 전용이라 IN이나 OUT, INOUT을 사용 불가
 - 스토어드함수와 스토어드 프로시저의 차이
-  - RETURN으로 반환되는 값의 타입을 +
-  - 명시해야함
+  - RETURN으로 반환되는 값의 타입을 명시해야함
   - 함수 본문 마지막에 정의부에 지정된 타입과 동일한 타입의 값을 RETURN으로 반환해야함
 
 ```sql
@@ -4400,6 +4403,152 @@ BEGIN
 	DECLARE param3 INTEGER DEFAULT 0;
 	SET para3 = param1 + param2;
 	RETURN param3;
+END;;
+```
+
+- 스토어드 프로시저와는 달리 스토어드 프로그램의 본문에는 다음과 같은 사항을 사용하지 못함
+  - PREPARE와 EXECUTE 명령을 이용한 프리페어 스테이트먼트 사용 불가
+  - 명시적 또는 묵시적 ROLLBACK/COMMIT을 유발하는 SQL 사용 불가
+  - 재귀 호출 사용 불가
+  - 스토어드 함수 내에서 프로시저 호출 불가
+  - 결과 셋을 반환하는 SQL 문장 사용 불가
+
+
+
+**스토어드 함수 실행**
+
+- 스토어드 함수는 CALL 명령으로 실행할 수 없고 SELECT로만 실행함
+
+
+
+### 트리거
+
+- 테이블의 레코드가 저장되거나 변경될 때 미리 저으이해둔 작업을 자동으로 실행해주는 스토어드 프로그램
+- MYSQL 트리거는 테이블의 레코드가 INSERT나 UPDATE 또는 DELETE 될 때 시작되도록 설정할 수 있음
+- 대표적으로 칼럼의 유효성 체크나 다른 테이블로의 복사나 백업을 위해 트리거를 자주 사용함
+- AUTO_INCREMENT 속성의 칼럼이 포함된 테이블에 INSERT 하는 트리거는 마스터 슬레이브 데이터를 다르게 만들 가능성이 상당히 높으므로 주의
+- 5.1.6 이하에선 SUPER 유저만 가능했지만 그 이후에서는 TRIGGER 권한을 가진 사용자는 모두 생성 가능
+- 테이블당 하나의 이벤트에 대해 2개 이상의 트리거 등록 불가
+
+**트리거 생성**
+
+```sql
+CREATE
+TRIGGER on_delete BEFORE DELETE ON employees
+	FOR EACH ROW
+BEGIN
+	DELETE FROM salaries WHERE emp_no=old.emp_no;
+END;;
+```
+
+- FOR EACH ROW명 로우마다 트리거 실행
+- FOR EACH STATEMENT면 SQL 문장 단위로 트리거 실행
+- MYSQL은 INSERT UPDATE DELETE만 지원함
+- 트리거를 사용하면 SQL 문장이 어떤 이벤트를 발생시키는지 명확히 알아야 함
+
+| SQL 종류                 | 발생하는 트리거 이벤트 (-> 발생하는 이벤트의 순서를 의미함)  |
+| ------------------------ | ------------------------------------------------------------ |
+| INSERT                   | BEFORE INSERT -> AFTER INSERT                                |
+| LOAD DATA                | BEFORE INSERT -> AFTER INSERT                                |
+| REPLACE                  | 중복이 없을 때 : BEFORE INSERT -> AFTER INSERT<br />중복이 있을 떄 : BEFORE DELETE -> AFTER DELETE -> BEFORE INSERT -> AFTER INSERT |
+| INSERT INTO ON DUPLICATE | 중복이 없을 때 : BEFORE INSERT -> AFTER INSERT<br />중복이 있을 떄 : BEFORE UPDATE -> AFTER UPDATE |
+| UPDATE                   | BEFORE UPDATE -> AFTER UPDATE                                |
+| DELETE                   | BEFORE DELETE -> AFTER DELETE                                |
+| TRUNCATE                 | 이벤트 발생 안함                                             |
+| DROP TABLE               | 이벤트 발생 안함                                             |
+
+- 트리거의 BEGIN ... END의 코드 블록에서 사용하지 못하는 작업
+  - PREPARE 와 EXECUTE 명령을 이용한 프리페어 스테이트먼트를 사용 불가
+  - 복제에 의해 슬레이브에 업데이트되는 데이터는 레코드 기반 복제에서는 슬레이브 트리거를 기동시키지 않지만 문장 기반의 복제 에서는 슬레이브에서도 트리거를 기동시킴
+  - 명시적 또는 묵시적인 ROLLBACK/COMMIT을 유발하는 SQL 문장 사용 불가
+  - RETURN 사용 불가 종료할때는 LEAVE명령을 사용
+  - MYSQL DB에 존재하는 테이블에 대해서는 트리거 생성 불가
+  - 스토어드 함수 내에서 프로시저 호출 불가
+- *.TRG 확장자로 생성
+- 서버 복사나 백업할때 *.TRG 파일도 반드시 백업해야함
+- 트리거가 있으면 RENAME TABLE 명령이 에러가남 트리거 생성후에 RENAME TABLE 할 것
+
+
+
+### 이벤트
+
+- 주어진 특정한 시간에 스토어드 프로그램을 실행할 수 있는 스케줄러 기능을 이벤트라함
+- 5.1.6이상에서 사용 가능
+- 이벤트의 스케줄링을 담당하는 스레드를 활성화해야 사용 가능 event_scheduler라는 시스템변수 확인
+
+이하 이벤트는 생략
+
+
+
+
+
+### 스토어드 프로그램 본문 작성
+
+- 스토어드 프로시저에서 이벤트까지 모든 프로그램은 BEGIN ... END 라는 모두 똑같은 문법을 사용함
+
+**BEGIN .. END 블록과 트랜잭션**
+
+- 하나의 BEGIN ...END 블록은 또 다른 여러개의 BEGIN ... END 블록을 중첩해서 포함할 수 있음
+- 스토어드 프로그램 내부에서 트랜잭션을 실행할 떄는 START TRANSACTION을 사용해야함
+- 스토어드 프로시저 내부에서 트랜잭션을 선언할지 아니면 실행하는 외부에서 선언할지는 중요한 문제이므로 주의해야함
+
+
+
+**변수**
+
+- BEGIN .. END 내부에 있는 변수는 사용자 변수가 아니고 로컬 변수임
+- 사용자 변수는 커넥션 내부에서 공유되고 로컬 변수는 스토어드 프로그램 내부에서만 정의되고 사용**
+- 로컬 변수는 반드시 타입과 함께 정의되기때문에 컴파일러 수전의 타입 오류 체크 가능
+
+**DECLARE**
+
+- 스토어드 프로그램의 로컬 변수는 DECLARE를 사용해야함
+
+```
+DECLARE v_name VVARCHAR(50) DEFAULT 'LEE';
+```
+
+- DEFAULT 명시하지않으면 기본이 NULL
+
+**SET**
+
+- DECLARE로 정의한 변수에 값을 할당하는 명령
+
+```
+SET v_name = 'Kim', v_email = 'kim@email.com';
+```
+
+**SELECT ... INTO**
+
+- SELECT한 칼럼을 로컬 변수에 할당하는 명령
+- 반드시 1개만 리턴해야함
+- SELECT에 LIMIT 1섞어서 사용하는게 좋음 
+
+
+
+- 스토어드 프로그램에서 변수가 어떤 변수인지 헷갈릴 수 있으니 입력 파라미터는 p\_형태, 로컬 변수는 v\_ 형태로 구분지어서 프리픽스를 지정하면서 프로그래밍 하면 됨
+
+**제어문**
+
+- 조건 비교 및 반복과 같은 절차적인 처리를 위해 여러 가지 제어 문장을 이용할 수 있음
+
+**IF ... ELSEIF ... ELSE .. END IF**
+
+```sql
+DELIMITER ;;
+
+CREATE FNCTION sf_greatest(p_value INT, p_value2 INT)
+	RETURN INT
+BEGIN
+	IF p_value1 NULL THEN
+		RETURN p_value2;
+	ELSE IF p_value 2 IS NULL THEN
+		RETURN p_value1;
+
+...
+	ELSE
+		RETURN p_value2;
+	END IF;
 END;;
 ```
 
