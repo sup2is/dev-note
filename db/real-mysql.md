@@ -4554,6 +4554,98 @@ END;;
 
 
 
+**CASE WHEN ... THEN ... ELSE ... END CASE**
+
+```sql
+DELIMITER ;;
+
+CREATE FUNCTION sf_greatest (p_value1 INT, p_value2 INT)
+	RETURN INT
+EGIN
+	CASE
+		WHEN p_value1 IS NULL THEN
+			RETURN p_value2;
+		WHEN p_value2 NULL THEN
+			RETURN p_value1;
+...
+		ELSE
+			RETURN p_value2;
+	END CASE;
+END;;
+```
+
+
+
+**반복 루프**
+
+```sql
+DELIMITER ;;
+
+CREATE FUNCTION sf_factorial1 (p_max INT)
+	RETURN INT
+BEGIN
+	DECLARE v_factorial INT DEFAULT 1;
+	
+	factorial_loop : LOOP
+		SET v_factorial = v_factorial * p_max;
+		SET p_max = p_max -1;
+		IF p_max <=1 THEN
+			LEAVE factorial_loop;
+		END IF;
+	END LOOP;
+RETURN v_factorial;
+END;;
+```
+
+
+
+**핸들러와 컨디션을 이용한 에러 핸들링**
+
+- 안정적이고 견고한 스토어드 프로그램을 작성하려면 반드시 핸들러를 이용해 예외를 처리해야함
+- 스킵
+
+
+
+
+
+**시그널을 이용한 예외 발생(5.5 이상)**
+
+- 스킵
+
+
+
+## 스토어드 프로그램의 권한 및 옵션
+
+### DEFINER와 SQL SECURITY 옵션
+
+### 스토어드 프로그램의 권한
+
+### DETERMINISTIC과 NOT DETERMINISTIC 옵션
+
+
+
+## 스토어드 프로그램의 참고 및 주의사항
+
+### 한글 처리
+
+### 스토어드 프로그램과 세션 변수
+
+### 스토어드 프로시저와 재귀 호출
+
+### 중첩된 커서 사용
+
+
+
+
+
+## 
+
+
+
+
+
+
+
 
 
 
