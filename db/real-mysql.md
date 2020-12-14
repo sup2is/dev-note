@@ -4805,6 +4805,106 @@ SELECT * FROM employees WHERE emp_no=10001 FOR UPDATE; --쓰기 잠금
 
 
 
+# #13 프로그램 연동
+
+
+
+## 자바
+
+- 자바로 mysql 에접속해서 sql을 실행하려면 jdbc를 사용해야함
+- jdbc는 사실 인터페이스일 뿐이고 실제 구현체는 각 dbms 제조사에서 제공하는 jdbc드라이버임
+
+### jdbc 버전
+
+- jdbc 버전과  사용가능한 mysql 버전이 있으므로 확인할 것
+
+
+
+**Statement와 PreparedStatement의 차이**
+
+- mysql 서버가 쿼리를 실행하는 과정
+  - 쿼리분석 -> 최적화 -> 권한 체크 -> 쿼리 실행
+- 자바 프로그램에서 Statement로 실행되는 쿼리는 위의 모든 단계를 매번 거쳐서 쿼리가 실행됨 따라서 쿼리 분석이나 최적화 같은 작업은 상대적으로 시간이 걸림
+- preparedStatment 를 사용하면 쿼리 분석이나 최적화의 일부 작업을 처음 한번만 수행해 별도로 저장해두고 다음부터 요청되는 쿼리는 저장된 분석 결과를 재사용함 이렇게 함으로 매번 쿼리를 실행할 때마다 거쳐야했던 쿼리 분석이나 최적화의 일부 작업을 건너뛰고 빠르게 처리 가능함 
+- preparedStatement는 ? 를 사용한 바인딩 쿼리가 가능하고 이 형태로 사용하면 mysql 서버가 쿼리 분석, 최적화를 재사용할 수 있기 때문에 mysql 메모리 사용량을 줄일수 있음
+- preparedStatement는 바이너리 프로토콜을 사용함. 즉 내부적으로 불필요한 타입 변환을 수행하지 않고 sql 인젝션 쿼리에도 안정적임
+
+
+
+
+
+**프리페어 스테이트먼트의 종류**
+
+- 클라이언트 프리페어 스테이트먼트
+  - mysql connector/j를 이용하는 자바 애플리케이션에서 preparedstatement객체를 이용해 변수가 포함된 sql 문장을 실행할 때 connector/j가 자체적으로 sql 문장의 바인딩 변수에 값을 매핑해 하나의 완성된 sql 문장으로 만들어 서버에 전송하는 방식
+  - 이 방식을 이용하면 애플리케이션 개발자는 preparedstatement를 사용한다고 느끼지만 실제 mysql 서버는 매번 쿼리 문장을 분석하고 실행 계획을 수립해서 쿼리를 실행함
+- 서버 프리페어 스테이트먼트
+  - mysql의 서버 프리페어 스테이트먼트를 다른 dbms에서는 일반적으로 프리페어 스테이트먼트라고 함. 이게 일반적인 프리페어 스테이트먼트
+- jdbc 표준에 프리페어 스테이트먼트 기능이 도입되었을때 mysql에는 프리페어 스테이트먼트가 없었음 따라서 구분짓기위해 클라이언트, 서버로 나뉨
+- 별도의 옵션이 없으면 클라이언트 프리페어 스테이트먼트로 작동하기때문에 반드시 설정할 것
+- 애플리케이션에서 서버 프리페어 스테이트먼트를 사용하는지 확인하는 방법
+
+```sql
+SELECT * FROM information_schema.global_status
+WHERE variable_name IN ('Com_stmt_prepare', 'Com_stmt_execute', 'Prepared_stmt_count');
+```
+
+- Com_stmt_parepare: 서버사이드 프리페어 스테이트먼트에서 Connection.prepareStatement()함수 호출에의해 프리페어 스테이트먼트 객체가 만들어진 횟수
+- Com_stmt_execute: 서버사이드 프리페어 스테이트먼트에서 Connection.execute(), executepdate(), executeQuery() 함수 호출에 의해 프리페어 스테이트먼트 쿼리가 실행된 횟수
+- Prepared_stmt_count: mysql 서버에 현재 만들어져 있는 프리페어 스테이트먼트 객체의 수
+
+**스토어드 프로시저 실행 및 다중 결과 셋 조회**
+
+- 자바에서 스토어드 프로시저를 실행하려면 CallableStatement를 사용해야함
+- CallableStatement는 OUT이나 INOUT 타입의 파라미터를 추가로 등록하는 작업이 필요함 만약 없다면 preparedstatement와 동일
+- 이후 생략
+
+
+
+**배치 처리**
+
+
+
+**트랜잭션**
+
+- Connector/j는 기본적으로 AutoCommit
+- 별도의 트랜잭션이 필요하면 직접 commit rollback 분기를 만들어서 할것
+- 한번의 트랜잭션에서 끝낼 수 있는 작업을 여러개의 autocommit의 포함된 쿼리로 날리면 성능 저하가 있음
+
+
+
+**Connector/J 설정 옵션**
+
+- useCompression
+  - 애플리케이션과 mysql 서버 사이에 전송되는 데이터를 압축할지 선택하는 옵션
+  - 앱서버와 mysql 서버가 원격지로 떨어져있고 네트웍이 별로면 true로 설정해 압축하는게 좋음
+  - 이 작업은 cpu 작업이 예상외로 크기 때문에 네트워크 좋으면 false 설정
+- allowMultiQueries
+  - 여러개의 sql 문장을 ; 구분자로 한번에 실행할수있도록 허용하는 기능 기본값 false
+- allowLoadLocalInfile
+  - mysql jdbc에서 LOAD DATA LOCAL INFILE 명령을 허용하는지. 기본값 TRUE
+- allowUrlInLocalInfile
+  - INFILE 옵션에 URL 사용 가능한지. 기본값 FALSE
+- useCursorFetch
+  - 5.0.2이상 사용 가능
+  - 클라이언트 커서 대신 서버 커서를 사용하도록 설정 기본값 false
+- defaultFetchSize
+  - 서버 커서를 사용할 떄 mysql 서버로부터 한번에 몇개씩 레코드를 읽어올지를 설정함
+- holdResultsOpenOverStatementClose
+  - 가끔 Statement가 닫혔지만 그 Statement로부터 생성된 Result를 참조해야할 때 이 옵션을 활성화
+  - 물론 이때 ResultSet이 불필요해지는 시점에 꼭 명시적으로 닫아 주어야함
+  - 기본값 false
+- rewriteBatchedStatements
+  - 여러개의 insert 문장을 한꺼번에 실행할 때 preparedStatement의 addBatch() 함수로 누적된 레코드를 하나의 insert 문장으로 변환해서 실행하는 기능을 활성화하는 옵션 기본값 false
+- useServerPRepStmts
+  - 서버 preparedstatement를 사용할지 말지 설정하는 옵션 기본값 false
+- traceProtocol
+  - connector/j가 mysql 서버와 통신하기 위해 주고받는 패킷을 log4j를 이용해 로깅할 수 있음 기본값 false
+
+
+
+
+
 
 
 
