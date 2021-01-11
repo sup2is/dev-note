@@ -729,25 +729,197 @@ public class Product{
 
 ### 이벤트 클래스
 
+- 이벤트 자체를 위한 상위 타입은 존재하지 않음
+- 클래스의 이름은 과거 시제를 사용할 것
+- 이벤트는 이벤트 처리에 필요한 최소한의 데이터를 포함해야함
+
 ### EventHandler 인터페이스
+
+- 이벤트 핸들러를 위한 상위 인터페이스
+
+```java
+
+public interface EventHandler<T> {
+    void handle(T event);
+
+    default boolean canHandle(Object event) {
+        Class<?>[] typeArgs = TypeResolver.resolveRawArguments(
+                EventHandler.class, this.getClass());
+        return typeArgs[0].isAssignableFrom(event.getClass());
+    }
+}
+
+```
+
+- 위 인터페이스의 handle을 구현하면 됨, canHandle은 핸들러가 이벤트를 처리할 수 있는지 여부를 검사함
 
 ### 이벤트 디스패처인 Event 구현
 
+- 이벤트 디스패처인 Events를 구현해야함
+
+```java
+    @Transactional
+    public void cancel(OrderNo orderNo, Canceller canceller) {
+        Events.handle((OrderCanceledEvent evt) -> refundService.refund(evt.getOrderNumber()));
+
+        Order order = findOrder(orderNo);
+        if (!cancelPolicy.hasCancellationPermission(order, canceller)) {
+            throw new NoCancellablePermission();
+        }
+        order.cancel();
+
+        //Events.reset();
+    }
+```
+
+- 이벤트가 발생하면 이벤트를 처리할 EventHandler를 List에서 찾아 EventHandler의 handle 메서드를 호출해서 이벤트를 처리함
+- Events.raise()를 이용해서 이벤트를 발생시킴
+
+**Events 구현 클래스**
+
+```java
+
+public class Events {
+    private static ThreadLocal<List<EventHandler<?>>> handlers =
+            new ThreadLocal<>();
+    private static ThreadLocal<List<EventHandler<?>>> asyncHandlers =
+            new ThreadLocal<>();
+    private static ThreadLocal<Boolean> publishing =
+            new ThreadLocal<Boolean>() {
+                @Override
+                protected Boolean initialValue() {
+                    return Boolean.FALSE;
+                }
+            };
+
+    private static ExecutorService executor;
+
+    public static void init(ExecutorService executor) {
+        Events.executor = executor;
+    }
+
+    public static void close() {
+        if (executor != null) {
+            executor.shutdown();
+            try {
+                executor.awaitTermination(10, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+            }
+        }
+    }
+
+    public static void raise(Object event) {
+        if (publishing.get()) return;
+
+        try {
+            publishing.set(Boolean.TRUE);
+
+            List<EventHandler<?>> asyncEvtHandlers = asyncHandlers.get();
+            if (asyncEvtHandlers != null) {
+                for (EventHandler handler : asyncEvtHandlers) {
+                    if (handler.canHandle(event)) {
+                        executor.submit(() -> handler.handle(event));
+                    }
+                }
+            }
+            List<EventHandler<?>> eventHandlers = handlers.get();
+            if (eventHandlers == null) return;
+            for (EventHandler handler : eventHandlers) {
+                if (handler.canHandle(event)) {
+                    handler.handle(event);
+                }
+            }
+        } finally {
+            publishing.set(Boolean.FALSE);
+        }
+    }
+
+    public static void handle(EventHandler<?> handler) {
+        if (publishing.get()) return;
+
+        List<EventHandler<?>> eventHandlers = handlers.get();
+        if (eventHandlers == null) {
+            eventHandlers = new ArrayList<>();
+            handlers.set(eventHandlers);
+        }
+        eventHandlers.add(handler);
+    }
+
+    public static void handleAsync(EventHandler<?> handler) {
+        if (publishing.get()) return;
+
+        List<EventHandler<?>> eventHandlers = asyncHandlers.get();
+        if (eventHandlers == null) {
+            eventHandlers = new ArrayList<>();
+            asyncHandlers.set(eventHandlers);
+        }
+        eventHandlers.add(handler);
+    }
+
+    public static void reset() {
+        if (!publishing.get()) {
+            handlers.remove();
+            asyncHandlers.remove();
+        }
+    }
+}
+
+```
+
+- Events는 핸들러 목록을 유지하기 위해 ThreadLocal 변수를 사용함
+- reset을 호출하지 않으면 oom이 발생할 수 있음
+
 ### 흐름 정리
+
+1. 이벤트 처리에 필요한 이벤트 핸들러를 생성
+2. 이벤트 발생 전에 이벤트 핸들러를 Events.handle 메서드를 이용해서 등록
+3. 이벤트를 발생하는 도메인 기능 실행
+4. 도메인은 Events.raise()를 이용해서 이벤트를 발생함
+5. Events.raise()는 등록된 핸들러의 canHandle()을 이용해서 이벤트를 처리할 수 있는지 확인함
+6. 핸들러가 이벤트를 처리할 수 있다면 handle() 메서드를 이용해서 이벤트를 처리함
+7. Events.raise() 실행을 끝내고 리턴함
+8. 도메인 기능 실행을 끝내고 리턴함
+9. Events.reset()을 이용해서 ThreadLocal을 초기화함
+
+
 
 ### AOP를 이용한 Events.reset() 실행
 
+- 매 코드마다 Events.reset() 을 방지하기 위해 aop를 적용할 수 있음
+
 ## 동기 이벤트 처리 문제
+
+- 의존성을 어느정도 제거했지만 동기방식이라면 외부 시스템이 성능에 문제가 생겼을 때 함께 느려짐
+- 트랜잭션 처리에도 문제가 생김 구매 취소인데 단순히 에러로 트랜잭션을 롤백하는것으로 사용자에게 에러를 보여주기 보단 선 주문 취소 후 환불이 오히려 ux에서 더 좋을 수 있음
+- 비동기 이벤트 처리로 해결할 수 있음
 
 ## 비동기 이벤트 처리
 
+- 아래는 비동기로 구현할 수 있는 방법에 대해 설명함
+
 ### 로컬 핸들러의 비동기 실행
+
+- 이벤트 핸들러를 별도 스레드로 실행하는 방법
+- 별도 스레드를 이용해서 이벤트 핸들러를 실행하면 이벤트 발생 코드와 같은 트랜잭션 범위에 묶이지 않음 만약 하나의 트랜잭션으로 묶여야한다면 비동기 처리로 하면 안됨
 
 ### 메시징 시스템을 이용한 비동기 구현
 
+- rabbitmq와 같은 메시징 큐를 이용하는 방법
+- 이벤트를 메시지 큐에 보내고 메시지 큐는 이벤트를 메시지 리스너에 전달하고 메시지 리스너는 알맞은 이벤트 핸들러를 이용해서 이벤트를 처리함
+- 이벤트를 메시지 큐에 저장하거나 처리하는 과정은 별도 스레드나 프로세스로 처리됨 필요하다면 트랜잭션에 묶을 수 있음
+- rabbitmq는 글로벌 트랜잭션 지원과 클러스터 고가용성을 지원함
+
 ### 이벤트 저장소를 이용한 비동기 처리
 
+- 이벤트를 일단 db에 저장한 뒤에 별도 프로그램을 이용해서 이벤트 핸들러에 전달하는 것
+- 포워더라는 db select해주는 배치? 같은게 지속적으로 이벤트 핸들러에게 전달해줌
+- 도메인 상태와 이벤트 저장소로 동일한 db를 사용함 db를 쓰기 때문에 이벤트 실패에도 재시도 할 수 있음
+- api 형태로도 제공할 수 있음
+
 ### 이벤트 저장소 구현
+
+- 책에는 저장소 구현 코드가 있음
+- 이벤트를 받고 db에 넣어주고하는 저장소 .. 
 
 ### 이벤트 저장을 위한 이벤트 핸들러 구현
 
@@ -756,6 +928,11 @@ public class Product{
 ### 포워더 구현
 
 ## 이벤트 적용 시 추가 고려사항
+
+- 특정 이벤트가 계속 실패시 얼마까지 재시도할지
+- 이벤트 손실에 대해 고려
+- 이벤트 순서
+- 동일한 이벤트에 대한 재처리, 같은 이벤트가 두번 발생하지 않도록 에 대한 고려
 
 # #11 CQRS
 
