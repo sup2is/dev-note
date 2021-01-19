@@ -586,13 +586,15 @@ public interface UpperCaseGateway {
 
 # #10 리액터 개요
 
-- 명령형 코드: 순차적으로 연속되는 작업, 각 작업은 한번에 하나씩 그리고 이전 작업 다음에 실행됨
-- 리액티브 코드: 데이터 처리를 위해 일련의 작업들이 정의되지만 이 작업들은 병렬로 실행될 수 있음
+- 명령형 코드: 순차적으로 연속되는 작업, 각 작업은 한번에 하나씩 그리고 이전 작업 다음에 실행됨 데이터는 모아서 처리되고 이전 작업이 데이터 처리를 끝낸 후에 다름 작업으로 넘어갈 수 있음
+- 리액티브 코드: 데이터 처리를 위해 일련의 작업들이 정의되지만 이 작업들은 병렬로 실행될 수 있음 각 작업은 부분 집합의 데이터를 처리할 수 있고 처리가 끝난 데이터를 다음 작업에 넘겨주고 다른 부분 집합의 데이터로 계속 작업할 수 있음
 
 ## 리액티브 프로그래밍 이해하기
 
 - 리액티브 프로그래밍은 명령형 프로그래밍의 대안이 되는 패러다임임
-- 리액티브 프로그래밍은 본질적으로 함수적이면서 선언적임
+- 명령형 프로그래밍은 한 번에 하나씩 만나는 순서대로 실행되는 명령어들로 코드를 작성하면 됨 그러나 동기식 처리에 대한 문제가 있음
+- 리액티브 프로그래밍은 본질적으로 함수적이면서 선언적임. 순차적으로 수행되는 작업 단계를 나타낸 것이 아니라 데이터가 흘러가는 파이프라인이나 스트림을 포함함
+- 리액티브 스트림은 데이터 전체를 사용할 수 있을 때까지 기다리지 않고 사용 가능한 데이터가 있을 때마다 처리되므로 사실상 입력되는 데이터는 무한할 수 있음
 
 ### 리액티브 스트림 정의하기
 
@@ -606,8 +608,17 @@ public interface UpperCaseGateway {
 ## 리액터 시작하기
 
 - 리액티브 프로그래밍은 명령형 프로그래밍과 매우 다른 방식으로 접근해야함
+- 일련의 작업 단계를 기술하는 것이 아니라 데이터가 전달될 파이프라인을 구성해야함 이 파이프라인을 통해 데이터가 전달되는 동안 어떤 형태로든 변경 또는 사용될 수 있음
 
 ```java
+//명령형 프로그래밍
+String name = "Craig";
+String capitalName = name.toUppercase();
+String greeting = "Hello" , + capitalName + "!";
+System.out.println(greeting);
+
+
+//선언형 프로그래밍 
 Mono.just("Craig")
     .map(n -> n.toUpperCase())
     .map(cn -> "Hello, " + cn + "!")
@@ -659,7 +670,7 @@ Mono.just("Craig")
 
 - 구독자가 있어야 데이터가 전달됨
 - 테스트할때는 StepVerifier를 사용할 것
-- StepVerifier는 해당 리액티브 타입을 구독한 뒤에 스트림을 통해전달되는 데이터에 ㅐ해 어셔션을 적용함
+- StepVerifier는 해당 리액티브 타입을 구독한 뒤에 스트림을 통해전달되는 데이터에 대해 어셔션을 적용함
 
 **컬렉션으로부터 생성하기**
 
@@ -709,7 +720,7 @@ public void test() {
             .verifyComplete();
 }
 ```
-- interval()로도 가능, 기작 값과 종료 값대신 값이 방출되는 시간이나 간격 주기를 지정
+- interval()로도 가능, 시작 값과 종료 값대신 값이 방출되는 시간이나 간격 주기를 지정
 
 ```java
     @Test
@@ -732,7 +743,7 @@ public void test() {
 
 ### 리액티브 타입 조합하기
 
-- 두 개의 리액티브 타입을 결합해야 하거나 하나의 Flux를 두 개 이상의 리액티브 타입으로 분할해야 하는 경우가 있을 수 있
+- 두 개의 리액티브 타입을 결합해야 하거나 하나의 Flux를 두 개 이상의 리액티브 타입으로 분할해야 하는 경우가 있을 수 있음
 
 **리액티브 타입 결합하기**
 
@@ -838,6 +849,8 @@ public void test() {
 
 ### 리액티브 스트림의 변환과 필터링
 
+- 디터가 스트림을 통해 흐르는 동안 일부 값을 필터링하거나 다른 값으로 변경해야 할 경우가 있음
+
 **리액티브 타입으로부터 데이터 필터링하기**
 
 - skip()으로 맨 앞부터 원하는 개수의 항목을 무시할 수 있음
@@ -860,19 +873,169 @@ public void test() {
 
 ```
 
+- skip()을 사용해서 4초 동안 기다렸다가 값을 방출하는 결과 Flux
+- skip()은 처음부터 여러개의 항목을 건너뛰는 반면 take()는 처음부터 지정된 수의 항목만을 방출함
+- filter()를 사용해 범용적으로 필터링 할 수 있음 filter는 조건식을 받음
+
+```java
+
+    @Test
+    public void skipFew() {
+        //given
+        Flux<String> fruitFlux = Flux.just("Apple", "Orange", "Grape", "Banana", "Strawberry")
+                .skip(3);
+        //when
+
+        //then
+        StepVerifier.create(fruitFlux)
+                .expectNext("Banana")
+                .expectNext("Strawberry");
+
+    }
+
+```
+
+- distinct() 중복 제거 가능
 
 
 
+**리액티브 데이터 매핑하기**
+
+- Flux 나 Mono에 가장 많이 사용하는 오퍼레이션 중 하나는 발행된 항목을 다른 형태나 타입으로 매핑하는 것
+- 리액터 타입은 map(), flatMap()을 제공함
+
+```java
+  @Test
+  public void map() {
+    Flux<Player> playerFlux = Flux
+      .just("Michael Jordan", "Scottie Pippen", "Steve Kerr")
+      .map(n -> {
+        String[] split = n.split("\\s");
+        return new Player(split[0], split[1]);
+      });
+    
+    StepVerifier.create(playerFlux)
+        .expectNext(new Player("Michael", "Jordan"))
+        .expectNext(new Player("Scottie", "Pippen"))
+        .expectNext(new Player("Steve", "Kerr"))
+        .verifyComplete();
+  }
+```
+
+- 위 map()의 경우 각 항목이 소스 Flux로 부터 발행될 때 동기적 매핑이 수행됨 따라서 비동기적으로 매핑을 수행하고 싶다면 flatMap() 오퍼레이션을 사용해야함
+- flatMap()에서는 각 객체를 새로운 Mono나 Flux로 매핑하며, 해당 Mono나 Flux들의 결과는 하나의 새로운 Flux가 됨
+- flatMap()을 subscribeOn()과 함께 사용하면 리액터 타입의 변환을 비동기적으로 수행할 수 있음
+
+```java
+  @Test
+  public void flatMap() {
+    Flux<Player> playerFlux = Flux
+      .just("Michael Jordan", "Scottie Pippen", "Steve Kerr")
+      .flatMap(n -> Mono.just(n)
+          .map(p -> {
+              String[] split = p.split("\\s");
+              return new Player(split[0], split[1]);
+            })
+          .subscribeOn(Schedulers.parallel())
+        );
+    
+    List<Player> playerList = Arrays.asList(
+        new Player("Michael", "Jordan"), 
+        new Player("Scottie", "Pippen"), 
+        new Player("Steve", "Kerr"));
+
+    StepVerifier.create(playerFlux)
+        .expectNextMatches(p -> playerList.contains(p))
+        .expectNextMatches(p -> playerList.contains(p))
+        .expectNextMatches(p -> playerList.contains(p))
+        .verifyComplete();
+  }
+  
+```
+
+- subscribeOn()에 의해 비동기적으로 수행됨
+- subscribeOn()은 subscribe()와 유사하지만 subscribe()는 이름이 동사형이면서 리액티브 플로우를 구독 요청하고 실제로 구독하는 반면 subscribeOn()은 이름이 더 서술적이면서 구독이 동시적으로 처리되어야 한다는 것을 지정함 
+- flatMap()이나 subscribeOn()을 사용할 때의 장점은 다수의 병행 스레드에 작업을 분할하여 스트림의 처리량을 증가시킬 수 있다 하지만 작업의 순서 보장이 안되어서 Flux에서 방출되는 항목의 순서를 알 방법이 없음
 
 
 
+**리액티브 스트림의 데이터 버퍼링하기**
+
+- Flux를 통해 전달되는 데이터를 처리하는 동안 데이터 스트림을 작은 덩어리로 분할하면 도움이 될 수 있음 buffer()를 사용하면 됨\
+- buffer()는 지정된 최대 크기의 리스트로 된 Flux를 생성함
+
+```java
+  @Test
+  public void buffer() {
+    Flux<String> fruitFlux = Flux.just(
+        "apple", "orange", "banana", "kiwi", "strawberry");
+    
+    Flux<List<String>> bufferedFlux = fruitFlux.buffer(3);
+    
+    StepVerifier
+        .create(bufferedFlux)
+        .expectNext(Arrays.asList("apple", "orange", "banana"))
+        .expectNext(Arrays.asList("kiwi", "strawberry"))
+        .verifyComplete();
+  }
+```
+
+- 먼말인지 모르겠음 ...
+- collectList() collectMap() 도 있음
 
 
 
+### 리액티브 타입에 로직 오퍼레이션 수행하기
+
+- Mono나 Flux가 발행한 항목이 어떤 조건과 일치하는지만 알아야 할 경우가 ㅣㅆ음
+- all(), any() 오퍼레이션
+
+```java
+  @Test
+  public void all() {
+    Flux<String> animalFlux = Flux.just(
+        "aardvark", "elephant", "koala", "eagle", "kangaroo");
+    
+    Mono<Boolean> hasAMono = animalFlux.all(a -> a.contains("a"));
+    StepVerifier.create(hasAMono)
+      .expectNext(true)
+      .verifyComplete();
+    
+    Mono<Boolean> hasKMono = animalFlux.all(a -> a.contains("k"));
+    StepVerifier.create(hasKMono)
+      .expectNext(false)
+      .verifyComplete();
+  }
+  
+  @Test
+  public void any() {
+    Flux<String> animalFlux = Flux.just(
+        "aardvark", "elephant", "koala", "eagle", "kangaroo");
+    
+    Mono<Boolean> hasAMono = animalFlux.any(a -> a.contains("a"));
+    
+    StepVerifier.create(hasAMono)
+      .expectNext(true)
+      .verifyComplete();
+    
+    Mono<Boolean> hasZMono = animalFlux.any(a -> a.contains("z"));
+    StepVerifier.create(hasZMono)
+      .expectNext(false)
+      .verifyComplete();
+  }
+  
+```
 
 
 
+## 리액티브 오퍼레이션 테스트 프로젝트 빌드 및 실행하기
 
+## 요약
+
+- 리액티브 프로그래밍에서는 데이터가 흘러가는 파이프라인을 생성한다.
+- 리액티브 스트림은 Publisher, Subscriber, Subscription, Transformer의 네가지 타입을 정의한다.
+- 프로젝트 리액터는 리액티브 스트림을 구현하며 수많은 오퍼레이션을 제공하는 Flux와 Mono의 두 가지 타입으로 스트림을 정의한다.
+- 스프링 5는 리액터를 사용해서 리액티브 컨트롤러, 리퍼지터리, Rest 클라이언트를 생성하고 다른 리액티브 프레임워크를 지원한다.
 
 
 
