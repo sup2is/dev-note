@@ -135,5 +135,160 @@
 
   - request body는 옵션이 매우 많음 docs 확인할 것
 
+**메트릭 애그리게이션**
+
+
+
+- 평균 구하기 avg_points_aggs.json 파일
+
+```
+{
+	"size" : 0,
+	"aggs" : {
+		"avg_score" : {
+			"avg" : {
+				"field" : "points"
+			}
+		}
+	}
+}
+```
+
+- curl -X GET ocalhost:9200/_search?pretty --data-binary @avg_points_aggs.json 
+- 최대값 구하기 max_points_aggs.json
+
+```
+{
+	"size" : 0,
+	"aggs" : {
+		"max_score" : {
+			"max" : {
+				"field" : "points"
+			}
+		}
+	}
+}
+```
+
+- 최소값, 더하기 등등의 메트릭 애그리게이션이 있음
+- stats를 사용하면 최소값, 최대값, 평균값, 더한값을 모두 얻어낼 수 있음
+
+```
+{
+	"size" : 0,
+	"aggs" : {
+		"stats_score" : {
+			"stats" : {
+				"field" : "points"
+			}
+		}
+	}
+}
+```
+
+**버킷 에그리게이션**
+
+- 애그리게이션이란 어떤 값을 조합해서 나타내는 방법
+- 버킷 애그리게이션은 group by
+- mapping 파일 basketball_mapping.json
+
+```
+{
+	"record" : {
+		"properties" : {
+			"team" : {
+				"type" : "string",
+				"fielddata" : true
+			},
+			"name" : {
+				"type" : "string",
+				"fielddata" : true
+			},
+			"points" : {
+				"type" : "long"
+			},
+			"rebounds" : {
+				"type" : "long"
+			},
+			"assists" : {
+				"type" : "long"
+			},
+			"blocks" : {
+				"type" : "long"
+			},
+			"submit_date" : {
+				"type" : "date",
+				"format" : "yyyy-MM-dd"
+			}
+		}
+	}
+}
+```
+
+- curl -X PUT localhost:9200/basketball/record/_mapping -d @basketall_mapping.json
+
+
+
+- 도큐먼트 twoteam_basketball.json
+
+```
+{ "index" : { "_index" : "basketball", "_type" : "record", "_id" : "1" } }
+{"team" : "Chicago","name" : "Michael Jordan", "points" : 30,"rebounds" : 3,"assists" : 4, "blocks" : 3, "submit_date" : "1996-10-11"}
+{ "index" : { "_index" : "basketball", "_type" : "record", "_id" : "2" } }
+{"team" : "Chicago","name" : "Michael Jordan","points" : 20,"rebounds" : 5,"assists" : 8, "blocks" : 4, "submit_date" : "1996-10-13"}
+{ "index" : { "_index" : "basketball", "_type" : "record", "_id" : "3" } }
+{"team" : "LA","name" : "Kobe Bryant","points" : 30,"rebounds" : 2,"assists" : 8, "blocks" : 5, "submit_date" : "2014-10-13"}
+{ "index" : { "_index" : "basketball", "_type" : "record", "_id" : "4" } }
+{"team" : "LA","name" : "Kobe Bryant","points" : 40,"rebounds" : 4,"assists" : 8, "blocks" : 6, "submit_date" : "2014-11-13"}
+```
+
+
+
+- term aggs (group by team)
+
+```
+{
+	"size" : 0,
+	"aggs" : {
+		"players" : {
+			"terms" : {
+				"field" : "team"
+			}
+		}
+	}
+}
+```
+
+- 팀별로 도큐먼트를 묶음
+- curl -X GET localhost:9200/search?pretty --data-binaty @terms_aggs.json
+
+
+
+- aggs (stats group by team) stats_by_team.json
+
+```
+{
+	"size" : 0,
+	"aggs" : {
+		"team_stats" : {
+			"terms" : {
+				"field" : "team"
+			},
+			"aggs" : {
+				"stats_score" : {
+					"stats" : {
+						"field" : "points"
+					}
+				}
+			}
+		}
+	}
+}
+```
+
+- 팀별로 묶은뒤 stats로 팀 내에서 최대값, 최소값 등의 결과값을 얻어옴
+
+
+
 
 
