@@ -1236,3 +1236,630 @@ curl -X GET "localhost:9200/bank/_search?pretty" -H 'Content-Type: application/j
 
 
 
+# Search your data
+
+- 검색쿼리는 ES 데이터스트림 또는 인덱스의 데이터에 대한 정보 요청임
+
+
+
+## Run a search
+
+- 검색 api를 사용해서 검색 또는 집계를 할 수 있음
+- api 쿼리 요청 본문 매개 변수는 query dsl로 작성된 쿼리를 허용함
+- 다음 쿼리는 `my-index-000001` 라는 인덱스에서 `user.id`가 `kimchy` 인 것을 요청하는 쿼리
+
+```
+curl -X GET "localhost:9200/my-index-000001/_search?pretty" -H 'Content-Type: application/json' -d'
+{
+  "query": {
+    "match": {
+      "user.id": "kimchy"
+    }
+  }
+}
+'
+
+```
+
+
+
+## Common search options
+
+- 아래 옵션들을 사용하여 검색할 수 있음
+
+**Query DSL**
+
+- QueryDSL은 원하는 결과를 얻기 위해 혼합 및 일치시킬 수 있는 다양한 쿼리 유형을 지원함
+  - Boolean 검색과 혼합 쿼리들
+  - 정확히 일치하는 항목을 필터링하고 찾기 위한 term-level 쿼리
+  - 검색 엔진에서 일반적으로 사용되는 전체 텍스트 쿼리
+  - Geo, 공간 쿼리
+
+> QueryDSL은 별도로 정리할 예정 -> [QueryDSL](#QueryDSL)
+
+**Aggregations**
+
+- 애그리게이션을 사용해서 검색 결과에 대한 통계 및 기타 분석을 얻을 수 있음
+
+> Aggregations는 별도로 정리할 예정 -> [Aggregations](#Aggregations)
+
+**Search multiple data streams and indices**
+
+- 콤마로 분리되거나 grep 유사 인덱스 패턴을 사용해서 동일한 요청에서 여러 데이터 스트림 및 인덱스를 검색할 수 있음
+- [*Search multiple data streams and indices*](https://www.elastic.co/guide/en/elasticsearch/reference/current/search-multiple-indices.html). 참고
+
+**Paginate search results**
+
+- 기본적으로 검색결과는 상위 10개만 가져옴
+- 페이징에 자세한정보는 [*Paginate search results*](https://www.elastic.co/guide/en/elasticsearch/reference/current/paginate-search-results.html).확인
+
+**Retrieve selected fields**
+
+- 검색 응답의 `hit.hits` 속성에는 각 조회에 대한 전체 문서 `_source`가 포함됨 `_source` 또는 가티 필드의 하위 집합만 검색하려면 [*Retrieve selected fields*](https://www.elastic.co/guide/en/elasticsearch/reference/current/search-fields.html). 참고
+
+**Sort search results**
+
+- 검색 적중은 각 문서가 쿼리와 얼마나 잘 일치하는지를 측정하는 관련성 점수인 `_score`로 정렬됨
+- 이런 점수의 계산을 사용자 지정하려면 `script_score`를 사용하면됨
+- 다른 필드값을 기준으로 검색 적중을 정렬하려면 [*Sort search results*](https://www.elastic.co/guide/en/elasticsearch/reference/current/sort-search-results.html). 참고
+
+**Run an async search**
+
+- 엘라의 검색은 빠르지만 기본적으로 동기식임
+- 비동기로 수행하도록 할 수 있음
+
+
+
+## Search timeout
+
+- 기다리는 시간을 지정할 수 있음 시간 내에 응답되지 않으면 에러
+
+```
+curl -X GET "localhost:9200/my-index-000001/_search?pretty" -H 'Content-Type: application/json' -d'
+{
+  "timeout": "2s",
+  "query": {
+    "match": {
+      "user.id": "kimchy"
+    }
+  }
+}
+'
+
+```
+
+- 모든 검색 요청에 대해 클러스터 전체의 기본 제한 시간을 설정하려면 `search.default_search_timeout` 옵션을 확인 기본값은 -1, 제한 없음
+
+## Search cancellation
+
+-  [task management API](https://www.elastic.co/guide/en/elasticsearch/reference/current/tasks.html#task-cancellation). 를 사용해서 검색을 취소할 수 있음 기본적으로 HTTP 연결이 끊기면 자동으로 취소함
+
+## Track total hits
+
+- 풀스캔하지 않는 이상 총 조회수를 정확하게 계산할 수 없음
+- `track_total_hits` 옵션을 사용해서 제어가 가능함
+- `track_total_hits`이 값을 true로 설정하면 검색에 일치하는 적중 수를 추적함
+
+```
+curl -X GET "localhost:9200/my-index-000001/_search?pretty" -H 'Content-Type: application/json' -d'
+{
+  "track_total_hits": true,
+  "query": {
+    "match" : {
+      "user.id" : "elkbee"
+    }
+  }
+}
+'
+
+{
+  "_shards": ...
+  "timed_out": false,
+  "took": 100,
+  "hits": {
+    "max_score": 1.0,
+    "total" : {
+      "value": 2048,    
+      "relation": "eq"  
+    },
+    "hits": ...
+  }
+}
+
+```
+
+- `total.value`는 실제 적중된 문서의 개수
+- `total.relation`가 eq면 실제 `total.value`의 개수가 정확하다는것
+- `track_total_hits` 값을 정수로 지정해서 쿼리와 일치하는 총 조회수를 최대 100개 문서까지 정확하게 추적할 수 있음
+
+```
+curl -X GET "localhost:9200/my-index-000001/_search?pretty" -H 'Content-Type: application/json' -d'
+{
+  "track_total_hits": 100,
+  "query": {
+    "match": {
+      "user.id": "elkbee"
+    }
+  }
+}
+'
+
+
+# 만약 적중값그대로 나왔다면 eq
+{
+  "_shards": ...
+  "timed_out": false,
+  "took": 30,
+  "hits": {
+    "max_score": 1.0,
+    "total": {
+      "value": 42,         
+      "relation": "eq"     
+    },
+    "hits": ...
+  }
+}
+
+
+# 만약 적중값을 초과해서 100개까지 짤렸다면 gte
+{
+  "_shards": ...
+  "hits": {
+    "max_score": 1.0,
+    "total": {
+      "value": 100,         
+      "relation": "gte"     
+    },
+    "hits": ...
+  }
+}
+
+```
+
+- `track_total_hits` 값을 false로 지정하면 적중수를 신경쓰지 않아도 되기 때문에 쿼리 시간을 개선할 수 있음
+
+
+
+## Quickly check for matching docs
+
+- 특정 쿼리와 일치하는 문서가 있는지 여부만 알고 싶다면 `size`를 0으로해서 검색 결과는 받지 않을 수 있음
+- 또 `terminate_after`를 1로 설정해서 일치하는 첫번째 문서가 발견될 때마다 쿼리실행이 종료되게할 수 있음
+
+```
+curl -X GET "localhost:9200/_search?q=user.id:elkbee&size=0&terminate_after=1&pretty"
+
+
+{
+  "took": 3,
+  "timed_out": false,
+  "terminated_early": true,
+  "_shards": {
+    "total": 1,
+    "successful": 1,
+    "skipped" : 0,
+    "failed": 0
+  },
+  "hits": {
+    "total" : {
+        "value": 1,
+        "relation": "eq"
+    },
+    "max_score": null,
+    "hits": []
+  }
+}
+```
+
+- `hits.total`이 0이라면 일치하는 문서가 없다는것
+- `hits.total`이 0 이상이라면 일치하는 문서가 최소 n개 존재한다는것
+- 만약 해당 쿼리가 조기종료되었다면 `terminated_early` 값이 true로됨 이때는 쿼리가 조기종료되었다고 판단
+- `took`은 요청부터 응답까지의 모든 소요 시간을 포함함
+
+## Collapse search results
+
+- `collapse`를 기반으로 검색 결과를 축소할 수 있음
+
+```
+curl -X GET "localhost:9200/my-index-000001/_search?pretty" -H 'Content-Type: application/json' -d'
+{
+  "query": {
+    "match": {
+      "message": "GET /search"
+    }
+  },
+  "collapse": {
+    "field": "user.id"                
+  },
+  "sort": [ "http.response.bytes" ],  
+  "from": 10                          
+}
+'
+
+```
+
+- 응답의 총 적중수는 반환되지 않고 일치하는 문서의 수만 나타냄 애그리게이션이랑 다른듯
+- `collapse`에 사용되는 필드는 keyowrd or numeric 이거나 doc_values가 활성화되어있어야함
+
+## Expand collapse results
+
+- `inner_hits` 옵션을 써서 collapse 옵션을 확장할수도 있으
+
+```
+curl -X GET "localhost:9200/my-index-000001/_search?pretty" -H 'Content-Type: application/json' -d'
+{
+  "query": {
+    "match": {
+      "message": "GET /search"
+    }
+  },
+  "collapse": {
+    "field": "user.id",                       1
+    "inner_hits": {
+      "name": "most_recent",                  2
+      "size": 5,                              3
+      "sort": [ { "@timestamp": "asc" } ]     4
+    },
+    "max_concurrent_group_searches": 4        5
+  },
+  "sort": [ "http.response.bytes" ]
+}
+'
+
+```
+
+1. collapse the result set using the "user.id" field
+2. the name used for the inner hit section in the response
+3. the number of inner_hits to retrieve per collapse key
+4. how to sort the document inside each group
+5. the number of concurrent requests allowed to retrieve the inner_hits per group
+
+- 중첩해서도 사용 가능함
+
+```
+GET /my-index-000001/_search
+{
+  "query": {
+    "match": {
+      "message": "GET /search"
+    }
+  },
+  "collapse": {
+    "field": "user.id",                      1
+      "inner_hits": [
+      {
+        "name": "largest_responses",         2
+        "size": 3,
+        "sort": [ "http.response.bytes" ]
+      },
+      {
+        "name": "most_recent",               3
+        "size": 3,
+        "sort": [ { "@timestamp": "asc" } ]
+      }
+    ]
+  },
+  "sort": [ "http.response.bytes" ]
+}
+```
+
+1. collapse the result set using the "user.id" field
+2. return the three largest HTTP responses for the user
+3. return the three most recent HTTP responses for the user
+
+
+
+- expantion 기능은 추가적으로 쿼리를 날리는것이기 때문에 많이 사용할 경우 쿼리가 매우 느려질 수 있음 참고
+- `max_concurrent_group_searches` 파라미터를 통해서 최대 동시 검색수를 제어할 수 있음 기본적으로 데이터 노드 수와 기본 검색 스레드 풀 크기를 기반으로함
+
+## Secnod level of collapsing
+
+
+
+```
+GET /my-index-000001/_search
+{
+  "query": {
+    "match": {
+      "message": "GET /search"
+    }
+  },
+  "collapse": {
+    "field": "geo.country_name",
+    "inner_hits": {
+      "name": "by_location",
+      "collapse": { "field": "user.id" },
+      "size": 3
+    }
+  }
+}
+
+
+
+{
+  ...
+  "hits": [
+    {
+      "_index": "my-index-000001",
+      "_type": "_doc",
+      "_id": "9",
+      "_score": ...,
+      "_source": {...},
+      "fields": { "geo": { "country_name": [ "UK" ] }},
+      "inner_hits": {
+        "by_location": {
+          "hits": {
+            ...,
+            "hits": [
+              {
+                ...
+                "fields": { "user": "id": { [ "user124" ] }}
+              },
+              {
+                ...
+                "fields": { "user": "id": { [ "user589" ] }}
+              },
+              {
+                ...
+                "fields": { "user": "id": { [ "user001" ] }}
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "_index": "my-index-000001",
+      "_type": "_doc",
+      "_id": "1",
+      "_score": ..,
+      "_source": {...
+      },
+      "fields": { "geo": { "country_name": [ "Canada" ] }},
+      "inner_hits": {
+        "by_location": {
+          "hits": {
+            ...,
+            "hits": [
+              {
+                ...
+                "fields": { "user": "id": { [ "user444" ] }}
+              },
+              {
+                ...
+                "fields": { "user": "id": { [ "user1111" ] }
+              },
+              {
+                ...
+                  "fields": { "user": "id": { [ "user999" ] }}
+              }
+            ]
+          }
+        }
+      }
+    },
+    ...
+  ]
+}
+```
+
+
+
+## Filter search results
+
+- 두가지 방법을 사용해서 검색 결과를 필터링할 수 있음
+  - 필터 절에 함께 부울 쿼리를 사용하는 방법
+  - `post_filter` 파라미터를 사용하는 방법 이 방법은 애그리게이션 말고 검색 적중에만 사용됨 `post_filter`를 사용해서 더 넓은 결과를 기반으로 집계를 계산한 결과를 뽑을 수 있음
+
+### Post filter
+
+- `post_filter` 를 사용하면 집계가 계산된 후 검색 적중이 필터링됨 `post_filter`는 집계결과에 영향을 주지 않음
+
+
+
+```
+#아래와 같은 문서와 매핑이 있을때
+PUT /shirts
+{
+  "mappings": {
+    "properties": {
+      "brand": { "type": "keyword"},
+      "color": { "type": "keyword"},
+      "model": { "type": "keyword"}
+    }
+  }
+}
+
+PUT /shirts/_doc/1?refresh
+{
+  "brand": "gucci",
+  "color": "red",
+  "model": "slim"
+}
+
+
+# brand는 gucci면서 coler는 red를 찾는 쿼리는 아래와 같음
+GET /shirts/_search
+{
+  "query": {
+    "bool": {
+      "filter": [
+        { "term": { "color": "red"   }},
+        { "term": { "brand": "gucci" }}
+      ]
+    }
+  }
+}
+
+
+#brand는 gucci면서 coler는 red를 찾는 쿼리인데 추가 옵션으로 티셔츠만 찾는다거나 코트를 찾을땐 아래 aggs로 쿼리함
+
+GET /shirts/_search
+{
+  "query": {
+    "bool": {
+      "filter": [
+        { "term": { "color": "red"   }},
+        { "term": { "brand": "gucci" }}
+      ]
+    }
+  },
+  "aggs": {
+    "models": {
+      "terms": { "field": "model" } 
+    }
+  }
+}
+
+
+```
+
+
+
+
+
+```
+curl -X GET "localhost:9200/shirts/_search?pretty" -H 'Content-Type: application/json' -d'
+{
+  "query": {
+    "bool": {
+      "filter": {
+        "term": { "brand": "gucci" }  1
+      }
+    }
+  },
+  "aggs": {
+    "colors": {
+      "terms": { "field": "color" }  2
+    },
+    "color_red": {
+      "filter": {
+        "term": { "color": "red" }  3
+      },
+      "aggs": {
+        "models": {
+          "terms": { "field": "model" }  3
+        }
+      }
+    }
+  },
+  "post_filter": { 4
+    "term": { "color": "red" }
+  }
+}
+'
+
+```
+
+1. The main query now finds all shirts by Gucci, regardless of color.
+2. The colors agg returns popular colors for shirts by Gucci.
+3. The color_red agg limits the models sub-aggregation to red Gucci shirts.
+4. Finally, the post_filter removes colors other than red from the search hits.
+
+
+
+### Rescore filtered search results
+
+- restoring은 인덱스의 모든 문서에 비용이 많이 드는 알고리즘을 적용하는 대신 보조 알고리즘을 사용하여 post_filter 단계에서 반환된 상위 문서의 순서를 변경하여 정밀도를 향상시키는데 도움이 될 수 있음
+- `restore` 요청은 전체 검색 요청을 처리하는 노드별로 정렬할 결과를 반환하기 전에 각 샤드에서 실행됨
+
+Currently the rescore API has only one implementation: the query rescorer, which uses a query to tweak the scoring. In the future, alternative rescorers may be made available, for example, a pair-wise rescorer.
+
+An error will be thrown if an explicit [`sort`](https://www.elastic.co/guide/en/elasticsearch/reference/current/sort-search-results.html) (other than `_score` in descending order) is provided with a `rescore` query.
+
+when exposing pagination to your users, you should not change `window_size` as you step through each page (by passing different `from` values) since that can alter the top hits causing results to confusingly shift as the user steps through pages.
+
+### Query rescorer
+
+The query rescorer executes a second query only on the Top-K results returned by the [`query`](https://www.elastic.co/guide/en/elasticsearch/reference/current/search-search.html#request-body-search-query) and [`post_filter`](https://www.elastic.co/guide/en/elasticsearch/reference/current/filter-search-results.html#post-filter) phases. The number of docs which will be examined on each shard can be controlled by the `window_size` parameter, which defaults to 10.
+
+By default the scores from the original query and the rescore query are combined linearly to produce the final `_score` for each document. The relative importance of the original query and of the rescore query can be controlled with the `query_weight` and `rescore_query_weight` respectively. Both default to `1`.
+
+```
+POST /_search
+{
+   "query" : {
+      "match" : {
+         "message" : {
+            "operator" : "or",
+            "query" : "the quick brown"
+         }
+      }
+   },
+   "rescore" : {
+      "window_size" : 50,
+      "query" : {
+         "rescore_query" : {
+            "match_phrase" : {
+               "message" : {
+                  "query" : "the quick brown",
+                  "slop" : 2
+               }
+            }
+         },
+         "query_weight" : 0.7,
+         "rescore_query_weight" : 1.2
+      }
+   }
+}
+```
+
+
+
+### Multiple rescores
+
+```
+POST /_search
+{
+   "query" : {
+      "match" : {
+         "message" : {
+            "operator" : "or",
+            "query" : "the quick brown"
+         }
+      }
+   },
+   "rescore" : [ {
+      "window_size" : 100,
+      "query" : {
+         "rescore_query" : {
+            "match_phrase" : {
+               "message" : {
+                  "query" : "the quick brown",
+                  "slop" : 2
+               }
+            }
+         },
+         "query_weight" : 0.7,
+         "rescore_query_weight" : 1.2
+      }
+   }, {
+      "window_size" : 10,
+      "query" : {
+         "score_mode": "multiply",
+         "rescore_query" : {
+            "function_score" : {
+               "script_score": {
+                  "script": {
+                    "source": "Math.log10(doc.count.value + 2)"
+                  }
+               }
+            }
+         }
+      }
+   } ]
+}
+```
+
+The first one gets the results of the query then the second one gets the results of the first, etc. The second rescore will "see" the sorting done by the first rescore so it is possible to use a large window on the first rescore to pull documents into a smaller window for the second rescore.
+
+
+
+
+
+
+
+# QueryDSL
+
+
+
+# Aggregations
