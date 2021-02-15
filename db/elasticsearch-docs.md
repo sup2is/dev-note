@@ -1854,6 +1854,485 @@ The first one gets the results of the query then the second one gets the results
 
 
 
+##  Highlighting
+
+- 하이라이터를 사용하면 검색 결과에 있는 하나 이상의 필드에서 강조된 결과를 가져올 수 있음
+- 검색에서 볼드처리하는거인듯.. 알아두기만 할 것
+
+
+
+## Long-running searches
+
+- ES는 분산아키텍처로 검색이 많은 샤드에서 실행될 수 있음 이때 오래 걸리는 검색작업의 경우 동기 방식은 비효율적임
+- 비동기 검색을 사용해서 검색이 완료되기 전에 사용 가능한 부분 결과를 받거나 요청 진행상황을 모니터링할 수 있음
+- 비동기 검색 관련은 https://www.elastic.co/guide/en/elasticsearch/reference/current/async-search.html#submit-async-search 참고
+
+
+
+## Near real-time search
+
+- ES는 준 실시간 검색 엔진임
+- ES는 자바의 루씬 기반임 루씬은 세그먼트 별 검색 개념을 도입했음 세그먼트는 역 인덱스와 유사하지만 루씬의 인덱스라는 단어는 세그먼트 모음과 커밋지점을 의미함 커밋 후 새 세그먼트가 커밋 지점에 추가되고 버퍼가 지워짐
+
+**Figure 1. A Lucene index with new documents in the in-memory buffer**
+
+![](https://www.elastic.co/guide/en/elasticsearch/reference/current/images/lucene-in-memory-buffer.png)
+
+- 루씬을 사용하면 새 세그먼트를 작성하고 만들 수 있으므로 전체 커밋을 수행하지 않고도 포함된 문서를 검색할 수 있음 이 작업은 디스크에 대한 커밋보다 훨씬 가볍고 성능 저하없이 자주 수행할 수 있음
+
+
+
+**Figure 2. The buffer contents are written to a segment, which is searchable, but is not yet committed**
+
+![The buffer contents are written to a segment, which is searchable, but is not yet committed](https://www.elastic.co/guide/en/elasticsearch/reference/current/images/lucene-written-not-committed.png)
+
+- ES에서는 새 세그먼트를 작성하고 여는 이 프로세스를 새로고침이라고함
+- 새로고침은 마지막 새로 고침 이후 색인에서 수행된 모든 작업을 검색에 사용할 수 있도록 함
+- 새로고침을 제어하는 방법
+  - Waiting for the refresh interval
+  - Setting the [?refresh](https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-refresh.html) option
+  - Using the [Refresh API](https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-refresh.html) to explicitly complete a refresh (`POST _refresh`)
+- 기본적으로 ES는 매 초 주기적으로 인덱스를 새로고침 기본값이 30초인듯 ..?
+
+
+
+##  Paginate search results
+
+- ES는 기본적으로 일치하는 상위 10개 결과를 반환함
+- 더큰 결과를 얻거나 페이징을 사용하려면 `from`, `size` 를 사용하면 됨
+
+```
+curl -X GET "localhost:9200/_search?pretty" -H 'Content-Type: application/json' -d'
+{
+  "from": 5,
+  "size": 20,
+  "query": {
+    "match": {
+      "user.id": "kimchy"
+    }
+  }
+}
+'
+
+```
+
+- 한번에 너무 많은 `from`, `size`를 요청하면 성능상 문제가생기거나 노드에 오류가 발생할 수 있으므로 주의
+- 기본적으로 10,000개가 max이고 이 제한은 [`index.max_result_window`](https://www.elastic.co/guide/en/elasticsearch/reference/current/index-modules.html#index-max-result-window) 이 설정에 의해 셋팅됨 만약 바꾸고싶다면 설정 가능
+
+
+
+### Search after
+
+- `search_after` 파라미터를 사용해서 이전 페이지의 정렬 값 세트를 사용해서 다음 페이지를 검색할 수 있음
+- `search_after`를 사용하려면 쿼리 및 정렬 값이 동일한 여러 검색 요청이 필요함
+- 이 요청들 사이에 ES refresh가 동작하면 결과 순서가 변경되어 페이지간 결과가 일치하지 않을 수 있는데 이를 방지하기위해 PIT를 만들어 검색에 대해 현재 인덱스 상태를 유지할 수 있음
+
+
+
+```
+#id 생성
+curl -X POST "localhost:9200/my-index-000001/_pit?keep_alive=1m&pretty"
+
+{
+  "id": "46ToAwMDaWR4BXV1aWQxAgZub2RlXzEAAAAAAAAAAAEBYQNpZHkFdXVpZDIrBm5vZGVfMwAAAAAAAAAAKgFjA2lkeQV1dWlkMioGbm9kZV8yAAAAAAAAAAAMAWICBXV1aWQyAAAFdXVpZDEAAQltYXRjaF9hbGw_gAAAAA=="
+}
+
+#id를 기반으로 request
+GET /_search
+{
+  "size": 10000,
+  "query": {
+    "match" : {
+      "user.id" : "elkbee"
+    }
+  },
+  "pit": {
+	    "id":  "46ToAwMDaWR4BXV1aWQxAgZub2RlXzEAAAAAAAAAAAEBYQNpZHkFdXVpZDIrBm5vZGVfMwAAAAAAAAAAKgFjA2lkeQV1dWlkMioGbm9kZV8yAAAAAAAAAAAMAWICBXV1aWQyAAAFdXVpZDEAAQltYXRjaF9hbGw_gAAAAA==", 
+	    "keep_alive": "1m"
+  },
+  "sort": [ 
+    {"@timestamp": "asc"},
+    {"tie_breaker_id": "asc"}
+  ]
+}
+
+
+#업데이트된 pid가 넘어옴
+{
+  "pit_id" : "46ToAwEPbXktaW5kZXgtMDAwMDAxFnVzaTVuenpUVGQ2TFNheUxVUG5LVVEAFldicVdzOFFtVHZTZDFoWWowTGkwS0EAAAAAAAAAAAQURzZzcUszUUJ5U1NMX3Jyak5ET0wBFnVzaTVuenpUVGQ2TFNheUxVUG5LVVEAAA==", 
+  "took" : 17,
+  "timed_out" : false,
+  "_shards" : ...,
+  "hits" : {
+    "total" : ...,
+    "max_score" : null,
+    "hits" : [
+      ...
+      {
+        "_index" : "my-index-000001",
+        "_id" : "FaslK3QBySSL_rrj9zM5",
+        "_score" : null,
+        "_source" : ...,
+        "sort" : [                                
+          4098435132000,
+          "FaslK3QBySSL_rrj9zM5"
+        ]
+      }
+    ]
+  }
+}
+
+```
+
+- 결과의 다음 페이지를 가져오려면 마지막 조회의 정렬값을 `search_after` 인수로 사용하면 됨 이때 `sort`, `query`는 변경되면 안됨
+- 자세히보면 pid도 이전 결과에서 받은 pid로 업데이트되어있음
+
+```
+curl -X GET "localhost:9200/_search?pretty" -H 'Content-Type: application/json' -d'
+{
+  "size": 10000,
+  "query": {
+    "match" : {
+      "user.id" : "elkbee"
+    }
+  },
+  "pit": {
+	    "id":  "46ToAwEPbXktaW5kZXgtMDAwMDAxFnVzaTVuenpUVGQ2TFNheUxVUG5LVVEAFldicVdzOFFtVHZTZDFoWWowTGkwS0EAAAAAAAAAAAQURzZzcUszUUJ5U1NMX3Jyak5ET0wBFnVzaTVuenpUVGQ2TFNheUxVUG5LVVEAAA==", 
+	    "keep_alive": "1m"
+  },
+  "sort": [
+    {"@timestamp": "asc"},
+    {"tie_breaker_id": "asc"}
+  ],
+  "search_after": [                                
+    4098435132000,
+    "FaslK3QBySSL_rrj9zM5"
+  ]
+}
+'
+
+```
+
+- 위 프로세스를 반복해서 추가 결과 페이즈를 얻을 수 있고 `keep_alive`를 사용해서 pit의 보존 기간을 연장할 수 있음
+- 작업이 끝나면 pit를 삭제해야함
+
+```
+curl -X DELETE "localhost:9200/_pit?pretty" -H 'Content-Type: application/json' -d'
+{
+    "id" : "46ToAwEPbXktaW5kZXgtMDAwMDAxFnVzaTVuenpUVGQ2TFNheUxVUG5LVVEAFldicVdzOFFtVHZTZDFoWWowTGkwS0EAAAAAAAAAAAQURzZzcUszUUJ5U1NMX3Jyak5ET0wBFnVzaTVuenpUVGQ2TFNheUxVUG5LVVEAAA=="
+}
+'
+
+```
+
+### Scroll search resultsedit
+
+- scroll보다 위에서 설명한 search after를 사용할것을 권장하고 있음
+- 생략 
+
+
+
+## Retrieve inner hits
+
+- parent-join이나 nested 를 사용하면 다른 scope에 일치하는 문서 결과를 얻을 수 있음
+- `inner_hits`는 `nested`, `has_child`, `has_parent` 를 다음 구조에 적용할 수 있음
+
+```
+"<query>" : {
+  "inner_hits" : {
+    <inner_hits_options>
+  }
+}
+
+
+
+"hits": [
+  {
+    "_index": ...,
+    "_type": ...,
+    "_id": ...,
+    "inner_hits": {
+      "<inner_hits_name>": {
+        "hits": {
+          "total": ...,
+          "hits": [
+            {
+              "_type": ...,
+              "_id": ...,
+               ...
+            },
+            ...
+          ]
+        }
+      }
+    },
+    ...
+  },
+  ...
+]
+
+
+```
+
+### Options
+
+Inner hits support the following options:
+
+| `from` | The offset from where the first hit to fetch for each `inner_hits` in the returned regular search hits. |
+| ------ | ------------------------------------------------------------ |
+| `size` | The maximum number of hits to return per `inner_hits`. By default the top three matching hits are returned. |
+| `sort` | How the inner hits should be sorted per `inner_hits`. By default the hits are sorted by the score. |
+| `name` | The name to be used for the particular inner hit definition in the response. Useful when multiple inner hits have been defined in a single search request. The default depends in which query the inner hit is defined. For `has_child` query and filter this is the child type, `has_parent` query and filter this is the parent type and the nested query and filter this is the nested path. |
+
+
+
+### Nested inner hits
+
+- 대충 이런 모양
+
+
+
+```json
+PUT test
+{
+  "mappings": {
+    "properties": {
+      "comments": {
+        "type": "nested"
+      }
+    }
+  }
+}
+
+PUT test/_doc/1?refresh
+{
+  "title": "Test title",
+  "comments": [
+    {
+      "author": "kimchy",
+      "number": 1
+    },
+    {
+      "author": "nik9000",
+      "number": 2
+    }
+  ]
+}
+
+POST test/_search
+{
+  "query": {
+    "nested": {
+      "path": "comments",
+      "query": {
+        "match": { "comments.number": 2 }
+      },
+      "inner_hits": {} 
+    }
+  }
+}
+
+
+
+
+{
+  ...,
+  "hits": {
+    "total": {
+      "value": 1,
+      "relation": "eq"
+    },
+    "max_score": 1.0,
+    "hits": [
+      {
+        "_index": "test",
+        "_type": "_doc",
+        "_id": "1",
+        "_score": 1.0,
+        "_source": ...,
+        "inner_hits": {
+          "comments": { 
+            "hits": {
+              "total": {
+                "value": 1,
+                "relation": "eq"
+              },
+              "max_score": 1.0,
+              "hits": [
+                {
+                  "_index": "test",
+                  "_type": "_doc",
+                  "_id": "1",
+                  "_nested": {
+                    "field": "comments",
+                    "offset": 1
+                  },
+                  "_score": 1.0,
+                  "_source": {
+                    "author": "nik9000",
+                    "number": 2
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+```
+
+
+
+### Parent/child inner hits
+
+```
+PUT test
+{
+  "mappings": {
+    "properties": {
+      "my_join_field": {
+        "type": "join",
+        "relations": {
+          "my_parent": "my_child"
+        }
+      }
+    }
+  }
+}
+
+PUT test/_doc/1?refresh
+{
+  "number": 1,
+  "my_join_field": "my_parent"
+}
+
+PUT test/_doc/2?routing=1&refresh
+{
+  "number": 1,
+  "my_join_field": {
+    "name": "my_child",
+    "parent": "1"
+  }
+}
+
+POST test/_search
+{
+  "query": {
+    "has_child": {
+      "type": "my_child",
+      "query": {
+        "match": {
+          "number": 1
+        }
+      },
+      "inner_hits": {}    
+    }
+  }
+}
+
+
+{
+  ...,
+  "hits": {
+    "total": {
+      "value": 1,
+      "relation": "eq"
+    },
+    "max_score": 1.0,
+    "hits": [
+      {
+        "_index": "test",
+        "_type": "_doc",
+        "_id": "1",
+        "_score": 1.0,
+        "_source": {
+          "number": 1,
+          "my_join_field": "my_parent"
+        },
+        "inner_hits": {
+          "my_child": {
+            "hits": {
+              "total": {
+                "value": 1,
+                "relation": "eq"
+              },
+              "max_score": 1.0,
+              "hits": [
+                {
+                  "_index": "test",
+                  "_type": "_doc",
+                  "_id": "2",
+                  "_score": 1.0,
+                  "_routing": "1",
+                  "_source": {
+                    "number": 1,
+                    "my_join_field": {
+                      "name": "my_child",
+                      "parent": "1"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+```
+
+
+
+## Retrieve selected fields from a search
+
+- 기본적으로 검색 응답에는 `_source`가 포함됨 검색 응답에서 특정 필드를 검색하려면 `fields` 파라미터를 사용할 수 있음
+
+```
+curl -X POST "localhost:9200/my-index-000001/_search?pretty" -H 'Content-Type: application/json' -d'
+{
+  "query": {
+    "match": {
+      "message": "foo"
+    }
+  },
+  "fields": ["user.id", "@timestamp"],
+  "_source": false
+}
+'
+
+```
+
+- `fields`는 문서의 `_source` 및 색인 매핑을 모두 참조하여 값을 로드하고 반환함
+
+- 매핑을 사용하기 때문에 `fields`는 `_source`를 참조하는 것보다 몇가지 장점이 있음
+
+- 간단히 말해서 `_source`는 비용이 높음 `fields`를 사용하는 다음 옵션이 있음
+
+  - `docvalue_fields` 파라미터를 사용해서 선택한 필드의 값을 가져옴 키워드 및 날짜와 같은 문서 갑승ㄹ 지원하는 매우 적은 수의 필드를 반환할 때 좋은 선택이 될 수 있음
+  - `stored_fields` 파라미터는 특정 저장된 필드에 대한 값을 가져옴 (`store`로 매핑된 ?)
+  - `script_fields`도 있는데 이건 인덱스를 사용할 수 없어서 느림
+
+  
+
+### Fields
+
+- ...
+
+
+
+## Search across clusters
+
+## Search multiple data streams and indices
+
+## Search shard routing
+
+## Sort search results
+
+
+
 
 
 
