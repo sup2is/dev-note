@@ -888,21 +888,307 @@ http.cors.allow-origin: "*"
 
   
 
-
-
-
-
-
-
 ## 샤드와 세그먼트
+
+- 샤드는 인덱스에 색인되는 문서들이 저장되는 논리적인 공간
+- 세그먼트는 샤드의 데이터들을 가지고 있는 물리적인 파일을 의미함
+- 인덱스는 다수의 샤드로 구성되고 하나의 샤드는 다수의 세그먼트로 구성됨
+- 문서들이 인덱스 내에 샤드별로 저장된다는 개념을 정확하게 이해하면 장애가 발생했을 때 장애의 규모를 정확하게 파악할 수 있음
+- ES는 인덱스를 샤드로 나누고 데이터 노드에 샤드를 할당함 각각의 샤드에 문서를 저장하는 방식
+- 샤드는 원본 프라이머리 샤드와 복제 레플리카 샤드로 구성됨
+- 안정성을 위해서 레플리카 샤드를 만듦
+- 프라이머리 샤드는 최초 인덱스를 생성할 때 개수를 결정함 이후에 변경 불가하기때문에 신중해야함
+- 문서들은 실제로 세그먼트라는 물리적인 파일에 저장됨
+- 세그먼트에 저장 전에 색인된 문서는 먼저 시스템 메모리 버퍼 캐시에 저장되고 이 단계에서는 해당 문서가 검색되지 않음 이후 ES의 refresh라는 과정을 거쳐야 디스크에 세그먼트 단위로 문서가 저장되고 해당 문서의 검색이 가능해짐
+- 세그먼트는 불변임
+
+```json
+curl -X PUT "localhost:9200/test/_doc/1?pretty" \
+-H 'Content-Type: application/json' \
+-d '{
+  "title": "How to use ElasticSearch",
+  "author": "alden.kang"
+}'
+
+{
+  "_index" : "test",
+  "_type" : "_doc",
+  "_id" : "1",
+  "_version" : 1,
+  "result" : "created",
+  "_shards" : {
+    "total" : 2,
+    "successful" : 1,
+    "failed" : 0
+  },
+  "_seq_no" : 0,
+  "_primary_term" : 1
+}
+
+curl -X PUT "localhost:9200/test/_doc/1?pretty" \
+-H 'Content-Type: application/json' \
+-d '{
+  "title": "How to use ElasticSearch",
+  "author": "alden.kang, benjamin.butn"
+}'
+
+{
+  "_index" : "test",
+  "_type" : "_doc",
+  "_id" : "1",
+  "_version" : 2, //<- 버전 증가
+  "result" : "updated",
+  "_shards" : {
+    "total" : 2,
+    "successful" : 1,
+    "failed" : 0
+  },
+  "_seq_no" : 1,
+  "_primary_term" : 1
+}
+
+```
+
+- 같은 id로 put을 할 경우 응답중에 _version이 증가하는것을 확인할 수 있음 하지만 이는 실제로 원래 데이터가 변경되는 것은 아님
+- ES에서 데이터를 업데이트하려고 시도하면 ES는 새로운 세그먼트에 업데이트할 문서의 내용을 새롭게 쓰고, 기존의 데이터는 더 이상 쓰지 못하게 불용 처리함
+- update 뿐만 아니라 delete역시 마찬가지임 이런 특성으로 데이터들의 일관성을 지킬 수 있음
+- ES는 세그먼트는 불변이기 때문에 시간이 지나면 작은 크기의 세그먼트가 점점 늘어나서 크기가 점점 커지는 단점이 있음 이를 해결하기 위해 ES는 백그라운드에서 세그먼트 병합을 진행함
+- ES 백그라운드에서는 여러개의 작은 세그먼트들을 하나의 큰 세그먼트로 합치는 작업이 무수히 일어남
+- 병합시점에 실제 불용 처리한 데이터들을 실제로 디스크에서 삭제됨
+- 이러한 작업으로 ES는 빠르게 응답할 수 있음
 
 ## 프라이머리 샤드와 레플리카 샤드
 
+- ES에서 샤드의 상태를 정상적으로 유지하고 장애 상황에서도 유실되지 않도록 하는게 ES 클러스터 서비스의 연속성을 유지하기 위해 꼭 필요한 작업임
+- 레플리카 샤드는 프라이머리 샤드와 동일한 문서를 갖고 있기 때문에 사용자의 검색 요청에도 응답할 수 있음
+- 레플리카 샤드의 수가 많을수록 검색 요청에 대한 응답 속도를 높일 수 있음, 설계 시점에서 고려해야할 문제
+- ES에서 인덱스를 만들때 프라이머리 샤드의 개수를 필수적으로 설정해야함 별도로 설정하지 않으면 6.x 버전까지는 5개가 기본값
+- 사용자의 문서는 각각 프라이머리 샤드에 분산 저장됨
+- 문서를 저장하는 샤드를 얻는 방법은 id % 프라이머리 개수, 모듈러 연산으로 구함 <- 이 연산때문에 인덱스 생성 후에는 프라이머리 샤드의 개수를 변경 불가함
+- 레플리카 샤드는 프라이머리 샤드의 복제본으로 프라이머리 샤드가 저장된 노드와 다른 노드에 저장됨 <- H/A
+- 프라이머리샤드가 사용 불가 상태가되면 레플리카 샤드가 프라이머리 샤드로 승격되고 승격된 프라이머리 샤드의 레플리카 샤드가 다시 생김
+- 기본적으로 각 프라이머리 샤드당 하나의 레플리카 샤드를 만듦
+- 인덱스를 생성할 때 프라이머리 샤드 개수를 설정하는 방법
+
+```json
+curl -X PUT "localhost:9200/shard_index?pretty" \
+-H 'Content-Type: application/json'\
+-d '{
+  "index.number_of_shards": 5
+}'
+
+{
+  "acknowledged" : true,
+  "shards_acknowledged" : true,
+  "index" : "shard_index"
+}
+
+curl -X GET "localhost:9200/shard_index/_settings?pretty"
+
+{
+  "shard_index" : {
+    "settings" : {
+      "index" : {
+        "routing" : {
+          "allocation" : {
+            "include" : {
+              "_tier_preference" : "data_content"
+            }
+          }
+        },
+        "number_of_shards" : "1", //<- 단일 노드여서 한개인가?
+        "provided_name" : "shard_index",
+        "creation_date" : "1613871354245",
+        "number_of_replicas" : "1",
+        "uuid" : "L7fA97CoTd67NSY0yXBSDw",
+        "version" : {
+          "created" : "7100299"
+        }
+      }
+    }
+  }
+}
+```
+
+- 레플리카 샤드의 개수를 변경하는 api
+
+```json
+curl -X PUT "localhost:9200/shard_index/_settings?pretty" \
+-H 'Content-Type: application/json' \
+-d '{
+  "index.number_of_replicas": 2
+}'
+
+{
+  "acknowledged" : true,
+  "shards_acknowledged" : true,
+  "index" : "shard_index"
+}
+
+
+curl -X GET "localhost:9200/shard_index/_settings?pretty"
+
+{
+  "shard_index" : {
+    "settings" : {
+      "index" : {
+        "routing" : {
+          "allocation" : {
+            "include" : {
+              "_tier_preference" : "data_content"
+            }
+          }
+        },
+        "number_of_shards" : "1",
+        "provided_name" : "shard_index",
+        "creation_date" : "1613871354245",
+        "number_of_replicas" : "2",
+        "uuid" : "L7fA97CoTd67NSY0yXBSDw",
+        "version" : {
+          "created" : "7100299"
+        }
+      }
+    }
+  }
+}
+```
+
+- 레플리카샤드는 운영중에도 변경할 수 있음
+- 샤드의 개수는 데이터의 안정성 측면 외에도 색인과 검색의 성능 확보 면에서도 중요함
+- ES 클러스터는 각각의 노드가 색인과 검색 요청을 분배해서 처리함
+- 하나의 노드로 구성된 클러스터는 레플리카샤드를 할당할 수 없지만 5개의 노드로 구성된 클러스터는 레플리카를 추가로 구성할 수 있음?
+- 정리하면 인덱스는 여러개의 사드로 구성되어 있고 각가의 샤드는 클러스터를 구성하는 노드들에 분산되어 있음. 그리고 각 샤드는 세그먼트로 구성되어 있으며 세그먼트 안에 각각의 문서들이 저장되어 있음. 세그먼트들은 시간이 지남에 따라 늘어나는 작은 크기의 세그먼트들을 병합하면서 갯수가 늘어났다가 줄어들기를 반복하는 형태로 운영됨
+
+
+
 ## 매핑
+
+- 매핑은 RDB와 비교했을때 스키마와 유사함
+- ES에 저장될 json 문서들이 어떤 키와 어떤 형태의 값을 가지고 있는지 정의한 것
+
+```json
+curl -X GET "localhost:9200/accounts/_mapping?pretty"
+
+{
+  "accounts" : {
+    "mappings" : {
+      "properties" : {
+        "account_number" : {
+          "type" : "long"
+        },
+        "address" : {
+          "type" : "text",
+          "fields" : {
+            "keyword" : {
+              "type" : "keyword",
+              "ignore_above" : 256
+            }
+          }
+        },
+        "age" : {
+          "type" : "long"
+        },
+        "balance" : {
+          "type" : "long"
+        },
+        "city" : {
+          "type" : "text",
+          "fields" : {
+            "keyword" : {
+              "type" : "keyword",
+              "ignore_above" : 256
+            }
+          }
+        },
+        "email" : {
+          "type" : "text",
+          "fields" : {
+            "keyword" : {
+              "type" : "keyword",
+              "ignore_above" : 256
+            }
+          }
+        },
+        "employer" : {
+          "type" : "text",
+          "fields" : {
+            "keyword" : {
+              "type" : "keyword",
+              "ignore_above" : 256
+            }
+          }
+        },
+        "firstname" : {
+          "type" : "text",
+          "fields" : {
+            "keyword" : {
+              "type" : "keyword",
+              "ignore_above" : 256
+            }
+          }
+        },
+        "gender" : {
+          "type" : "text",
+          "fields" : {
+            "keyword" : {
+              "type" : "keyword",
+              "ignore_above" : 256
+            }
+          }
+        },
+        "lastname" : {
+          "type" : "text",
+          "fields" : {
+            "keyword" : {
+              "type" : "keyword",
+              "ignore_above" : 256
+            }
+          }
+        },
+        "state" : {
+          "type" : "text",
+          "fields" : {
+            "keyword" : {
+              "type" : "keyword",
+              "ignore_above" : 256
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+- 매핑 정보는 미리 정의해도 되고 정으하지 않아도 됨.
+- 미리 정의한 매핑을 정적 매핑이라고하고 정의하지 않고 사용하는 것을 동적 매핑이라함
+- ES는 미리 스키마가 정해지지 않아도 최초에 색인된 문서를 바탕으로 자동 매핑해주는 방식이 있음
+- 최초에 들어간 데이터를 기반으로 이후에 저장해야함
+
+| 코어 데이터 타입 | 설명                 | 종류                                                         |
+| ---------------- | -------------------- | ------------------------------------------------------------ |
+| String           | 문자열 데이터 타입   | text, keyword                                                |
+| Numeric          | 숫자형 데이터 타입   | long,integer, short, byte, double, float, half_float, scaled_float |
+| Date             | 날짜형 데이터 타입   | date                                                         |
+| Boolean          | 불 데이터 타입       | boolean                                                      |
+| Binary           | 바이너리 데이터 타입 | binary                                                       |
+| Range            | 범주 데이터 타입     | integer_range, float_range, long_range, double_range, date_range |
+
+- 필드의 내용에 따라 지정할 수 있는 필드 데이터 타입이 다르고 같은 종류의 데이터라도 여러가지 필드 데이터 타입이 존재함
+- 사용자가 색인한 문서의 다양한 필드들을 적절한 타입으로 스키마를 정의하는 것이 매핑임
+
+
+
+
 
 ## 마치며
 
-
+- ES는 노드들의 역할을 정의하여 클러스터로 구성하며, 클러스터 단위로 사용자의 색인이나 검색 요청을 받아 서비스함
+- 인덱스는 사용자의 문서가 저장되는 가장 큰 논리적인 단위이고 문서는 인덱스 내에 샤드라는 단위로 저장됨
+- 샤드에 저장되는 문서는 실제로는 세그먼트라는 물리적인 파일에 저장됨
+- 샤드는 하나 이상의 세그먼트들로 구성되. 백그라운드에서 세그먼트의 병합 작업이 진행되며 이를 통해 작은 크기의 세그먼트들이 큰 크기의 세그먼트로 합쳐짐
+- 샤드는 원본 데이터를 저장하는 프라이머리 샤드와 복제본인 레플리카 샤드로 나뉘며, 하나의 노드에 동일한 번호의 프라이머리/레플리카 샤드를 두지 않음으로써 노드 장애 발생시 데이터의 안정성을 확보함
+- 사용자의 문서가 저장될 때 문서의 데이터를 기준으로 데이터 타입을 정의하며 문서의 모든 필드에 대해 데이터 타입을 정의한 것이 인덱스 매핑
 
 
 
