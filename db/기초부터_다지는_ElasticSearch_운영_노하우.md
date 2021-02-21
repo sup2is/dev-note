@@ -798,7 +798,92 @@ http.cors.allow-origin: "*"
 
 - ES 6.3 부터는 X-Pack의 베이직 라이선스를 기본으로 탑재해서 라이선스를 규칙적으로 갱신하지 않아도 모니터링 기능을 사용 가능함 6.3 이하일 경우 라이선스에 대한 고려를 해야함
 - 프로메테우스는 데이터를 시간의 흐름대로 저장할 수 있는 시계열 데이터베이스의 일종이고 수집된 데이터를 바탕으로 임계치를 설정하고 경고 메시지를 받을 수 있는 오픈소스 모니터링 시스템임
-- 
+- 각종 데이터들을 프로메테우스는 Exporter라는 컴포넌트를 통해서 가져오고 ES뿐만아니라 Redis 등 다양한 시스템 메트릭을 수집하고 머니터링 할 수 있음
+- 다운로드
+
+```
+curl -L -O https://github.com/prometheus/prometheus/releases/download/v2.25.0/prometheus-2.25.0.linux-amd64.tar.gz
+tar -zxvf prometheus-2.25.0.linux-amd64.tar.gz 
+cd prometheus-2.25.0.linux-amd64
+```
+
+- 설정
+
+```yaml
+vi prometheus.yml 
+
+...
+scrape_configs:
+  # The job name is added as a label `job=<job_name>` to any timeseries scraped from this config.
+#  - job_name: 'prometheus'
+  - job_name: 'elasticsearch' # <- 변경
+
+    # metrics_path defaults to '/metrics'
+    # scheme defaults to 'http'.
+
+    static_configs:
+    - targets: ['localhost:9108'] # <- 변경
+~        
+
+...
+
+
+#실행 
+./prometheus --config.file=prometheus.yml 
+```
+
+- elasticsearch_exporter 다운로드 및 실행
+
+```
+curl -L -O https://github.com/justwatchcom/elasticsearch_exporter/releases/download/v1.0.4rc1/elasticsearch_exporter-1.0.4rc1.linux-amd64.tar.gz
+tar -zxvf elasticsearch_exporter-1.0.4rc1.linux-amd64.tar.gz 
+cd elasticsearch_exporter-1.0.4rc1.linux-amd64
+./elasticsearch_exporter -es.uri http://localhost:9200 -es.all -es.indices
+
+```
+
+- exporter 실행 검증
+
+```
+curl -s http://localhost:9108/metrics | more
+```
+
+- grafana 설치
+
+```
+curl -L -O https://dl.grafana.com/oss/release/grafana-5.4.2.linux-amd64.tar.gz
+tar -zxvf grafana-5.4.2.linux-amd64.tar.gz
+cd grafana-5.4.2
+```
+
+- grafana 설정
+
+```
+vi sample.ini
+
+...
+#################################### Server ####################################
+[server]
+# Protocol (http, https, socket)
+;protocol = http
+
+# The ip address to bind to, empty will bind to all interfaces
+;http_addr = 0.0.0.0 # <- 변경
+
+# The http port  to use
+;http_port = 3000
+...
+
+./bin/grafana-server 실행
+
+```
+
+- grafana에서 사용할 json 파일 참고
+  - [https://github.com/justwatchcom/elasticsearch_exporter/blob/master/examples/grafana/dashboard.json](https://github.com/justwatchcom/elasticsearch_exporter/blob/master/examples/grafana/dashboard.json)
+
+
+
+- 추가된 대시보드를 통해서 인덱스들의 데이터 크기, 평균 힙 메모리 사용량 등 클러스터의 상태를 알 수 있는 다양한 정보를 확인할 수 있음
 
 
 
@@ -806,7 +891,9 @@ http.cors.allow-origin: "*"
 
 ## 마치며
 
-
+- Head 모니터링은 클러스터의 전반적인 동작 상태를 확인하기에 용이하지만 성능 지표 등의 자세한 정보는 확인하기 어려움
+- 프로메테우스 모니터링은 다량의 클러스터를 운영하고 있을 때 구축하기 수월하지만, 확인할 수 있는 정보량이 X-Pack 모니터링에 비해 상대적으로 적음 
+- X-Pack 모니터링은 모니터링 시스템 중 가장 많은 정보를 확인할 수 있지만 6.3 이전 버전의 경우 Basic라이선스를 해마다 갱신해야 하며, 클러스터의 규모가 클수록 모니터링 데이터를 기록하기 위한 인덱스의 색인이 필요하기 때문에 색인 성능에 영향을 줄 수 있음
 
 # #4 ElasticSearch 기본 개념
 
