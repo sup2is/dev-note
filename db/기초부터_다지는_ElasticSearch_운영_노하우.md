@@ -1434,7 +1434,7 @@ curl -X GET "localhost:9200/accounts/_mapping?pretty"
 
   > network.host는 사실 network.bind_host와 network.publish_host 두개로 나눌 수 있음 내부적으로는 network.host가 두개의 값을 동일하게 설정한다고 생각하면 됨 실무에서는 따로 구분해서 설정
 > 간단하게 설명하면 network.bind_host는 클라이언트의 요청을 처리하기 위한 ip를 설정하고 network.publish_host는 노드 자신의 ip로 설정해야함
-  
+
 - http.port
 
   - ES가 사용할 포트번호
@@ -1773,7 +1773,99 @@ node.data: true
 
 ## 버전 업그레이드
 
+- ES는 새로운 버전이 빠르개 공개됨
+- ES 버전을 업그레이드 하는 방법
+
+| 옵션                 | 설명                                                         |
+| -------------------- | ------------------------------------------------------------ |
+| Full Cluster Restart | 전체 노드를 동시에 재시작하는 방식, 다운타임 발생하지만 빠르게 버전을 업그레이드 가능 |
+| Rolling Restart      | 노드는 순차적으로 한 대씩 재시작하는 방식, 다운 타임은 없지만 노드 개수에 따라서 업그레이드에 소요되는 시간이 길어질 수 있음 |
+
+- 서비스 중단이 가능하다면 Full Cluster Restart가 좋음
+
+- 다음 표를 참고해서 Rolling Restart 업그레이드 from, to 를 확인할 것 [https://www.elastic.co/guide/en/elasticsearch/reference/current/setup-upgrade.html](https://www.elastic.co/guide/en/elasticsearch/reference/current/setup-upgrade.html) 참고
+
+| Upgrade from                           | Recommended upgrade path to 7.11.1                           |
+| -------------------------------------- | ------------------------------------------------------------ |
+| A previous 7.11 version (e.g., 7.11.0) | [Rolling upgrade](https://www.elastic.co/guide/en/elasticsearch/reference/current/rolling-upgrades.html) to 7.11.1 |
+| 7.0–7.10                               | [Rolling upgrade](https://www.elastic.co/guide/en/elasticsearch/reference/current/rolling-upgrades.html) to 7.11.1 |
+| 6.8                                    | [Rolling upgrade](https://www.elastic.co/guide/en/elasticsearch/reference/current/rolling-upgrades.html) to 7.11.1 |
+| 6.0–6.7                                | [Rolling upgrade](https://www.elastic.co/guide/en/elasticsearch/reference/6.8/rolling-upgrades.html) to 6.8[Rolling upgrade](https://www.elastic.co/guide/en/elasticsearch/reference/current/rolling-upgrades.html) to 7.11.1 |
+| 5.6                                    | [Rolling upgrade](https://www.elastic.co/guide/en/elasticsearch/reference/6.8/rolling-upgrades.html) to 6.8[Rolling upgrade](https://www.elastic.co/guide/en/elasticsearch/reference/current/rolling-upgrades.html) to 7.11.1 |
+| 5.0–5.5                                | [Rolling upgrade](https://www.elastic.co/guide/en/elasticsearch/reference/5.6/rolling-upgrades.html) to 5.6[Rolling upgrade](https://www.elastic.co/guide/en/elasticsearch/reference/6.8/rolling-upgrades.html) to 6.8[Rolling upgrade](https://www.elastic.co/guide/en/elasticsearch/reference/current/rolling-upgrades.html) to 7.11.1 |
+
+- Rolling upgrade는 다음의 순서를 가짐
+  1. 클러스터 내 샤드 할당 기능 비활성화
+  2. 프라이머리 샤드와 레플리카 샤드 데이터 동기화
+  3. 노드 한 대 버전 업그레이드 이후 클러스터 합류 확인
+  4. 클러스터 내 샤드 할당 기능 활성화
+  5. 클러스터 그린 상태 확인
+- 1~5 계속 반복
+
+
+
+**1. 클러스터 내 샤드 할당 기능 비 활성화**
+
+- 클러스터 내 장애가 발생하면 해당 노드가 가지고 있던 샤드들을 다른 데이터 노드로 분배하는데 이런 버전 업그레이드 작업은 의도적으로 노드를 클러스터에서 잠시 제외시키는 것이기 때문에 장애가 아님 따라서 샤드를 재분배하는 것은 비용적으로 큰 낭비임 따라서 업그레이드를 진행하는 동안 클러스터 내 샤드 할당 기능을 비활성화 해야 함
+
+```
+curl -X PUT "localhost:9200/_cluster/settings?pretty" \
+-H 'Content-Type: application/json' \
+-d '{
+  "persistent": {
+    "cluster.routing.allocation.enable": "none"
+  }
+}'
+```
+
+- ​    "cluster.routing.allocation.enable": "none"
+  - 위 설정으로 샤드 재분배 비활성화
+  - 이 설정으로 클러스터내에 노드가 제외되더라도 해당 노드에 포함된 샤드를 다른 노드로 재분배하지 않음
+
+
+
+**2. 프라이머리 샤드와 레플리카 샤드 데이터 동기화**
+
+- 현재 배치해 놓은 프라이머리 샤드와 레플리카 샤드간의 데이터를 똑같은 형태로 맞춰야함
+
+```
+curl -X POST "localhost:9200/_flush/synced?pretty" \
+-H 'Content-Type: application/json'
+```
+
+
+
+**3. 노드 한 대 버전 업그레이드 이후 클러스터 합류 확인**
+
+- 이때 발생한 unassigned 샤드는 다른 데이터 노드로 분배되지 않고 unassigned 상태로 남아있음
+
+**4. 클러스터 내 샤드 할당 기능 활성화**
+
+- 클러스터에 정상적으로 합류되었다면 샤드 할당 기능 활성화
+
+```
+curl -X PUT "localhost:9200/_cluster/settings?pretty" \
+-H 'Content-Type: application/json' \
+-d '{
+  "persistent": {
+    "cluster.routing.allocation.enable": null
+  }
+}'
+```
+
+- "cluster.routing.allocation.enable"
+  - all 로해도 같은 의미임
+
+**5. 클러스터 그린 상태 확인**
+
+- 마지막으로 클러스터가 yellow에서 다시 green으로 돌아오는지 확인함
+- unassigned 샤드가 작업이 완료된 노드로 전부 할당되면 클러스터는 yellow 상태에서 green 상태로 바꿈
+- 위 작업을 반복
+- Rolling Restart는 ES 버전 업그레이드 뿐만 아니라 elasticsearch.yml, jvm.options 파일 변경, 펌웨어 업그레이드 작업 등에도 활용할 수 있음
+
 ## 샤드 배치 방식 변경
+
+- ES는 대부분 자동으로 샤드를 배치하지만 경우에 따라서 샤드 배치 방식을 변경해야 할 때가 있음 예를 들어 특정 노드에 장애가 발생하여 생성된 unassigned 샤드에 대한 재할당 작업이 5회 이상 실패할 경우, 혹은 일정 기간이 지난 오래된 인덱스의 샤드를 특정 노드에 강제로 배치해야 할 경우임
 
 ## 클러스터와 인덱스의 설정 변경
 
