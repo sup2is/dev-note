@@ -18,7 +18,7 @@
 | 항목               | 특징                                                         |
 | ------------------ | ------------------------------------------------------------ |
 | 준실시간 검색 엔진 | 실시간이라고 생각할 만큼 색인된 데이터가 매우 빠르게 검색됨  |
-| 클러스터 구성      | 한 대 이상의 노드를 클러스터로 구성하여 높은 수준의 안정성을 이루고 보하를 분산할 수 있음 |
+| 클러스터 구성      | 한 대 이상의 노드를 클러스터로 구성하여 높은 수준의 안정성을 이루고 부하를 분산할 수 있음 |
 | 스키마리스         | 입력될 데이터에 대해 미리 정의하지 않아도 동적으로 스키마를 생성할 수 있음 |
 | RestAPI            | RestAPI 기반의 쉬운 인터페이스를 제공하여 비교적 진입 장벽이 낮음 |
 
@@ -897,7 +897,7 @@ vi sample.ini
 
 # #4 ElasticSearch 기본 개념
 
-## 클러스터 노드의 개념
+## 클러스터, 노드의 개념
 
 - 클러스터란 여러 대의 컴ㅍ터 혹은 구성 요소들을 논리적으로 결합하여 전체를 하나의 컴퓨터, 혹은 하나의 구성 요소처럼 사용할 수 있게 해주는 기술임
 - ES는 클러스터를 구성할 수 있고 각 ES 프로세스는 노드라고 부름, ES 클러스터는 여러 대의 노드로 구성되어있지만 마치 하나의 ES 처럼 동작하는 것, 따라서 어느 노드에 API를 요청해도 동일한 응답과 동작을 보장받을 수 있음
@@ -1276,6 +1276,566 @@ curl -X GET "localhost:9200/accounts/_mapping?pretty"
 - 샤드는 하나 이상의 세그먼트들로 구성되. 백그라운드에서 세그먼트의 병합 작업이 진행되며 이를 통해 작은 크기의 세그먼트들이 큰 크기의 세그먼트로 합쳐짐
 - 샤드는 원본 데이터를 저장하는 프라이머리 샤드와 복제본인 레플리카 샤드로 나뉘며, 하나의 노드에 동일한 번호의 프라이머리/레플리카 샤드를 두지 않음으로써 노드 장애 발생시 데이터의 안정성을 확보함
 - 사용자의 문서가 저장될 때 문서의 데이터를 기준으로 데이터 타입을 정의하며 문서의 모든 필드에 대해 데이터 타입을 정의한 것이 인덱스 매핑
+
+
+
+# #5 클러스터 구축하기
+
+## elasticsearch.yml 설정 파일
+
+- elasticsearch.yml 파일은 ES 구성을 위해 기본이 되는 환경 설정 파일임
+- Cluster, Gateway ... 등등으로 분리되어 있음
+
+### Cluster 영역
+
+- Cluster 영역 설정은 클러스터 전체에 적용되는 설정
+
+```
+# ---------------------------------- Cluster -----------------------------------
+#
+# Use a descriptive name for your cluster:
+#
+#cluster.name: my-application
+#
+```
+
+- cluster.name
+  - 클러스터의 이름을 설정하는 항목. 클러스터 내부 노드들은 모두 같은 클러스터 이름을 가져야함
+  - 클러스터 이름을 변경하는것은 모든 노드를 재시작해야하기 때문에 처음에 신중하게 결정해야함
+  - 주석인 상태라면 elasticsearch라는 이름이 default
+
+### Node 영역
+
+- Node영역은 해당 노드에만 적용되는 설정
+
+```
+# ------------------------------------ Node ------------------------------------
+#
+# Use a descriptive name for the node:
+#
+#node.name: node-1
+#
+# Add custom attributes to the node:
+#
+#node.attr.rack: r1
+#
+```
+
+- node.name
+  - 노드의 이름을 설정하는 항목
+  - 클러스터 내에서 유일해야함
+  - node.name: ${HOSTNAME} 이런식으로 설정하면 호스트명을 node.name으로 가져갈 수 있어서 겹치지 않게 설정할 수 있음
+  - 운영 중에는 변경 불가. 재시작해야하기때문에 신중하게 설정할 것
+  - 주석인 상태라면 ES가 랜덤한 문자열을 만드는게 default
+- node.attr.rack
+  - 각 노드에 설정할 수 있는 커스텀 항목
+  - 사용자 정의된 rack 값을 통해 HA 구성과 같이 샤드를 분배할 수 있는 기능
+
+### Path 영역
+
+- Paths 영역은 데이터와 로그의 저장 위치와 관련된 설정
+- 기본값이 없어서 반드시 설정해야함
+
+```
+# ----------------------------------- Paths ------------------------------------
+#
+# Path to directory where to store the data (separate multiple locations by comma):
+#
+#path.data: /path/to/data
+#
+# Path to log files:
+#
+#path.logs: /path/to/logs
+#
+```
+
+- path.data
+  - 노드가 가지고 있을 문서들을 저장할 경고를 설정하는 항목
+  - 실제 세그먼트가 위치하는 경로
+  - path.data: /var/lib/elasticsearch/data1, /var/lib/elasticsearch/data2 형태로 저장하면 분산형태로 저장할 수 있지만 경로 하나에 문제가 생기면 어떤 문서가 문제가 생기는지 파악하기 어려움
+- path.logs
+  - ES에서 발생하는 로그를 저장할 경로를 설정하는 항목
+
+
+
+### Memory 영역
+
+- Memory 영역은 ES 프로세스에 할당되는 메모리 영역을 어떻게 관리할 것인지 설정
+
+```
+# ----------------------------------- Memory -----------------------------------
+#
+# Lock the memory on startup:
+#
+#bootstrap.memory_lock: true
+#
+# Make sure that the heap size is set to about half the memory available
+# on the system and that the owner of the process is allowed to use this
+# limit.
+#
+# Elasticsearch performs poorly when the system is swapping the memory.
+#
+```
+
+- bootstrap.memory_lock
+
+  - true일때 시스템의 스왑 메모리 영약을 사용하지 않도록 하는 설정
+
+  - ES는 스왑 메모리를 사용하지 않는것을 권장함
+
+  - true일 경우 성능을 보장하지만 메모리가 부족할땐 OOM이 날 수 있음
+
+  - 이 설정을 제대로 사용하려면 /etc/security/limits.conf 파일도 다음과 같이 수정해야함
+
+  - ```
+    vi /etc/security/limits.conf
+    elasticsearch soft memlock umlimited #<- 설정, elasticsearch는 ES를 실행하는 계정 이름
+    elasticsearch hard memlock umlimited
+    ```
+
+  - systemd로 프로세스를 시작한다면 다음 설정도 해야함
+
+  - ```
+    sudo mkdir /etc/systemd/system/elasticsearch.service.d
+    sudo vi etc/systemd/system/elasticsearch.service.d/override.conf
+    
+    [Service]
+    LimitMEMLOCK=infinity
+    
+    sudo systemctl deamon-reload
+    ```
+
+  - 이런 설정들이 없다면 bootstrap.memory_lock일때 ES 프로세스가 시작되지 않을 수 있음
+
+### Network 영역
+
+- Network영역은 ES 애플리케이션이 외부와 통신할 때 사용하게 될 IP 주소를 설정하는 항목
+- 외부, 노드 통신에도 설정값이 동작하기 때문에 주의해야함
+
+```
+# ---------------------------------- Network -----------------------------------
+#
+# Set the bind address to a specific IP (IPv4 or IPv6):
+#
+#network.host: 192.168.0.1
+#
+# Set a custom port for HTTP:
+#
+#http.port: 9200
+#
+# For more information, consult the network module documentation.
+#
+```
+
+- network.host
+
+  - ES 애플리케이션이 사용하게 될 IP주소
+  - 내부,외부 통신을 결정함
+
+  > network.host는 사실 network.bind_host와 network.publish_host 두개로 나눌 수 있음 내부적으로는 network.host가 두개의 값을 동일하게 설정한다고 생각하면 됨 실무에서는 따로 구분해서 설정
+> 간단하게 설명하면 network.bind_host는 클라이언트의 요청을 처리하기 위한 ip를 설정하고 network.publish_host는 노드 자신의 ip로 설정해야함
+  
+- http.port
+
+  - ES가 사용할 포트번호
+
+### Discovery 영역
+
+- Discovery영역은 노드 간의 클러스터링을 위해 필요한 설정
+
+```
+# --------------------------------- Discovery ----------------------------------
+#
+# Pass an initial list of hosts to perform discovery when this node is started:
+# The default list of hosts is ["127.0.0.1", "[::1]"]
+#
+#discovery.seed_hosts: ["host1", "host2"]
+#
+# Bootstrap the cluster using an initial set of master-eligible nodes:
+#
+#cluster.initial_master_nodes: ["node-1", "node-2"]
+#
+# For more information, consult the discovery and cluster formation module documentation.
+#
+```
+
+- discovery.seed_hosts
+  - 클라스터링을 위한 다른 노드들의 정보를 나열
+  - 배열 형식으로 두 대 이상 나열 가능
+- cluster.initial_master_nodes
+  - 클러스터를 구축하기 위해 필요한 최소한의 마스터 노드 대수 설정
+
+> 만약 다음과 같이 설정이 된 상태라면
+>
+> ```
+> discovery.zen.ping.unicast.host: ["10.10.10.10"]
+> discovery.zen.minimum_master_nodes: 2
+> ```
+>
+> 애플리케이션이 실팽되면 10.10.10.10인 서버에 현재 ES 애플리케이션이 동작중인지 확인하고 구축되어있는 클러스터의 정보를 받아옴 만약 10.10.10.10이 다른 클러스터에 합류되었다면 그 클러스터의 정보를 받아옴 그리고 이 정보들 중 마스터 노드의 개수가 2개 이상인지 확인한 후 2 개 이상이라면 성공적으로 클러스터에 합류하게됨
+>
+> discovery.zen.minimum_master_nodes가 굉장히 중요한데 이 값은 클러스터를 유지하기위한 최소한의 마스터 노드 대수를 의미함 만약 마스터 노드 3, 데이터 노드 3으로된 클러스터에서 네트워크 장애로 마스터노드간 네트워크가 끊긴다면 마스터끼리 클러스터 연결이 끊기기 때문에 서로 다른 마스터 노드를 가진 2개의 클러스터가 생기는 상황이 생길 수 있음 이 상황을 split brain이라고함
+>
+> 이러한 이유때문에 ES에서는 discovery.zen.minimum_master_nodes값을 마스터 노드의 개수의 과반수만큼 설정하는것을 권고함 
+
+
+
+### Gateway 영역
+
+- Gateway 설정은 클러스터 복구와 관련된 내용들을 포함함
+
+```
+# ---------------------------------- Gateway -----------------------------------
+#
+# Block initial recovery after a full cluster restart until N nodes are started:
+#
+#gateway.recover_after_nodes: 3
+#
+# For more information, consult the gateway module documentation.
+#
+```
+
+- gateway.recover_after_nodes
+  - 클러스터 내의 노드를 전부 재시작할 때 최소 몇 개의 노드가 정상적인 상태일 때 복구를 시작할 것인지를 설정
+
+> ES의 버전 업그레이드나 클러스터 내의 모든 노드를 다시 시작해야 할 경우가 있음 이런 경우를 Full Cluster Restart 라고 부름
+>
+> 클러스터링을 재시작하면서 인덱스 데이터들을 복구하기 시작하는데 이때 지정한 노드의 수만큼 노드들이 복귀하였을때 인덱스 데이터에 복구를 시작하게 할 수 있는 설정이 gateway.recover_after_nodes임
+>
+> 해당 설정은 클러스터 전체 장애가 발생했을 때 조금 더 안정적으로 클러스터를 복구하는데 도움을 줄 수 있음
+
+### Various 영역
+
+```
+# ---------------------------------- Various -----------------------------------
+#
+# Require explicit names when deleting indices:
+#
+#action.destructive_requires_name: true
+```
+
+- action.destructive_requires_name
+  - 클러스터에 저장되어 있는 인덱스를 _all이나 wildcard 표현식으로 삭제할 수 없도록 막는 설정
+
+
+
+### 노드의 역할 정의
+
+- elasticsearch.yml에 기본값 외에도 설정할 수 있는 값들이 매우 많음
+
+| 노드 역할       | 항목        | 기본 설정값 |
+| --------------- | ----------- | ----------- |
+| 마스터 노드     | node.master | TRUE        |
+| 데이터 노드     | node.data   | TRUE        |
+| 인제스트 노드   | node.ingest | TRUE        |
+| 코디네이트 노드 | 설정 없음   | TRUE        |
+
+- 설정하지 않는다면 모든 노드들 4가지 역할을 갖게 됨
+- 역할을 사용하지 않으려면 false로 설정해야함
+
+**마스터 노드 설정**
+
+```
+node.master: true
+node.data: false
+node.ingest: false
+```
+
+- 위 설정은 해당 노드를 master로만 설정해 놓은 상태이고 클러스터 내에 마스터 노드는 반드시 한개이기 때문에 실제 마스터가 아니라면 마스터의 자격을 갖는 노드로 설정하는 것임
+- 위에서 설명한것처럼 클러스터 내의 node.master 보다 < discovery.zen.minimum_master_nodes 여야한다는 것을 참고
+
+
+
+**데이터 노드 설정**
+
+```
+node.master: false
+node.data: true
+node.ingest: false
+```
+
+- 이 노드는 색인 요청한 문서를 저장하고 검색 요청에 대해 결과를 응답해주는 데이터 노드가 됨
+
+
+
+
+
+**인제스트 노드 설정**
+
+```
+node.master: false
+node.data: false
+node.ingest: true
+```
+
+- 이 노드는 색인 요청 문서에 대해 사전 처리만 진행하고 진행한 결과를 데이터 노드에 넘겨줌
+
+
+
+**코디네이트 노드 설정**
+
+```
+node.master: false
+node.data: false
+node.ingest: false
+```
+
+- 모든 요청을 받아서 실제로 처리할 데이터 노드에 전달하고 각 데이터 노드에게 전달받은 검색 결과를 하나로 취합해서 사용자에게 돌려줌
+- 코디네이트 노드를 별도로 분리하는 가장 큰 이유는 사용자의 데이터 노드 중 한 대가 코디네이트 노드의 역할과 데이터 노드의 역할을 동시에 함으로써 해당 노드의 사용량이 높아지는 것을 방지하기 위함임
+- 데이터 노드에서는 색인 작업만으로도 많은 양의 힙 메모리가 필요한데 검색 결과 취합을 위해 힙 메모리를 추가로 사용해야 한다면 OOM이 나타날 수 있음 
+- 특히 aggregation API를 활용한 통계 작업 요청이 빈번하다면 코디네이트 노드 역할을 분리하는 것이 좋음
+- 코디네이터 노드는 클라이언트 노드라고도 부름
+- 이 클라이언트 노드는 모든 데이터를 취합할 수 있는 수준이 되어야함
+
+
+
+**노드의 역할 중복 설정**
+
+```
+node.master: true
+node.data: true
+node.ingest: true
+```
+
+- 기본값과 다름 없으나 추후에 마스터노드와 데이터 노드를 분리할 수 있기 때문에 명시해두는게 좋음
+- 문서의 규모가 크지 않다면 위 방식으로 비용을 절감할 수 있음
+
+
+
+## jvm.options 설정 파일
+
+- ES는 자바로 만들어져있기 때문에 jvm 힙 메모리, gc 방식등 설정이 필요함
+- 이 설정들은 ES 애플리케이션 성능에 결정적 역할을 하기 때문에 중요함
+
+
+
+```
+
+
+...
+
+# Xms represents the initial size of total heap space
+# Xmx represents the maximum size of total heap space
+
+-Xms1g
+-Xmx1g
+
+...
+
+## GC configuration
+8-13:-XX:+UseConcMarkSweepGC
+8-13:-XX:CMSInitiatingOccupancyFraction=75
+8-13:-XX:+UseCMSInitiatingOccupancyOnly
+
+...
+
+## G1GC Configuration
+# NOTE: G1 GC is only supported on JDK version 10 or later
+# to use G1GC, uncomment the next two lines and update the version on the
+# following three lines to your version of the JDK
+# 10-13:-XX:-UseConcMarkSweepGC
+# 10-13:-XX:-UseCMSInitiatingOccupancyOnly
+14-:-XX:+UseG1GC
+14-:-XX:G1ReservePercent=25
+14-:-XX:InitiatingHeapOccupancyPercent=30
+
+## JVM temporary directory
+-Djava.io.tmpdir=${ES_TMPDIR}
+
+## heap dumps
+
+# generate a heap dump when an allocation from the Java heap fails
+# heap dumps are created in the working directory of the JVM
+-XX:+HeapDumpOnOutOfMemoryError
+```
+
+- -Xms1g, Xmx1g
+  - jvm 힙 메모리 공간 크기 설정
+  - Xms는 최소 사이즈
+  - Xmx는 최대 사이즈
+  - 두개의 값을 같은값으로 설정해야 중간에 메모리의 요청이 추가로 일어나지 않음, 권고사항
+- 8-13:-XX:+UseConcMarkSweepGC
+  - jdk 8~13이면 CMS 알고리즘
+  - 대부분 좋은 성능
+- 8-13:-XX:CMSInitiatingOccupancyFraction=75
+  - 힙 메모리가 사용량이 어느정도 되면 old GC를 실행하도록함
+  - 위 설정은 75%
+  - old GC가 발생하면 STW 현상이 발생해서 응답이 불가되는 현상 주의
+  - 높게 설정하면 old GC 수행 시간이 길어짐
+  - 기본값이 가장 좋음
+- 8-13:-XX:+UseCMSInitiatingOccupancyOnly
+  - old GC를 수행할 때 GC 통계 데이터를 근거로 하지 않고 설정을 기준으로 old GC를 수행한다는 의미
+- 14-:-XX:+UseG1GC
+  - jdk 14+이면 G1GC
+
+
+
+
+
+- jvm.options 파일에서는 대부분 힙 메모리와 관련된 항목만 변경해주면 됨
+- GC 방식에 대한 설정은 성능에 많은 영향을 주기 때문에 정확하게 이해하고 수정해야 함
+- 공식문서에서는 힙메모리를 32G 이상으로 넘지 않게 설정한 것을 권고하고 전체 메모리의 절반 정도를 힙 메모리로 설정할 것 등을 권고하고 있음
+
+
+
+
+
+## 클러스터 사용하기
+
+- 고가용성의 ES 클러스터를 구성해보기
+
+  
+
+**새롭게 추가되는 master 노드 설정 참고**
+
+```
+cluster.name: elasticsearch
+node.name: ${HOSTNAME}
+path.data: /var/lib/elasticsearch
+path.logs: /var/log/elasticsearch
+bootstrap.memory_lock: true
+network.bind_host: 0.0.0.0
+network.publish_host: master-2.es.com
+http.port: 9200
+http.cors.enabled: true
+http.cors.allow-origin: "*"
+transport.tcp.port: 9300
+discovery.zen.ping.unicast.hosts: ["master-1.es.com:9300", "master-2.es.com:9300", "master-3.es.com:9300"]
+discovery.zen.minimum_master_nodes: 2
+gateway.recover_after_nodes: 3
+action.destructive_requires_name: true
+node.master: true
+node.data: false
+```
+
+- node.name: ${HOSTNAME}
+  - 호스트명으로 설정, 효율적인 방법
+- network.bind_host: 0.0.0.0
+  - 외부와 통신은 노드 내에 있는 모든 IP를 사용할 수 있또록 설정
+- network.publish_host: master-2.es.com
+  - 노드가 클러스터 내에 있는 다른 노드들과 통신할 떄 사용할 IP
+  - 여러 IP 중 외부에서도 호출 가능한 대표 IP를 하나 설정함
+- http.cors.allow-origin: "*"
+  - 모니터링툴 Head를 사용할 수 있게 cors 설정
+- discovery.zen.ping.unicast.hosts: ["master-1.es.com:9300", "master-2.es.com:9300", "master-3.es.com:9300"]
+  - 클러스터에 합류하기 위해 클러스터의 정보를 받아올 노드들을 지정함
+  - 마스터 노드들로 지정해주는 것이 좋음
+- discovery.zen.minimum_master_nodes: 2
+  - 최소 마스터를 두대이상
+
+
+
+**새롭게 추가되는 data 노드 설정 참고**
+
+```
+cluster.name: elasticsearch
+node.name: ${HOSTNAME}
+path.data: /var/lib/elasticsearch
+path.logs: /var/log/elasticsearch
+bootstrap.memory_lock: true
+network.bind_host: 0.0.0.0
+network.publish_host: master-2.es.com
+http.port: 9200
+http.cors.enabled: true
+http.cors.allow-origin: "*"
+transport.tcp.port: 9300
+discovery.zen.ping.unicast.hosts: ["master-1.es.com:9300", "master-2.es.com:9300", "master-3.es.com:9300"]
+discovery.zen.minimum_master_nodes: 2
+gateway.recover_after_nodes: 3
+action.destructive_requires_name: true
+node.master: false
+node.data: true
+```
+
+- node.master, node.data 쪽만 바꿔주면 됨
+
+
+
+
+
+- 클러스터를 설정할때는 마스터 3 클러스터 3 + @로 구성해서 만약 노드의 증설이 필요할 경우 데이터 노드만 증설해주는 형식으로 클러스터를 운영하면 됨
+- Head를 통해서 샤드가 배치되는 것들을 확인할 수 있음
+- 만약 데이터 노드가 장애로 종료되더라도 레플리카 샤드들이 다시 프라이머리 샤드로 승격됨에 따라 서비스를 지속할 수 있음
+- 장애 발생 이후 다시 노드가 정상적으로 클러스터에 합류하면 다시 적절하게 해당 노드에 샤드를 분배해줌
+- ES 클러스터는 노드 장애에 큰 영향을 받지 않고 노드의 확장을 쉽게 진행할 수 있어서 데이터 저장 공간이나 성능 부족에 대한 조치가 수월함
+
+## 마치며
+
+- ES는 클러스터로 운영되는 애플리케이션이며 각 노드의 설정에 정으된 역할을 수행하여 운영됨
+- 마스터 노드는 클러스터 전체의 메타데이터를 관리하며 클러스터를 구축하기 위해 반드시 한 대 이상으로 구성되어야 함 하지만 클러스터의 안정성을 위해서는 minimum_master_nodes를 과반수로 설정할 수 있도록 두 대 이상의 홀수 값으로 구성하는 것이 좋음
+- 데이터 노드는 사용자의 데이터를 저장하고 검색 요청을 처리하는 노드
+- minimum_master_nodes는 마스터 노드 개수의 과반수로 설정해야 split brain 현상을 방지할 수 있음
+- 향후 확장성을 위해서 마스터 노드와 데이터 노드는 가급적 분리해서 구축하는 것이 좋음
+
+
+
+# #6 클러스터 운영하기
+
+## 버전 업그레이드
+
+## 샤드 배치 방식 변경
+
+## 클러스터와 인덱스의 설정 변경
+
+## 인덱스 API
+
+### open/close API
+
+### aliases API
+
+### rollover API
+
+### refresh API
+
+### forcemerge API
+
+### reindex API
+
+## 템플릿 활용하기
+
+## 마치며
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
