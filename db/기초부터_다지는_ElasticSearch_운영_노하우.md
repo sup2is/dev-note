@@ -1866,26 +1866,667 @@ curl -X PUT "localhost:9200/_cluster/settings?pretty" \
 ## 샤드 배치 방식 변경
 
 - ES는 대부분 자동으로 샤드를 배치하지만 경우에 따라서 샤드 배치 방식을 변경해야 할 때가 있음 예를 들어 특정 노드에 장애가 발생하여 생성된 unassigned 샤드에 대한 재할당 작업이 5회 이상 실패할 경우, 혹은 일정 기간이 지난 오래된 인덱스의 샤드를 특정 노드에 강제로 배치해야 할 경우임
+- 샤드의 배치 방식을 변경하는 방법
+
+| 옵션       | 설명                                                       |
+| ---------- | ---------------------------------------------------------- |
+| reroute    | 샤드 하나하나를 특정 노드에 배치할때 사용                  |
+| allocation | 클러스터 전체에 해당하는 샤드 배치 방식을 변경할 때 사용   |
+| rebalance  | 클러스터 전체에 해당하는 샤드 재분배 방식을 변경할 때 사용 |
+| filtering  | 특정 조건에 해당하는 샤드들을 특정 노드에 배치할 때 사용   |
+
+
+
+**reroute**
+
+- 샤드 하나하나를 개별적으로 특정 노드에 배치할 때 사용하는 방법
+- 제어할 수 있는 동작은
+  - 샤드 이동
+  - 샤드 이동 취소
+  - 레플리카 샤드의 특정 노드 할당
+- 샤드 동은 인덱스 내에 정상적으로 운영중인 샤드를 다른 노드로 이동할 때 사용함
+- 샤드 이동
+
+```
+curl -X POST "localhost:9200/_cluster/rereoute?pretty" \
+-H 'Content-Type: application/json' \
+-d '{
+  "commends": [
+    {
+      "move": {
+        "index": "user",
+        "shard": 1,
+        "from_node": "data-1.es.com",
+        "to_node:": "data-2.es.com"
+      }
+    }
+  ]
+}'
+```
+
+- move
+  - reroute 작업 중 move 명령어 사용
+- index
+  - 이동할 샤드가 속한 인덱스의 이름
+- shard
+  - 이동할 샤드의 번호
+- from_node
+  - 이동할 샤드가 현재 배치되어 있는 노드의 이름
+- to_node
+  - 이동할 샤드가 배치될 노드의 이름
+
+
+
+- Head로 모니터링하면 조금 더 편할듯
+- ES는 노드마다 균등하게 샤드를 배치하기 떄문에 수작업으로 샤드를 하나 이동하면 균형을 맞추기 위해 자동으로 샤드 하나를 이동시킴 move 명령어를 사용할 때는 주의할 것
+- cancel 명령어로 재배치중인 샤드의 이동을 취소할수도 있음
+
+```
+curl -X POST "localhost:9200/_cluster/rereoute?pretty" \
+-H 'Content-Type: application/json' \
+-d '{
+  "commends": [
+    {
+      "cancel": {
+        "index": "user",
+        "shard": 1
+      }
+    }
+  ]
+}'
+```
+
+
+
+- unassigned 샤드에 대해 allocate_replica 명령을 사용할 수 있음 allocate_replica 명령은 레플리카 샤드를 배치하기 위한 명령, 이 명령으로 unassigned 상태의 샤드들을 started 상태로 변경할 수 있음 
+
+```
+curl -X POST "localhost:9200/_cluster/rereoute?pretty" \
+-H 'Content-Type: application/json' \
+-d '{
+  "commends": [
+    {
+      "allocate_replica": {
+        "index": "user",
+        "shard": 1,
+        "shard": "data-1.es.com",
+      }
+    }
+  ]
+}'
+```
+
+- allocate_replica 명령은 이미 배치된 레플리카 샤드에는 사용할 수 없고 배치되지 않은 레플리카 샤드에 대해서만 사용 가능 (anassigned)
+- 샤드가 배치되지 않는 큰 확률은 노드들의 디스크 사용량과 연관이 있음
+- 디스크 사용량이 너무 높을 경우에는 불필요한 인덱스를 삭제하거나 데이터 노드를 증설해서 용량을 확보한 후 샤드를 재배치할 수 있는 환경을 만들어야함
+- 만약 unassigned 샤드의 개수가 너무 많다면 retry_failed 옵션을 이용해서 한번에 여러개의 unassigned 샤드를 배치할수 있음 이때는 자동으로되기때문에 특정 노드에 배치해야한다면 allocate_replica를 사용할 것
+
+```
+curl -X POST "localhost:9200/_cluster/reroute?retry_failed&pretty" \
+-H 'Content-Type: application/json' 
+```
+
+
+
+**allocation**
+
+- 앞에서 다룬 reroute는 인덱스 기반으로 특정 샤드를 재배치하는 방식
+- allocation은 클러스터 전체에 적용되는 재배치 방식
+- 클러스터 내의 배치 샤드 기능을 비활성화/활성화 하는 것이 allocation을 통해 할 수 있는 설정 중에서 가장 빈번한 예
+
+```
+curl -X PUT "localhost:9200/_cluster/settings?pretty" \
+-H 'Content-Type: application/json' \
+-d '{
+  "persistent": {
+    "cluster.routing.allocation.enable": "none"
+  }
+}'
+```
+
+- cluster.routing.allocation.enable에 들어갈 수 있는 옵션 
+
+| 옵션          | 설명                                                         |
+| ------------- | ------------------------------------------------------------ |
+| all           | 프라이머리 샤드와 레플리카 샤드 전부 배치 허용               |
+| primaries     | 프라이머리 샤드만 배치 허용                                  |
+| new_primaries | 새롭게 생성되는 인덱스에 한해 프라이머리 샤드만 배치 허용    |
+| none          | 모든 샤드의 배치 작업을 비활성화                             |
+| null          | 클러스터 설정에서 해당 설정 삭제, default 값인 all로 설정, 문자열이 아닌 null로 설정해야함 |
+
+
+
+- allocation 설정으로 장애 상황에서 샤드를 복구할 때 노드 당 몇개의 샤드를 복구할 것인지 설정 가능 
+
+```
+curl -X PUT "localhost:9200/_cluster/settings?pretty" \
+-H 'Content-Type: application/json' \
+-d '{
+  "persistent": {
+    "cluster.routing.allocation.node_concurrent_recoveries": 4
+  }
+}'
+```
+
+- cluster.routing.allocation.node_concurrent_recoveries
+  - 클러스터 내에 unassigned 샤드가 발생했을 때 노드당 몇 개의 샤드를 동시에 복구할 것인지를 설정하는 항목
+  - 기본값 2
+  - 너무 많이 설정하면 클러스터에 부담이됨
+
+**rebalance**
+
+- allocation은 노드가 증설되거나 클러스터에서 노드가 이탈했을 때의 동작과 관련된 설정
+- rebalance는 클러스터 내의 샤드가 배치된 후에 특정 노드에 샤드가 많다거나 배치가 고르지 않을 때의 동작과 관련된 설정
+- reroute와 rebalance는 샤드가 정상적으로 배치된 상태에서 노드 간에 샤드를 주고받는다는 점에서 유사한 동작임
+
+```
+curl -X PUT "localhost:9200/_cluster/settings?pretty" \
+-H 'Content-Type: application/json' \
+-d '{
+  "persistent": {
+    "cluster.routing.rebalance.enable": "replicas"
+  }
+}'
+```
+
+- cluster.routing.rebalance.enable에 들어갈 수 있는 옵션
+
+| 옵션          | 설명                                                         |
+| ------------- | ------------------------------------------------------------ |
+| all           | 프라이머리 샤드와 레플리카 샤드 전부 재배치 허용             |
+| primaries     | 프라이머리 샤드만 재배치 허용                                |
+| new_primaries | 새롭게 생성되는 인덱스에 한해 프라이머리 샤드만 재배치 허용  |
+| none          | 모든 샤드의 재배치 작업을 비활성화                           |
+| null          | 클러스터 설정에서 해당 설정 삭제, default 값인 all로 설정, 문자열이 아닌 null로 설정해야함 |
+
+
+
+- cluster.routing.allocation.disk.threshold_enabled 설정에 의해 클러스터 내의 노드 중 한 대 이상의 디스크 사용량이 임계치에 도달했을 때 동작하게 됨 해당 설정은 true가 default
+- 임계치 설정 참고
+
+| 옵션                                                  | 설명                                                         | 기본값 |
+| ----------------------------------------------------- | ------------------------------------------------------------ | ------ |
+| cluster.routing.allocation.disk.watermark.low         | 특정 노드에서 임계치가 넘어가면 더 이상 할당하지 않음. 새롭게 생성된 인덱스에 대해서는 적용되지 않음 | 85%    |
+| cluster.routing.allocation.disk.watermark.high        | 임계치를 넘어선 노드를 대상으로 즉시 샤드 재할당 진행. 새롭게 생성된 인덱스에 대해서도 적용됨 | 90%    |
+| cluster.routing.allocation.disk.watermark.flood_stage | 전체 노드가 임계치를 넘어서면 인덱스를 read only 모드로 변경, read only로 되더라도 클러스터의 상태는 green임 참고 | 95%    |
+| cluster.info.upate.interval                           | 임계치 설정을 체크할 주기                                    | 30s    |
+
+- 위 설정들은 모니터링에서 중요한 지표임
+
+```
+curl -X PUT "localhost:9200/_cluster/settings?pretty" \
+-H 'Content-Type: application/json' \
+-d '{
+  "persistent": {
+    "cluster.routing.allocation.disk.watermark.low": "75%",
+    "cluster.routing.allocation.disk.watermark.high": "85%",
+    "cluster.routing.allocation.disk.watermark.flood_stage": "90%",
+    "cluster.info.upate.interval": "1m"
+    
+  }
+}'
+```
+
+- 위 설정 해설
+  - 클러스터의 데이터노드의 디스크 사용량이 75%가 되면 새로 생성되는 인덱스의 샤드들은 배치하지만 기존 샤드는 배치 안함
+  - 이후 85%까지 되면 해당 노드에 배치되어 있는 샤드를 재배치
+  - 90%가 넘으면 읽기전용으로됨
+- 인덱스가 읽기 전용모드로 되는것은 운영중에도 꽤나 빈번하고 디스크 공간을 확보해도 다시 자동 변경되지 않음 다음 요청을 통해 수동으로 변경해주어야함
+
+```
+curl -X PUT "localhost:9200/_all/settings?pretty" \
+-H 'Content-Type: application/json' \
+-d '{
+  "index.blocks.read_only_allow_delete:" null
+}'
+```
+
+- _all로 설정한 이유는 flood_stage에 의해 다수의 인덱스가 read only로 설정되기 때문임
+
+**filtering**
+
+- filtering은 특정 조건에 맞는 샤드를 특정 노드에 배치할 수 있는 작업
+
+| 옵션                                           | 설명                                         |
+| ---------------------------------------------- | -------------------------------------------- |
+| cluster.routing.allocation.include.{attribute} | 설정이 정의된 하나 이상의 노드에 샤드를 할당 |
+| cluster.routing.allocation.require.{attribute} | 설정이 정의된 노드에서만 샤드를 할당         |
+| cluster.routing.allocation.exclude.{attribute} | 설정이 정의된 노드로부터 샤드를 제외         |
+
+- {attribute} 에 들어갈 수 있는 설정
+
+| 옵션  | 설명            |
+| ----- | --------------- |
+| _name | 노드의 이름     |
+| _ip   | 노드의 IP       |
+| _host | 노드의 호스트명 |
+
+- {attribute}는 `,`로 구분할 수 있음
+
+- exclude 설정은 Rolling Restart를 할 때 안정성을 위해서 작업 대상 노드의 샤드를 강제로 다른 노드로 옮기는 용도로 주로 사용함
+
+```
+curl -X PUT "localhost:9200/_cluster/settings?pretty" \
+-H 'Content-Type: application/json' \
+-d '{
+  "persistent": {
+    "cluster.routing.allocation.exclude._name": "data-3.es.com"
+  }
+}'
+```
+
+- _name이 data-3.es.com 노드를 샤드 배치에서 제외시키는 설정
+- exclude 설정을 통해 클러스터의 안정성을 유지하기 위한 최소한의 룰에 위배된다면 exclude 설정은 무시됨
+
+
 
 ## 클러스터와 인덱스의 설정 변경
 
+```
+curl -X PUT "localhost:9200/_cluster/settings?pretty" \
+-H 'Content-Type: application/json' \
+-d '{
+  "persistent": {
+    "cluster.routing.allocation.enable": "none"
+  }
+}'
+```
+
+- _cluster 가 붙은 api를 클러스터 api라고 부르고 클러스터 전체를 대상으로 설정을 할 떄 클러스터 api를 활용함
+- 현재 클러스터에 적용된 설정을 확인하는 방법 
+
+```
+curl -X GET "localhost:9200/_cluster/settings?pretty" \
+-H 'Content-Type: application/json' \
+-d '{
+  "persistent": {},
+  "transient": {}
+}'
+```
+
+- persistent
+  - 영구히 적용되는 설정들
+  - 각 항목 설정이 안되어있다면 기본값이 자동으로 설정됨
+  - 이 설정들은 클러스터를 재시작해도 유지됨
+- transient
+  - 클러스터가 운영중인 동안에만 적용되는 설정
+  - 각 항목 설정이 안되어있다면 기본값이 자동으로 설정됨
+  - 클러스터를 재시작하면 초기화
+- 설정들의 우선순위
+  1. transient
+  2. persistent
+  3. elasticsearch.yml
+
+
+
+- 클러스터와 관련된 항목 외에 노드별 설정은 elasticsearch.yml 에서만 설정할 수 있음
+- 노드별로 설정해야 하는 항목과 변경되지 않고 클러스터에 공통으로 필요한 설정은 elasticsearch.yml에 하고 자주 변경되지는 않지만 간헐적으로 변경이 필요한 설정은 클러스터 api의 persistent 활용 자주 변경되는 설정은 클러스터 api의 transient를 활용
+- 예를 들어 노드의 디스크 사용량 임계치는 대부분 비슷하기 때문에 persistent에, 자주 변경되는 샤드 할당 활성/비활성옵션은 transient에
+- 클러스터 내 인덱스에 샤드 복구가 필요한 경우 노드당 사용할 수 있는 최대 네트워크 트래픽도 설정 가능
+
+```
+curl -X PUT "localhost:9200/_cluster/settings?pretty" \
+-H 'Content-Type: application/json' \
+-d '{
+  "persistent": {
+    "indices.recovery.max_bytes_per_sec": "100mb"
+  }
+}'
+```
+
+- indices.recovery.max_bytes_per_sec
+  - 기본값은 40mb
+
+
+
+- X-Pack 모니터링 관련 설정
+
+```
+curl -X PUT "localhost:9200/_cluster/settings?pretty" \
+-H 'Content-Type: application/json' \
+-d '{
+  "persistent": {
+    "xpack.monitoring.collection.enabled": "false"
+  }
+}'
+```
+
+
+
+- 클러스터의 explain api
+
+```
+curl -X GET "localhost:9200/_cluster/allocation/explain?pretty" 
+```
+
+- 위 api를 통해서 unassigned 샤드가 발생했을때 발생한 원인을 파악할 수 있음. 자주 사용함
+- unassigned 샤드가 발생한 원인을 빠르게 확인하고 원인을 제거하여 reroute의 retry_failed 옵션과 함꼐 사용하면 간결하고 빠르게 unassigned 상태의 샤드를 정상화 시킬 수 있음
+
+
+
 ## 인덱스 API
+
+- 인덱스의 레플리카 샤드 개수 변경하는 요청
+
+```
+curl -X PUT "localhost:9200/user/_settings?pretty" \
+-H 'Content-Type: application/json'\
+-d '{
+  "index.number_of_shards": 5
+}'
+```
+
+- 인덱스의 refresh_interval 옵션 변경하기
+
+```
+curl -X PUT "localhost:9200/user/_settings?pretty" \
+-H 'Content-Type: application/json'\
+-d '{
+  "index.refresh_interval": "30s"
+}'
+```
+
+
+
+- 만약 전체 인덱스에 적용하고 싶다면 인덱스를 _all 로 지정할 것
+- 인덱스명은 와일드카드도 사용가능함 2019-*
+- 아래는 자주 사용하는 인덱스 api에 대한 간단한 설명
+
+| 옵션       | 설명                                         |
+| ---------- | -------------------------------------------- |
+| open/close | 인덱스를 open/close 하는 api                 |
+| aliases    | 인덱스에 별칭을 부여하는 api                 |
+| rollover   | 인덱스를 새로운 인덱스로 분기시키는 api      |
+| refresh    | 문서를 세그먼트로 내리는 주기를 설정하는 api |
+| forcemerge | 샤드 내의 세그먼트를 병합시키는 api          |
+| reindex    | 인덱스를 복제하는 api                        |
+
+
 
 ### open/close API
 
+- open/close API는 인덱스를 사용 가능한 상태/불가능한 상태로 만드는 api
+- 신규로 인덱스를 생성하면 인덱스는 색인과 검색이 가능한 open 상태임
+- close api로 close 상태를 만들 수 있음 close 상태는 더이상 색인할수도 검색할 수도 없는 상황
+- open과 close의 사용
+
+```
+curl -X POST "localhost:9200/user/_close?pretty" \
+-H 'Content-Type: application/json'
+
+curl -X POST "localhost:9200/user/_open?pretty" \
+-H 'Content-Type: application/json'
+
+```
+
+
+
 ### aliases API
+
+- aliases API는 인덱스에 별칭을 부여할 수 있음
+
+```
+curl -X POST "localhost:9200/_aliases/_close?pretty" \
+-H 'Content-Type: application/json' \
+-d '{
+  "actions": [
+    {
+      "add" : {"index" : "test1", "alias" : "alias1"} 
+    }    
+  ]
+}'
+```
+
+- add는 alias 설정, remove는 삭제
+- alias를 설정하면 alias를 사용해 인덱스에 접근 가능
+- {"index" : "test*", "alias" : "group"} 으로 하면 test로 시작하는 모든 인덱스를 group이라는 명으로 접근 가능
+- 하지만 group으로 묶은 형태의 인덱스는 색인은안되고 검색만됨 또 group내 close된 인덱스가 있으면 검색 요청이 불가능함
 
 ### rollover API
 
+- rollover API는 인덱스에 특정 조건을 설정해서 해당 조건을 만족하면 인덱스를 새로 만들고 새롭게 생성된 인덱스로 요청받는 api임
+- rollover api는 별칭 설정이 반드시 필요함
+- 만약 별칭을 logstash-today로 설정하고 logstash-today <-> logstash001 이라는 인덱스로 연결이 되어있는상태에서 rollover api를 적용하면 만약 logstash001이라는 인덱스가 크기가 너무 커진다면 logstash002라는 인덱스를 생성하고 logstash-today라는 별칭을 logstash002로 변경함 사용자입장에서는 logstash-today라는 별칭을 계속 사용할 수 있음
+
+```
+curl -X PUT "localhost:9200/logs-000001?pretty" \
+-H 'Content-Type: application/json' \
+-d '{
+  "aliases": { "logs_write": {} }
+}'
+
+
+curl -X POST "localhost:9200/logs_write/_rollover?pretty" \
+-H 'Content-Type: application/json' \
+-d '{
+  "conditions": { 
+  	"max_age": "7d",
+  	"max_docs": 2,
+  	"max_size": "5gb"
+  }
+}'
+
+```
+
+-   "aliases": { "logs_write": {} }
+  - log-000001에 logs_write라는 별칭을 설정
+- conditions
+  - 여기서 생성된지 7일이 지나거나 문서의 수가 2개 이상이거나, 인덱스의 크기가 5GB를 넘게 되면 롤오버 함
+  - 여러 조건중 하나만 만족해도 롤오버
+- 설정값 참고
+
+| 옵션     | 설명                            |
+| -------- | ------------------------------- |
+| max_age  | 인덱스가 생성된 순간부터의 시간 |
+| max_docs | 인덱스에 저장된 문서 건수       |
+| max_size | 인덱스의 프라이머리 샤드 크기   |
+
+- 롤오버가 진행된 인덱스는 새롭게 인덱스를 생성하고 이후 리턴메세지로 어떤 조건에 롤오버가 진행되었는지 확인할 수 있음
+- 만약 생성되는 인덱스의 명이 00001 ~ 00002 이런 순서가 맘에들지 않으면 아래와 같이 지정할 수 있음
+
+```
+curl -X POST "localhost:9200/logs_write/_rollover/new_index?pretty" \
+-H 'Content-Type: application/json' \
+-d '{
+  "conditions": { 
+  	"max_age": "7d",
+  	"max_docs": 2,
+  	"max_size": "5gb"
+  }
+}'
+
+```
+
+- 위 요청은 new_index로 인덱스를 생성해줌
+- rollover는 dry_run 모드를 지원해서 실제 적용되지는 않고 어떻게 변경되는지 확인할 수 있음
+
+```
+curl -X POST "localhost:9200/logs_write/_rollover/new_index?dry_run&pretty" \
+-H 'Content-Type: application/json' \
+-d '{
+  "conditions": { 
+  	"max_age": "7d",
+  	"max_docs": 2,
+  	"max_size": "5gb"
+  }
+}'
+
+```
+
+
+
 ### refresh API
+
+- refresh API는 refresh_interval과 상관 없이 메모리 버퍼 캐시에 있는 문서들을 바로 세그먼트로 저장해주는 api임
+
+```
+curl -X POST "localhost:9200/user/refresh&pretty" \
+-H 'Content-Type: application/json' \
+```
+
+
 
 ### forcemerge API
 
+- forcemerge는 세그먼트들을 강제로 병합하는 api
+
+```
+curl -X POST "localhost:9200/user/forcemerge?max_num_segments=10&pretty" \
+-H 'Content-Type: application/json' \
+```
+
+- max_num_segments
+  - 샤그 내 세그먼트들을 몇 개의 세그먼트로 병합할 것인지 설정함
+- forcemerge api는 해당 인덱스의 모든 샤드를 대상으로 진행하기 때문에 많은 양의 디스크 I/O를 발생시킴 따라서 너무 많은 세그먼트를 대상으로 forcemerge api 작업을 진행하면 성능 저하를 일으킬 수 있음
+- 따라서 실제 운영중인 인덱스가 아닌 과거에 사용한 인덱스 (ex 과거 로그 데이터)에 실행하는것이 좋음
+- forcemerge를 사용하면 세그먼트들이 차지하는 디스크 용량도 줄일 수 있고 검색 성능도 향상시킬 수 있음
+
 ### reindex API
+
+- reindex API는 인덱스를 복제하는 기능
+- 주로 마이그레이션에서 사용할 수 있음
+- test라는 인덱스를 new_test라는 인덱스로 새롭게 색인하는 요청
+
+```
+curl -X POST "localhost:9200/_reindex&pretty" \
+-H 'Content-Type: application/json' \
+-d '{
+  "source": {
+    "index": "test"
+  },
+  "desc": {
+    "index": "new_test"
+  }
+}'
+```
+
+- source
+  - 원본 인덱스
+- desc
+  - 목적지 인덱스
+
+
+
+- reindex api는 주로 사용중인 인덱스의 analyzer를 변경할 때 필요함
+
+- 현재 사용중인 인덱스에서는 이미 문서들의 색인이 끝난 상태이기 때문에 analyzer를 바꿔도 효과가 없음 그래서 analyzer를 바꾸기로 결정했다면 새로운 인덱스를 만들어서 새롭게 색인해주어야하고 이때 reindex를 사용하면 됨
+
+- 만약 클러스터 간 데이터 마이그레이션은 elasticsearch.yml 파일에 whitelist 설정을 통해 reindex api를 사용할 수 있음
+
+  - yml 파일 설정
+
+  ```
+  reindex.remote.whitelist: "data1-es.com:9200, 127.0.10.*:9200, localhost:*"
+  ```
+
+  - 위 설정으로 원본 클러스터로부터 인덱스를 복제ㅐ할 수 있음 
+  - 아래 요청으로 클러스터간 reindex api
+
+  ```
+  curl -X POST "localhost:9200/_reindex&pretty" \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "source": {
+      "remote": {
+        "host": "http://data-1.ex.com:9200"
+      },
+      "index": "test"
+    },
+    "desc": {
+      "index": "dest_test"
+    }
+  }'
+  ```
+
+
 
 ## 템플릿 활용하기
 
+- ES는 템플릿 api를 통해서 특정 패턴의 이름을 가진 인덱스에 설정이 자동 반영되도록 하는 인터페이스를 제공함
+
+| 항목     | 설명                |
+| -------- | ------------------- |
+| settings | 인덱스의 설정 값    |
+| mappings | 인덱스의 매핑 정보  |
+| aliases  | 인덱스의 alias 정보 |
+
+
+
+- 인덱스 템플릿 생성 방법
+
+```
+curl -X PUT "localhost:9200/_template/mytemplate_1?pretty" \
+-H 'Content-Type: application/json' \
+-d '{
+  "index_patterns" : ["test*"],
+  "order": 1,
+  "settings" : {
+    "number_of_shards": 3,
+    "umber_of_replicas": 1
+  },
+  "mappings": {
+    "_doc": {
+      "properties": {
+        "test": {
+          "type": "text"
+        }
+      }
+    }
+  },
+  "aliases": {
+    "alias1": {}
+  }
+  
+}'
+```
+
+- mytemplate_1
+
+  - 템플릿의 이름
+
+- index_patterns
+
+  - 템플릿이 적용될 인덱스의 이름 패턴
+
+- order
+
+  - 다른 템플릿이 존재한다면 어떤 템플릿의 값을 적용할지 결정하는 역할
+  - order 1과 order 2가 있다면 2의 설정을 따름
+
+- settings
+
+  - 라이머리 샤드의 개수, 레플리카 샤드의 개수, analyzer 등 인덱스의 기본 설정을 정의할 수 있음
+
+- mappings
+
+  - 인덱스에 적용할 매핑 정보를 정의할 수 있음
+
+- aliases
+
+  여기서는 인덱스가 생성되면 무조건 alias1이라는 별칭을 가짐
+
+
+
+- 템플릿 설정을 확인하는 요청
+
+```
+curl -X GET "localhost:9200/_template/mytemplate_1?petty"
+```
+
+- 템플릿은 정적매핑, 인덱스의 이름 패턴별로 서로 다른 프라이머리 샤드의 개수를 설정해야 할 떄 사용하면 좋음
+
+
+
+
+
 ## 마치며
+
+- ES 클러스터 운영 중에 서비스 중단 없이 버전 업그레이드를 진행하려면 Rolling Restart 방식을 사용하면 됨
+- 클러스터 api를 통해 샤드의 배치 방식을 변경할 수 있으며, reroute, allocation, filtering 등의 방법을 사용할 수 있음
+- 인덱스 api를 통해 인덱스의 다양한 설정값을 변경할 수 있고 open/close, alias, rollover 등이 자주 사용하는 api
+- 템플릿 api를 통해 인덱스가 생성될 때 기본으로 적용되는 설정값을 변경할 수 있음
+
+
 
 
 
