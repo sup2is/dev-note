@@ -2364,3 +2364,630 @@ curl -X GET "localhost:9200/_template/mytemplate_1?petty"
 - 클러스터 api를 통해 샤드의 배치 방식을 변경할 수 있으며, reroute, allocation, filtering 등의 방법을 사용할 수 있음
 - 인덱스 api를 통해 인덱스의 다양한 설정값을 변경할 수 있고 open/close, alias, rollover 등이 자주 사용하는 api
 - 템플릿 api를 통해 인덱스가 생성될 때 기본으로 적용되는 설정값을 변경할 수 있음
+
+
+
+# #7 클러스터 성능 모니터링과 최적화
+
+## 클러스터의 상태 확인하기
+
+## 노드의 상태와 정보 확인하기
+
+## 인덱스의 상태와 정보 확인하기
+
+## 샤드의 상태 확인하기
+
+## stats API로 지표 확인하기
+
+### 클러스터의 성능 지표
+
+### 노드의 성능 지표
+
+## 성능 확인과 문제 해결
+
+### 색인 성능 살펴보기
+
+### 검색 성능 살펴보기 
+
+### GC 성능 살펴보기
+
+### rejected 살펴보기
+
+## 마치며
+
+
+
+# #8 분석 엔진으로 활용하기
+
+## Elastic Stack이란
+
+## Filebeat 설치하기
+
+## Logstash 설치하기
+
+## Kibana를 통해 로그 조회하기
+
+## Kibana로 시각화하기
+
+## Elastic Stack의 이중화
+
+## 마치며
+
+
+
+# #9 검색 엔진으로 활용하기
+
+## Inverted Index란?
+
+- ES를 검색엔진으로 사용하기 위해서는 저장된 문서의 각 필드들을 어떻게 분석하는지 이해해야함
+- "I am a boy", "You are a girl"다고 가정함
+  - 문자열 두개를 공백을 기준으로 나누면 각각 4개의 단어로 나뉨
+- 이렇게 나뉜 단어들을 토큰이라고 부르며 토큰을 만들어내는 과정을 토크나이징이라고함
+- 특정한 기준에 의해 나뉜 토큰들은 아래와 같은 형태로 저장되는데 이것을 inverted index라고 부름
+
+| Tokens | Documents |
+| ------ | --------- |
+| I      | 1         |
+| am     | 1         |
+| a      | 1, 2      |
+| boy    | 1         |
+| girl   | 2         |
+| You    | 2         |
+| are    | 2         |
+
+- 검색에도 마찬가지로 토큰으로 나누어 검색함
+- 예를들어 "a boy" 를 검색하면 2개의 토큰을 얻어서 각각 문서를 얻어냄
+- 검색에는 대소문자를 구분함
+- 검색 결과를 얻기 위해서는 토큰이 정확하게 일치해야함
+- ES는 analyze라는 api를 제공해서 문자열이 어떻게 토크나이징되는지 확인해볼 수 있음
+
+
+
+```
+curl -X POST "localhost:9200/_analyze?pretty" \
+-H 'Content-Type: application/json' \
+-d '{
+  "analyzer": "standard",
+  "text": "I am a boy"
+}'
+
+{
+  "tokens" : [
+    {
+      "token" : "i",
+      "start_offset" : 0,
+      "end_offset" : 1,
+      "type" : "<ALPHANUM>",
+      "position" : 0
+    },
+    {
+      "token" : "am",
+      "start_offset" : 2,
+      "end_offset" : 4,
+      "type" : "<ALPHANUM>",
+      "position" : 1
+    },
+    {
+      "token" : "a",
+      "start_offset" : 5,
+      "end_offset" : 6,
+      "type" : "<ALPHANUM>",
+      "position" : 2
+    },
+    {
+      "token" : "boy",
+      "start_offset" : 7,
+      "end_offset" : 10,
+      "type" : "<ALPHANUM>",
+      "position" : 3
+    }
+  ]
+}
+```
+
+-  "analyzer": "standard"
+  - 토크나이징에 standard analyzer를 사용한다는 의미
+  - analyzer를 변경할 때마다 토크나이징 결과가 달라짐
+- "text": "I am a boy"
+  - 토크나이징에 사용되는 문자열을 의미함
+- "tokens"
+  - 토크나이징의 결과로 토큰의 배열을 돌려줌
+
+- standard analyzer는 모든 문자를 소문자하는 과정을 포함해서 I가 아닌 i로 토크나이징함
+
+## analyzer 살펴보기
+
+- inverted index는 저장된 문서들의 필드값을 어떻게 분석해 놓았는지 저장하는 아주 중요한 뎅터
+- inverted index를 만드는것이 analyzer임
+- analyzer 구성
+  - character filter
+  - tokenizer
+  - token filter
+- analyzer 흐름
+  - 문자열 -> character filter -> tokenizer -> token filter -> tokens
+
+
+
+- analyzer로 들어온 문자열들은 character filter가 1차로 변경함
+- 의미없는 특수문자들을 제거한다거나 html 태그들을 제거하는등 문자들을 특정한 기준으로 변경함
+- character filter가 변경한 문자열은 tokenizer를 통해 n개의 토큰으로 나뉨
+- tokenizer는 공백이나 쉼포 등 일정한 기준에 의해 문자열을 n 개의 토큰으로 나눔
+- 이후에 token filter가 다시 한번 변형함 대표적으로 모든 토큰을 전부 소문자로 바꾸는 lowercase token filter가 있음
+- analyer를 구성할 때는 tokenizer를 필수로 명시해야 하고 하나의 tokenizer만 설정 가능
+- character filter나 token filter는 0이나 n 가능
+- standard analyzer의 구성도
+
+
+
+![KakaoTalk_20210304_165333968](https://user-images.githubusercontent.com/30790184/109930065-8a65bb80-7d0a-11eb-8525-8eada82dea09.jpg)
+
+- character filter는 정의되지 않았고 Stop Token Filter는 기본적으로 비활성화
+
+
+
+- standard tokenizer는 unicode standard annex라는 룰에 따라 문자열을 분리함
+- standard token filter는 실질적으로 아무런 작업을 하지 않지만 향후 개발되는 버전에서 필터링 기능을 사용하게 될 경우에 대비하여 포함되어 있음
+- lowercase token filter는 소문자로 변환하는 필터
+- stop token filter는 stopwords로 지정된 단어가 토큰들 중에 존재하면 해당 토큰을 없애는 기능을 담당
+
+## analyzer와 검색의 관계
+
+- 검색 니즈를 잘 파악해서 적합한 analyzer를 설정해야 검색을 잘 할 수 있음
+- 기존 인덱스에 설정한 analyzer를 바꾸고싶다면 인덱스를 새로 만들어서 재색인 해야함
+- analyzer를 바꾸면 기존 inverted index는 의미가 없어지기 때문
+
+
+
+```
+#테스트 인덱스 생성
+curl -X PUT "localhost:9200/book?pretty" \
+-H 'Content-Type: application/json' \
+-d '{
+  "mappings": {
+    "properties": {
+      "title": {"type": "text"},
+      "content": {"type": "keyword"}
+    }
+  }
+}'
+
+
+#테스트용 문서 생성
+curl -X PUT "localhost:9200/book/_doc/1?pretty" \
+-H 'Content-Type: application/json' \
+-d '{
+  "title": "ElasticSearch Training Book",
+  "content": "ElasticSearch is cool open source search engine"
+}'
+
+
+#검색
+curl -X GET "localhost:9200/book/_search?q=title:ElasticSearch&pretty"
+
+# title로 검색 -> 잘나옴
+{
+  "took" : 38,
+  "timed_out" : false,
+  "_shards" : {
+    "total" : 1,
+    "successful" : 1,
+    "skipped" : 0,
+    "failed" : 0
+  },
+  "hits" : {
+    "total" : {
+      "value" : 1,
+      "relation" : "eq"
+    },
+    "max_score" : 0.2876821,
+    "hits" : [
+      {
+        "_index" : "book",
+        "_type" : "_doc",
+        "_id" : "1",
+        "_score" : 0.2876821,
+        "_source" : {
+          "title" : "ElasticSearch Training Book",
+          "content" : "ElasticSearch is cool open source search engine"
+        }
+      }
+    ]
+  }
+}
+
+# content로 검색 -> 안나옴
+curl -X GET "localhost:9200/book/_search?q=content:ElasticSearch&pretty"
+
+
+```
+
+- 타입에 따라 달라진 analyzer때문에 검색이되고 안되고가 결정됨
+- 위 예제에서 title 필드는 text타입, content 필드는 keyword타입으로 정의했는데 text타입의 기본 analyzer는 standard analyzer이고 keyword의 기본 analyzer는 keyword analyzer임
+- _analyze api를 활용해서 "ElasticSearch Training Book"를 standard로 분석
+
+```
+curl -X POST "localhost:9200/_analyze?pretty" \
+-H 'Content-Type: application/json' \
+-d '{
+  "analyzer": "standard",
+  "text": "ElasticSearch Training Book"
+}'
+
+
+{
+  "tokens" : [
+    {
+      "token" : "elasticsearch",
+      "start_offset" : 0,
+      "end_offset" : 13,
+      "type" : "<ALPHANUM>",
+      "position" : 0
+    },
+    {
+      "token" : "training",
+      "start_offset" : 14,
+      "end_offset" : 22,
+      "type" : "<ALPHANUM>",
+      "position" : 1
+    },
+    {
+      "token" : "book",
+      "start_offset" : 23,
+      "end_offset" : 27,
+      "type" : "<ALPHANUM>",
+      "position" : 2
+    }
+  ]
+}
+
+```
+
+- 토큰으로 분리되어 있음
+
+
+
+- _analyze api를 활용해서 "ElasticSearch is cool open source search engine"를 keyword로 분석
+
+```
+curl -X POST "localhost:9200/_analyze?pretty" \
+-H 'Content-Type: application/json' \
+-d '{
+  "analyzer": "keyword",
+  "text": "ElasticSearch is cool open source search engine"
+}'
+
+{
+  "tokens" : [
+    {
+      "token" : "ElasticSearch is cool open source search engine",
+      "start_offset" : 0,
+      "end_offset" : 47,
+      "type" : "word",
+      "position" : 0
+    }
+  ]
+}
+```
+
+- 분리가 안되어있음
+
+
+
+- 따라서 검색 니즈에 따라 analyzer를 적합하게 설정해야함
+
+
+
+## Search API
+
+- github에서 데이터셋 업로드
+  - https://github.com/benjamin-btn/ES-SampleData/blob/master/sample09-1.json
+- 데이터 bulk insert 
+
+```
+curl -L -O https://raw.githubusercontent.com/benjamin-btn/ES-SampleData/master/sample09-1.json
+
+curl -X POST localhost:9200/book_data/_bulk?pretty \
+-H 'Content-Type: application/json' \
+--data-binary @sample09-1.json
+```
+
+- searchAPI는 URI search, RequestBody Search 두가지 형태가 있음
+
+
+
+- URI search
+
+```
+curl -X GET "localhost:9200/book_data/_search?q=title:elasticsearch?pretty"
+```
+
+- RequestBody Search
+
+```
+curl -X GET "localhost:9200/book_data/_search?pretty" \
+-H 'Content-Type: application/json' \
+-d '{
+  "query": {
+    "term": {"title": "elasticsearch"}
+  }
+}'
+```
+
+- RequestBody 옵션
+
+| 옵션      | 내용                                                         |
+| --------- | ------------------------------------------------------------ |
+| query     | 실제 검색을 위한 쿼리문을 지정                               |
+| from/size | 검색 결과를 n개의 단위로 나눠서 볼 때 사용                   |
+| sort      | 검색 결과를 _score가 아닌 별도의 필드를 기준으로 정렬        |
+| source    | 검색 결과 중 특정 필드의 내용만을 보고자 할 때 사용          |
+| highlight | 검색 결과 중 검색어와 매칭하는 부분을 강조하기 위해 사용     |
+| boost     | 검색 결과로 나온 스코어를 변경할 때 사용                     |
+| scroll    | 검색 결과를 n 개의 단위로 나눠서 볼 때 사용 from/size와 유사하지만 scroll id 를 통해서 다음 번 검색 결과를 가져올 수 있음 <br />공홈에서 scroll은 권장하지 않고 search after를 권장함 |
+
+
+
+**from/size**
+
+- from 부터 size만큼 얻어올 때 사용
+- from은 기본값 0, size는 기본값 10,  0번문서부터 10개의 문서를 가져옴
+
+```
+curl -X GET "localhost:9200/book_data/_search?pretty" \
+-H 'Content-Type: application/json' \
+-d '{
+  "from": 0,
+  "size": 3,
+  "query": {
+    "term": {"title": "elasticsearch"}
+  }
+}'
+```
+
+
+
+**sort**
+
+- 검색 결과를 특정 필드 기준으로 정렬할 때 사용
+- ES는 기본적으로 검색어를 바탕으로 계산된 score가 가장 높은 문서를 기준으로 정렬
+
+```
+curl -X GET "localhost:9200/book_data/_search?pretty" \
+-H 'Content-Type: application/json' \
+-d '{
+  "sort": [
+    {"ISBN.keyword": "desc"}
+  ],
+  "query": {
+    "term": {"title": "nginx"}
+  }
+}'
+```
+
+- ISBN.keyword
+  - sort는 keyword나 integer와 같이 not analyzed 필드를 기준으로 해야 함
+
+
+
+**source**
+
+- 검색 결과 중 특정한 필드의 값만 찾아볼 때 사용
+- _source 형태로 사용
+
+```
+curl -X GET "localhost:9200/book_data/_search?pretty" \
+-H 'Content-Type: application/json' \
+-d '{
+  "_source": ["title", "description"],
+  "query": {
+    "term": {"title": "nginx"}
+  }
+}'
+```
+
+
+
+**highlight**
+
+- 사용자가 입력한 검색어를 강조할때 사용
+- highlighting이 아니라 highlight
+
+```
+curl -X GET "localhost:9200/book_data/_search?pretty" \
+-H 'Content-Type: application/json' \
+-d '{
+  "query": {
+    "term": {"title": "nginx"}
+  },
+  "highlight": {
+    "fields": {
+      "title": {}
+    }
+  }
+}'
+```
+
+
+
+
+
+**boost**
+
+- 검색 결과로 나온 스코어를 변경할 때 사용
+- 특정검색결과로 나온 스코어를 대상으로 boost옵션에 설정된 값을 곱한 값이 스코어로 지정됨
+
+```
+curl -X GET "localhost:9200/book_data/_search?pretty" \
+-H 'Content-Type: application/json' \
+-d '{
+  "query": {
+    "match": { 
+      "title": {
+        "query": "nginx",
+        "boost": 4
+      }
+    }
+  }
+}'
+
+
+curl -X GET "localhost:9200/book_data/_search?pretty" \
+-H 'Content-Type: application/json' \
+-d '{
+  "query": {
+    "term": {
+      "title": {
+        "value": "nginx",
+        "boost": 4
+      }
+    }
+  }
+}'
+```
+
+- match쿼리를 사용할때는 query를, term 쿼리를 사용할때는 value를 사용하는것 참고
+- 스코어를 낮게 주고싶다면 소수점 이용
+
+
+
+
+
+**scroll**
+
+- from/size와 유사해보이지만 검색 당시의 스냅샷을 제공해준다는 점에서 조금 다름
+- scroll을 사용하면 새로운 문서가 인입된다고 해도 scroll id가 유지되는 동안에는 검색 결과가 바뀌지 않음
+- 검색 결과가 동일하게 유지되어야 하는 pagination, 혹은 대량 배치 작업에 주로 활용
+- scroll_id가 유지되는 시간을ㅈ설정하는데 힙 메모리 사용량에 영향을 주기 때문에 필요한 만큼만 설정할 것 OOM이 발생할 수 있음
+
+```
+curl -X GET "localhost:9200/book_data/_search?scroll=1m&pretty" \
+-H 'Content-Type: application/json' \
+-d '{
+  "size": 1,
+  "query": {
+    "match": { 
+      "title": {
+        "query": "nginx"
+      }
+    }
+  }
+}'
+
+
+{
+  "_scroll_id" : "FGluY2x1ZGVfY29udGV4dF91dWlkDXF1ZXJ5QW5kRmV0Y2gBFjN3RVg3M2lBUkVxQmtOMWdCZURqQ1EAAAAAAAAADBZCb0l2Vkxib1IweVd4ZldTR3dzZkxn",
+  "took" : 6,
+  "timed_out" : false,
+  "_shards" : {
+    "total" : 1,
+    "successful" : 1,
+    "skipped" : 0,
+    "failed" : 0
+  },
+  "hits" : {
+    "total" : {
+      "value" : 2,
+      "relation" : "eq"
+    },
+    "max_score" : 1.7046885,
+    "hits" : [
+      {
+        "_index" : "book_data",
+        "_type" : "_doc",
+        "_id" : "8",
+        "_score" : 1.7046885,
+        "_source" : {
+          "title" : "NGINX High Performance",
+          "publisher" : "Packt Publishing",
+          "ISBN" : "9781785281839",
+          "release_date" : "2015/07/29",
+          "description" : "Optimize NGINX for high-performance, scalable web applications"
+        }
+      }
+    ]
+  }
+}
+
+
+curl -X GET "localhost:9200/book_data/_search/scroll?pretty" \
+-H 'Content-Type: application/json' \
+-d '{
+  "scroll": "1m",
+  "scroll_id": "FGluY2x1ZGVfY29udGV4dF91dWlkDXF1ZXJ5QW5kRmV0Y2gBFjN3RVg3M2lBUkVxQmtOMWdCZURqQ1EAAAAAAAAADBZCb0l2Vkxib1IweVd4ZldTR3dzZkxn"
+}'
+
+
+```
+
+- scroll_id를 얻으면 별도의 쿼리 없이 scroll_id 만으로 다음 검색 가능
+- search after 참고 [https://www.elastic.co/guide/en/elasticsearch/reference/6.8/search-request-search-after.html](https://www.elastic.co/guide/en/elasticsearch/reference/6.8/search-request-search-after.html)
+
+
+
+## Query DSL이란
+
+- 검색 쿼리는 Query DSL 이라 불리며 크게 Query Context와 Filter Context로 분류함
+
+| 옵션           | 내용                                                         |
+| -------------- | ------------------------------------------------------------ |
+| Query Context  | Full text search를 의미하고, 검색어가 문서와 얼마나 매칭되는지를 표현하는 score라는 값을 가진다. |
+| Filter Context | 검색어가 문서에 존재하는지 여부를 Yes나 No 형태의 검색 결과로 보여줌. Query Context와는 다르게 score 값을 가지지 않음 |
+
+## Query Context
+
+| 종류         | 내용                                                         |
+| ------------ | ------------------------------------------------------------ |
+| match        | 검색어가 토크나이징된 토큰들이 존재하는지 여부를 확인함      |
+| match_phrase | match와 비슷하지만 검색어에 입력된 순서를 지켜야 함          |
+| multi_match  | match와 동작 원리는 같으며 다수의 필드에 검색하기 위해 사용함 |
+| query_string | and와 or같이 검색어 간 연산이 필요할 때 사용                 |
+
+### match 쿼리
+
+- Query Context중 가장 많이 사용
+- 
+
+### match_phrase 쿼리
+
+### multi_match 쿼리
+
+### query_string 쿼리
+
+## Filter Context
+
+### term 쿼리
+
+### terms 쿼리 
+
+### range 쿼리
+
+### whildcard 쿼리
+
+## bool query를 이용해 쿼리 조합하기
+
+## 마치며
+
+## 
+
+# #10 색인 성능 최적화
+
+## 정적 매핑 적용하기
+
+## _all 필드 비활성화
+
+## refresh
+
+
+
+# #11 검색 성능 최적화
+
+
+
+# #12 ElasticSearch 클러스터 구축 시나리오
+
+
+
+
+
+
+
