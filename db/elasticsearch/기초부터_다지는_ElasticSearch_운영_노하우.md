@@ -2945,29 +2945,345 @@ curl -X GET "localhost:9200/book_data/_search/scroll?pretty" \
 ### match 쿼리
 
 - Query Context중 가장 많이 사용
-- 
+- match 쿼리는 검색어로 들어온 문자열을 analyzer를 통해 분석한 후 inverted index에서 해당 문자열의 토큰을 가지고 있는 문서를 검색
+- 문서의 해당 필드에 설정해놓은 analyzer를 기본으로 사용, 필요할 경우 별도로 명시하면 됨
+
+```
+curl -X GET "localhost:9200/book_data/_search?pretty" \
+-H 'Content-Type: application/json' \
+-d '{
+  "query": {
+    "match": { 
+      "description": "nginx guide"
+    }
+  }
+}'
+```
+
+- nginx, guide 라는 토큰을 만들고 토큰이 가장 많이 있는 문서를 inverted index에서 검색해서 _score를 기준으로 검색 결과를 나열함
+- match 쿼리는 어떤 토큰이 먼저 있는지에 대한 순서는 고려하지 않음
+- nginx guide == guid nginx <- 검색 결과가 같음
 
 ### match_phrase 쿼리
 
+- match와는 달리 match_phrase 쿼리는 검색어의 순서도 고려함
+
+```
+curl -X GET "localhost:9200/book_data/_search?pretty" \
+-H 'Content-Type: application/json' \
+-d '{
+  "query": {
+    "match": { 
+      "description": "Linux Kernel"
+    }
+  }
+}'
+```
+
+- 검색어의 순서가 중요할 경우에는 match_phrase 쿼리 사용
+
 ### multi_match 쿼리
+
+- multi_match는 match와 동일하지만 두 개 이상의 필드에 match 쿼리를 날릴 수 있음
+
+```
+curl -X GET "localhost:9200/book_data/_search?pretty" \
+-H 'Content-Type: application/json' \
+-d '{
+  "query": {
+    "multi_match": { 
+      "query": "kernel",
+      "fields": ["title", "description"]
+    }
+  }
+}'
+```
+
+
 
 ### query_string 쿼리
 
+- query_string은 and와 or 같은 검색어 간 연산이 필요한 경우, 와일드카드 검색식에 사용
+
+```
+curl -X GET "localhost:9200/book_data/_search?pretty" \
+-H 'Content-Type: application/json' \
+-d '{
+  "query": {
+    "query_string": { 
+      "fields": ["title"],
+      "query": "Linux"
+    }
+  }
+}'
+
+
+
+
+curl -X GET "localhost:9200/book_data/_search?pretty" \
+-H 'Content-Type: application/json' \
+-d '{
+  "query": {
+    "query_string": { 
+      "fields": ["title"],
+      "query": "*nux"
+    }
+  }
+}'
+```
+
+- 와일드카드 검색은 스코어링을 하지 않고 성능도 별로여서 비추 
+
+
+
 ## Filter Context
+
+- Term Lvel Query 라고도 부름
+- 해당 문서에 대한 필터링에 사용되는 쿼리
+- Query Context는 검색어가 문서에 얼마나 매칭되는지를 계싼하고 찾는다면 Filter Context는 검색어의 포함 여부를 찾는 형태
+- 둘 사이의 가장 큰 차이점은 analyzer 하는지 여부
+
+| 종류     | 내용                                                         |
+| -------- | ------------------------------------------------------------ |
+| term     | 검색어로 입력한 단어와 정확하게 일치하는 단어가 있는지를 찾음 |
+| terms    | term과 유사, 여러개의 단어를 기준으로 하나 이상 일치하는 단어가 있는지 찾음 |
+| range    | 특정 범위 안에 있는 값이 있는지 찾음                         |
+| wildcard | 와일드카드 패턴에 해당하는 값이 있는지 찾음                  |
+
+
 
 ### term 쿼리
 
+- term 쿼리는 정확하게 일치되는 단어를 찾을 떄 사용
+- analyze 하지 않음, 대소문자 구분
+
+```
+curl -X GET "localhost:9200/book_data/_search?pretty" \
+-H 'Content-Type: application/json' \
+-d '{
+  "query": {
+    "term": { 
+      "title": "Linux"
+    }
+  }
+}'
+```
+
+- standard analyze에 의해 모든 토큰들이 소문자되어 inverted index에 저장되었음. term은 analyzer를 거치지 않기 때문에 Linux로 검색, inverted index에는 linux로 있어서 검색이 안됨
+- match로 바꾸면 검색이 잘됨
+- 반드시 해당 필드에 대한 analyzer를 확인하고 정확하게 파악해야함
+- text 타입의 필드를 대상으로 할 때는 term 쿼리보다 match 쿼리를 사용하는 것이 일반적
+
 ### terms 쿼리 
+
+- 둘 이상의 term을 검색할 때 사용
+
+```
+curl -X GET "localhost:9200/book_data/_search?pretty" \
+-H 'Content-Type: application/json' \
+-d '{
+  "query": {
+    "terms": { 
+      "title": ["linux", "development"]
+    }
+  }
+}'
+```
+
+
 
 ### range 쿼리
 
+- range쿼리는 범위를 지정하여 특정 값의 범위 이내에 있는 경우를 검색할 때 사용
+
+```
+curl -X GET "localhost:9200/book_data/_search?pretty" \
+-H 'Content-Type: application/json' \
+-d '{
+  "query": {
+    "range": { 
+      "release_date": {
+        "gte": "2015/01/01",
+        "lte": "2015/12/31"
+      }
+    }
+  }
+}'
+```
+
+
+
 ### whildcard 쿼리
+
+- 와일드카드를 이용한 풀 스캔 검색이 가능한 쿼리
+- text 필드가 아닌 keyword 타입의 쿼리에 사용해야함
+
+```
+curl -X GET "localhost:9200/book_data/_search?pretty" \
+-H 'Content-Type: application/json' \
+-d '{
+  "query": {
+    "wildcard": { 
+      "publisher.keyword": "*Media*"
+    }
+  }
+}'
+```
+
+- full-scan이라 느림
+- 사실 match쿼리를 사용하는게 더 빠름
+
+
 
 ## bool query를 이용해 쿼리 조합하기
 
+- bool query로 검색식을 만들 수 있음 
+
+| 항목     | 설명                                       | 스코어링 | 캐싱 |
+| -------- | ------------------------------------------ | -------- | ---- |
+| must     | 항목 내 쿼리에서 일치하는 문서를 검색      | O        | X    |
+| filter   | 항목 내 쿼리에서 일치하는 문서를 검색      | X        | O    |
+| should   | 항목 내 쿼리에서 일치하는 문서를 검색      | O        | X    |
+| must_not | 항목 내 쿼리에서 일치하지 않는 문서를 검색 | X        | O    |
+
+- must, should는 Query Context에서 실행되고 filter, must_not은 Filter Context에서 실행됨
+- bool query는 Query/Filter Context를 혼합해서 사용 가능
+
+
+
+```
+#must와 filter
+curl -X GET "localhost:9200/book_data/_search?pretty" \
+-H 'Content-Type: application/json' \
+-d '{
+  "query": {
+    "bool": {
+      "must": [
+        {
+          "match": {
+            "title": "nginx"
+          }
+        }
+      ],
+      "filter": [
+        {
+          "range": {
+            "release_date": {
+              "gte": "2016/01/01",
+              "lte": "2017/12/31"
+            }
+          }
+        }
+      ]
+    }
+  }
+}'
+```
+
+- filter context에 들어갈 수 있는것들은 가급적 filter를 사용할 것, must 절에 사용하면 score를 계산하는 불필요한 연산이 들어가지만 단순히 filter 역할만 하면 되기때문에 filter context에 넣는게 성능이 더 좋음 
+- 정리하면 검색 조건이 yes, no인 경우 filter, must_not절, 검색의 결과에 영향을 준다면 must 혹은 should를 사용
+
+```
+#must_not
+curl -X GET "localhost:9200/book_data/_search?pretty" \
+-H 'Content-Type: application/json' \
+-d '{
+  "query": {
+    "bool": {
+      "must": [
+        {
+          "match": {
+            "title": "nginx"
+          }
+        }
+      ],
+      "filter": [
+        {
+          "range": {
+            "release_date": {
+              "gte": "2016/01/01",
+              "lte": "2017/12/31"
+            }
+          }
+        }
+      ],
+      "must_not": [
+        {
+          "match": {
+            "description": "performance"
+          }
+        }
+      ]
+    }
+  }
+}'
+```
+
+- 이 must_not은 Filter Context, 즉 score 계산을 하지 않고 캐싱의 대상이됨
+
+
+
+- should절은 minimum_should_match라는 옵션을 제공함 이 옵션은 포함된 쿼리중 적어도 설정된 수치만큼의 쿼리가 일치할 때 검색 결과를 보여주는 옵션
+
+```
+#should
+curl -X GET "localhost:9200/book_data/_search?pretty" \
+-H 'Content-Type: application/json' \
+-d '{
+  "query": {
+    "bool": {
+      "must": [
+        {
+          "match": {
+            "title": "nginx"
+          }
+        }
+      ],
+      "filter": [
+        {
+          "range": {
+            "release_date": {
+              "gte": "2014/01/01",
+              "lte": "2017/12/31"
+            }
+          }
+        }
+      ],
+      "should": [
+        {
+          "match": {
+            "title": "performance"
+          }
+        },
+        {
+          "match": {
+            "description": "scalable web"
+          }
+        }
+      ],
+      "minimum_should_match" : 1
+    }
+  }
+}'
+```
+
+- should에 일치하면 스코어 점수를 올려줄 수 있음
+- minimum_should_match를 주어 should에 들어간 옵션중 한개는 반드시 일치해야 결과를 리턴하는 옵션, nullable
+
+
+
 ## 마치며
 
-## 
+- ES는 analyzer로 문서의 각 필드를 분석해서 토큰을 생성
+- analyzer를 통해 생성된 토큰은 inverted index에 저장
+- analyzer를 변경하면 기존에 생성한 토큰들이 의미를 잃기 때문에 다시 인덱싱 해야함
+- 어떤 analyzer를 사용했느냐에 따라서 생성되는 토큰이 다르기 때문에 같은 검색어에 대한 결과도 다를 수 있음 의도한 대로 검색되지 않는다면 analyzer api를 통해서 해당 필드의 analyzer가 검색어를 포함한 토큰을 생성하는지 확인해야 함
+- serach api는 여러가지 옵션을 제공, from./size 등등
+- query 문은 크게 query context와 filter context가 있음 query context는 검색어와 얼마나 연관이 있는지 _score를 통해순위를 매기고 filter context는 각 문서에 검색어가 포함되어 있는지 여부만 계산함
+- filter context는 비트맵 형태로 결과가 캐싱되기 때문에 빠른 결과를 보여줌
+- query context와 filter context는 bool query로 조합이 가능하고 이를 통해 다양한 검색을 진행할 수 있음
+
+
 
 # #10 색인 성능 최적화
 
