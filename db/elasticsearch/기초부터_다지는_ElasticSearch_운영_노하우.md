@@ -2401,17 +2401,130 @@ curl -X GET "localhost:9200/_template/mytemplate_1?petty"
 
 ## Elastic Stack이란
 
+- Elastic Stack은 로그를 수집, 가공하고 이를 바탕으로 분석하는데 사용되는 플랫폼을 의미함
+- Elastic Stack은 과거에 ELK 스택이라고도 불림
+- 로그를 전송하는 Filebeat, 전송된 로그를 JSON 형태의 문서로 파싱하는 Logstash, 파싱된 문서를 저장하는 Elasticsearch, 데이터를 시각화할 수 있는 Kinana까지 4개의 독립적인 시스템으로 이루어져있음
+- Filebeat은 지정된 위치에 있는 로그 파일을 읽어서 Logstash 서버로 보내주는 역할을 함 이때 Filebeat은 로그 파일을 읽기만하고 별도로 가공하지 않고 Logstash에 전송만하는것이 확장성이나 효율면에서 유리할 수 있음, 예를 들어 포맷이 바뀔 경우 모든 서버의 Filebeat을 수정해야 하기 때문
+- Logstash는 Filebeat에서 받은 로그 파일들을 룰에 맞게 파싱해서 JSON형태의 문서로 만드는 역할을 함, 하나의 로그에 포함된 정보를 모두 파싱하거나 일부 필드만 파싱해서 json문서로 만들 수 있음 파싱에는 다양한패턴을 사용 가능하고 grok 필터를 많이 사용함
+- ES는 Logstash가 파싱한 JSON 형태의 문서를 인덱스에 저장함. 이때 ES는 데이터 저장소 역할을 함. 대부분의 경우 날짜가 뒤에 붙은 형태로 인덱스가 생성
+- Kinana는 ES에 저장된 데이터를 조회하거나 시각화할 때 사용함 Elastic Stack에서 사용자의 인입점
+- 가급적 Elastic Stack의 모든 버전들은 통일할것
+
 ## Filebeat 설치하기
+
+- [https://www.elastic.co/kr/downloads/beats/filebeat](https://www.elastic.co/kr/downloads/beats/filebeat)
+
+| 파일 이름              | 역할                                                         |
+| ---------------------- | ------------------------------------------------------------ |
+| fields.yml             | Filebeat가 Logstash를 거치지 않고 직접 ES에 쓸때 사용하는 타입과 필드들을 정의함 |
+| filebeat.reference.yml | filebeat.yml파일에서 설정할 수 있는 모든 설정들이 예제 형식으로 제공됨 |
+| filebeat.yml           | Filebeat가 실행하면서 읽는 환경설정파일임. 여기에 설정한 내용을 바탕으로 Filebeat가 설정됨 |
+| modules.d              | Filebeat가 직접 json 파싱까지 할 때 사용하는 환경 설정들을 저장하는 디렉토리 |
+
+- filebeat.yml 수정
+
+```
+sudo vi /etc/filebeat/filebeat.yml
+
+filebeat.inputs:
+- type: log
+  paths:
+    - /var/log/nginx/access.log
+output.logstash:
+  hosts: ["localhost:5044"]
+  
+  
+#start
+sudo systemctl start filebeat
+```
+
+
 
 ## Logstash 설치하기
 
+- [https://www.elastic.co/kr/downloads/logstash](https://www.elastic.co/kr/downloads/logstash)
+- /etc/logstash 환경설정 파일
+
+| 파일 이름         | 역할                                                         |
+| ----------------- | ------------------------------------------------------------ |
+| logstash.yml      | Logstash와 관련된 설정을 할 수 있는 기본 설정 파일, 워커의 개수, 배치의 크기 등등 설정 |
+| conf.d            | 파싱에 사용할 플러그인과 그에 따른 파싱 룰을 정의하는 설정 파일이 모여있는 디렉터리 |
+| jvm.options       | Logstash를 실행할 때 함께 설정할 jvm 옵션들을 설정하는 파일, gc, 힙 메모리등 jvm과 관련한 옵션들을 설정 |
+| log4j.peroperties | 로그 파일 기록과 관련도니 설정에 사용하는 파일               |
+
+- logstash.yml파일은 기본 설정값은 특별히 튜닝할 필요가 없지만 아래의 값들을 튜닝해서 사용할 수 있음
+
+| 이름                 | 역할                                                         |
+| -------------------- | ------------------------------------------------------------ |
+| pipeline.workers     | logstash가 파싱할 때 사용할 워커의 개수 설정, 기본값은 cpu 코어수, cpu usage를 높이고 더많은  양을 처리하기 위해 cpu 코어 수보다 많게 설정하기도 함 |
+| pipeline.batch.size  | 하나의 워커가 파싱하기 위한 로그의 단위를 의미. 기본은 125개이고 로그를 125개씩 모아서 파싱. 이 값이 커지면 한번에 처리하는 양이 많아지지만 오히려 처리 속도는 떨어지는 경우가 생김 |
+| pipeline.batch.delay | 하나의 워커가 파싱을 하기 위해 로그를 모으는 시간을 의미. pipeline.batch.size만큼 쌓이지 않아도 설정한 시간에 도달하면 워커가 파싱을 시작 |
+
+
+
+```
+sudo vi /etc/logstash/conf.d/nginx-logs.conf
+
+input {
+  beats{
+    port => "5044"
+  }
+}
+filter {
+  grok {
+    match => { "message" => "%{NGINXACCESS}" }
+  }
+}
+output {
+  file {
+    path => "/var/log/logstash/output.log"
+  }
+}
+
+#es에 전송
+output {
+  elasticsearch{
+    hosts => "localhost:9200"
+  }
+}
+
+
+
+sudo systemctl restart logstash
+```
+
+- 파일이 정확하지 않으면 에러날수 있음 ex: space 간격, 복붙할때 주의할것
+
+
+
 ## Kibana를 통해 로그 조회하기
+
+- 생략
 
 ## Kibana로 시각화하기
 
+- 생략
+
 ## Elastic Stack의 이중화
 
+- logstash는 두가지 방법
+
+| 방법        | 장점                                           | 단점                                                         |
+| ----------- | ---------------------------------------------- | ------------------------------------------------------------ |
+| LB 기반     | Logstash 서버의 증설/축소가 자유로움           | 하드웨어 또는 소프트웨어 LB가 필요                           |
+| 리스팅 기반 | 별도의 하드웨어 또는 소프트웨어 LB가 필요 없음 | Logstash 서버의 증설/축소 시 Filebeat 서버의 설정을 전부 변경해야함 |
+
+- elasticsearch는 클러스터구성이라 알아서 이중화처리
+- kibana는 active/standby형태로 구성하는 것이 좋음
+
 ## 마치며
+
+- Elastic Stack은 Filebeat, Logstash, ElasticSearch, Kibana 이렇게 여러개의 컴포넌트들을 조합하여 로그를 수집, 분석, 시각화하는 시스템을 의미함
+- Filebeat는 로그가 발생하는 애플리케이션 서버에 설치하며, 애플리케이션에서 발생하는 로그를 그대로 Logstash로 전달하는 역할
+- Logstash는 Filebeat로부터 전달받은 로그들을 파싱하여 JSON 형태의 형태의 문서로 만든 다음 ES 클러스터에 저장하는 역할
+- ES는 Logstash가 파싱한 JSON 형태의 문서를 저장하는 저장소 역할
+- Kibana는 ES에 저장된 로그들을 조회하거나 시각화하는 역할
+- ES Stack의 각 요소들을 각각의 특성에 맞게 이중화할 수 있음
 
 
 
