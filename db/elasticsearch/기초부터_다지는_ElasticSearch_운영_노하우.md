@@ -3545,13 +3545,112 @@ curl -X PUT "localhost:9200/keyword_index/_settings?pretty" \
 
 ## ElasticSearch 캐시의 종류와 특성
 
+- ES로 요청되는 다양한 검색 쿼리는 동일한 요청에 대해 좀 더 빠른 응답을 주기 위해 해당 쿼리의 결과를 메모리에 저장함. 메모리 캐싱이라고 하고 이때 사용하는 메모리 영역을 캐시 메모리라고 함
+- ES의 캐시 영역
+
+| 캐시 영역           | 설명                                                |
+| ------------------- | --------------------------------------------------- |
+| Node Query cache    | 쿼리에 의해 각 노드에 캐싱되는 영역                 |
+| Shard Request cache | 쿼리에 의해 각 샤드에 캐싱되는 영역                 |
+| Field Data cache    | 쿼리에 의해 필드를 대상으로 각 노드에 캐싱되는 영역 |
+
 ### Node Query Cache
+
+- Node Query Cache는 검색 쿼리 종류중 filter context에 의해 검색된 문서의 결과가 캐싱되는 영역
+- filter context로 구성된 쿼리로 검색하면 내부적으로 각 문서에 0과 1로 설정할 수 있는 bitset을 설정함. filter context로 호출된 문서는 bitset을 1로 설정
+- 사용자의 쿼리 횟수와 bitset이 1인 문서들 사이에 연관 관계를 지속적으로 확인하고 자주 호출되었다고 판단한 문서들을 노드의 메모리에 캐싱. 다만 세그먼트 하나에 저장된 문서가 10000개 미만이거나 검색쿼리가 인입되고 있는 인덱스의 전체 인덱스 사이즈의 3% 미만일 경우에는 filter context를 사용하더라도 캐싱되지 않음
+- node query cache 현황 살펴보기
+
+```
+curl -X GET "localhost:9200/_cat/nodes?v&h=name,qcm&v&pretty" \
+-H 'Content-Type: application/json'
+
+name          qcm
+elasticsearch  0b
+
+curl -X GET "localhost:9200/_cat/segments/accounts?v&h=index,shard,segment,docs.count" \
+-H 'Content-Type: application/json'
+
+index    shard segment docs.count
+accounts 0     _0             177
+accounts 0     _1             823
+```
+
+- qcm
+  - 현재 노드에 캐싱된 메모리 사용량을 나타냄
+- docs.count
+  - 각 세그먼트별 문서의 개수
+
+- 캐싱된 영역을 확인하기 전에 각 세그먼트별 10000개 이상의 문서가 저장되어있는지도 확인해야함
+- filtercontext 쿼리를 여러번 검색하면 캐싱되는것을 확인할 수 있음 캐싱된 이후엔 메모리 영역에서 데이터를 리턴함
+- node query cache는 기본적으로 활성화되어 있고 `index.queries.cache.enable` 값으로 설정 가능
+- node query cache는 인덱스를 close상태로 바꾸고 다시 설정해야함 dynamic setting되지 않음 신중하게 할 것
+- node query cache는 lru 알고리즘에 의해 캐싱된 문서를 삭제하고 `indices.queries.cache.size` 값을 통해 사이즈를 조절할 수 있음
+- filter context를 잘 활용하면 캐싱 효과를 볼 수 있음
 
 ### Shard Request Cache
 
+- node query cache가 노드에 할당된 캐시 영역이라면 shard request cache는 샤드를 대상으로 캐싱되는 영역
+- ES 클러스터에 기본적으로 활성화되어 있는 캐시
+- node query cache 영역과 달리 문서의 내용을 캐싱하는 것이 아니라, 집계쿼리의 집계 결과, from/size 응답 결과에 포함되는 매칭된 문서의 수에 대해서만 캐싱함
+- node query cache는 검색 엔진에서 활용하기 적합한 캐시 영역, shard request cache는 분석 엔진에서 활용하기 적합한 캐시 영역
+- refresh된다면 초기화됨. 따라서 계속해서 색인이 일어나는 인덱스에는 크게 효과가 없음
+- shard request cache 현황 살펴보기
+
+```
+curl -X GET "localhost:9200/_cat/nodes?v&h=name,rcm&v&pretty" \
+-H 'Content-Type: application/json'
+
+name          rcm
+elasticsearch  0b
+```
+
+- `index.request.cache.enable` 값으로 활성 비활성 설정 가능. dynamic setting 가능
+- 검색 옵션에도 줄 수 있음
+- 색인이 종료된 과거 인덱스는 이 설정을 true로 한뒤 집계하면 캐싱 효과를 볼 수 있고 색인중이라면 이 설정값을 false로해서 캐싱 낭비를 줄일 수 있음
+- 인덱스를 read only로 만드는것도 캐싱 데이터를 유지시킬 수 있는 방법
+- `indices.requests.cache.size`값을 통해 사이즈를 조절할 수 있음
+
 ### Field Data Cache
 
+- filter data cache는 인덱스를 구성하는 필드에 대한 캐싱임
+- filter data cache 영역은 주로 검색 결과를 정렬하거나 집계 쿼리를 수행할 때 지정한 필드만을 대상으로 해당 필드의 모든 데이터를 메모리에 저장하는 캐싱 영역
+- 각 노드의 샤드에서는 요청에 맞는 문서와 정렬된 값을 리턴하는데 정렬된 필드들의 값이 field data cache에 캐싱됨 <- 각 노드별로
+- field data cache 영역은 text 필드는 기본적으로 캐싱을 허용하지 않음  <- text 필드는 메모리를 많이 사용하기 때문
+- field data cache 현황 
+
+```
+curl -X GET "localhost:9200/_cat/nodes?v&h=name,fm&v&pretty" \
+-H 'Content-Type: application/json'
+
+name          fm
+elasticsearch  0b
+```
+
+- field data cache 영역은 집계를 수행한 필드의 모든 데이터를 메모리에 로딩하기 때문에 집계 시에 불러들일 데이터의 양을 고려해서 사용해야함 
+- `indices.fielddata.cache.size` 값을 통해 사이즈를 조절할 수 있음
+
+
+
+- 지금까지 살펴본 3가지 캐시 영역은 모두 힙 메모리 영역을 사용함
+
 ### 캐시 영역 클리어
+
+```
+curl -X POST "localhost:9200/index1/_cache/clear?query=true&pretty" \
+-H 'Content-Type: application/json' \
+
+curl -X POST "localhost:9200/index1/_cache/clear?request=true&pretty" \
+-H 'Content-Type: application/json' \
+
+curl -X POST "localhost:9200/index1/_cache/clear?fielddata=true&pretty" \
+-H 'Content-Type: application/json' \
+
+```
+
+- 순서대로 node query cache, shard request cache, field data cache 영역을 클리어
+- _all을 사용해서 전체 인덱스를 대상으로 캐시를 클리어할 수 있음 
+- 한정된 메모리에 불필요하게 캐시 데이터를 저장하지 말고 해당 인덱스에서 캐시 데이터를 삭제하면서 운영하는 편이 성능 면에서 유리함
 
 ## 검색 쿼리 튜닝하기
 
@@ -3563,9 +3662,7 @@ curl -X PUT "localhost:9200/keyword_index/_settings?pretty" \
 
 ## 마치며
 
-# #12 ElasticSearch 클러스터 구
-
-# 축 시나리오
+# #12 ElasticSearch 클러스터 구축시나리오
 
 
 
