@@ -3654,6 +3654,44 @@ curl -X POST "localhost:9200/index1/_cache/clear?fielddata=true&pretty" \
 
 ## 검색 쿼리 튜닝하기
 
+- 검색 성능을 떨어트리는 요인중 하나는 너무 많은 필드를 사용하는 것
+- 많은 필드를 한번에 검색할 수 있는 copy_to를 사용하면 됨
+- copy_to는 매핑시점에서 아래와같이 사용
+
+```
+curl -X POST "localhost:9200/copy_to_index/_doc?pretty" \
+-H 'Content-Type: application/json' \
+-d '{
+  "first_name": "sup2is",
+  "last_name": "choi"
+}'
+
+
+curl -X PUT "localhost:9200/copy_to_index/_doc/_mapping?pretty" \
+-H 'Content-Type: application/json' \
+-d '{
+  "mappings": {
+    "properties": {
+      "first_name": {
+        "type": "text",
+        "copy_to": "full_name" 
+      },
+      "last_name": {
+        "type": "text",
+        "copy_to": "full_name" 
+      },
+      "full_name": {
+        "type": "text"
+      }
+    }
+  }
+}'
+```
+
+
+
+
+
 ## 샤드 배치 결정하기
 
 ## forcemerge API
