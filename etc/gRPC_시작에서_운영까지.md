@@ -223,15 +223,367 @@
 
 ## 서비스 정의 작성
 
+- 가장 먼저 해야할 일은 소비자가 원격으로 호출할 수 있는 메서드와 메서드의 파라미터, 사용할 메시지 포맷 등을 포함하는 서비스 인터페이스를 정의하는 것
+- 프로토콜 버퍼로 정의함
+
 ### 메시지 정의
+
+```protobuf
+message Product {
+    string id = 1;
+    string name = 2;
+    string description = 3;
+    float price = 4;
+}
+
+message ProductID {
+    string value = 1;
+}
+
+```
+
+- 메시지필드에 지정된 번호는 메시지에서 필드를 고유하게 식별하는데 사용되기 때문에 고유해야함
 
 ### 서비스 정의
 
+```protobuf
+service ProductInfo {
+    rpc addProduct(Product) returns (ProductID);
+    rpc getProduct(ProductID) returns (Product);
+}
+
+```
+
+
+
+**전체 프로토콜 버퍼**
+
+```protobuf
+syntax = "proto3";
+
+package ecommerce;
+
+service ProductInfo {
+    rpc addProduct(Product) returns (ProductID);
+    rpc getProduct(ProductID) returns (Product);
+}
+
+message Product {
+    string id = 1;
+    string name = 2;
+    string description = 3;
+    float price = 4;
+}
+
+message ProductID {
+    string value = 1;
+}
+
+```
+
+- 다른 프로젝트와의 이름 충돌을 방지할 수 있는 패키지 이름을 지정할 수 있음
+- "ecommerce.v1" 처럼 버저닝해서 사용 가능
+- 다른 프로토 파일에 정의된 메시지 타입을 사용해야 하는 경우 해당 타입과 프로토콜 버퍼 정의를 가져올 수 있음
+
+```protobuf
+syntax = "proto3";
+
+import "google/protobuf/wrappers.proto";
+
+package ecommerce;
+
+...
+```
+
+
+
 ## 구현
+
+- 프로토파일을 수동으로 컴파일하거나 바젤, 메이븐, 그래들과 같은 빌드 자동화 도구를 사용할 수 있음
+- 대부분 빌드 자동화 도구에 통합하는 것이 쉬움
 
 ### 서비스 개발
 
+#### Go를 사용한 gRPC 서비스 구현
+
+```go
+// Go to ${grpc-up-and-running}/samples/ch02/productinfo
+// Optional: Execute protoc -I proto proto/product_info.proto --go_out=plugins=grpc:go/product_info
+// Execute go get -v github.com/grpc-up-and-running/samples/ch02/productinfo/go/product_info
+// Execute go run go/server/main.go
+
+package main
+
+import (
+	"context"
+	"log"
+	"net"
+
+	"github.com/gofrs/uuid"
+	pb "productinfo/server/ecommerce"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+)
+
+const (
+	port = ":50051"
+)
+
+// server is used to implement ecommerce/product_info.
+type server struct {
+	productMap map[string]*pb.Product
+}
+
+// AddProduct implements ecommerce.AddProduct
+func (s *server) AddProduct(ctx context.Context,
+							in *pb.Product) (*pb.ProductID, error) {
+	out, err := uuid.NewV4()
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "Error while generating Product ID", err)
+	}
+	in.Id = out.String()
+	if s.productMap == nil {
+		s.productMap = make(map[string]*pb.Product)
+	}
+	s.productMap[in.Id] = in
+	log.Printf("Product %v : %v - Added.", in.Id, in.Name)
+	return &pb.ProductID{Value: in.Id}, status.New(codes.OK, "").Err()
+}
+
+// GetProduct implements ecommerce.GetProduct
+func (s *server) GetProduct(ctx context.Context, in *pb.ProductID) (*pb.Product, error) {
+	product, exists := s.productMap[in.Value]
+	if exists && product != nil {
+		log.Printf("Product %v : %v - Retrieved.", product.Id, product.Name)
+		return product, status.New(codes.OK, "").Err()
+	}
+	return nil, status.Errorf(codes.NotFound, "Product does not exist.", in.Value)
+}
+
+func main() {
+	lis, err := net.Listen("tcp", port)
+	if err != nil {
+		log.Fatalf("failed to listen: %v", err)
+	}
+	s := grpc.NewServer()
+	pb.RegisterProductInfoServer(s, &server{})
+	if err := s.Serve(lis); err != nil {
+		log.Fatalf("failed to serve: %v", err)
+	}
+}
+
+```
+
+#### 자바를 사용한 gRPC 서비스 구현
+
+```java
+package ecommerce;
+
+import io.grpc.Status;
+import io.grpc.StatusException;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
+
+public class ProductInfoImpl extends ProductInfoGrpc.ProductInfoImplBase {
+
+    private Map productMap = new HashMap<String, ProductInfoOuterClass.Product>();
+
+    @Override
+    public void addProduct(ProductInfoOuterClass.Product request,
+                           io.grpc.stub.StreamObserver<ProductInfoOuterClass.ProductID> responseObserver) {
+        UUID uuid = UUID.randomUUID();
+        String randomUUIDString = uuid.toString();
+        request = request.toBuilder().setId(randomUUIDString).build();
+        productMap.put(randomUUIDString, request);
+        ProductInfoOuterClass.ProductID id
+                = ProductInfoOuterClass.ProductID.newBuilder().setValue(randomUUIDString).build();
+        responseObserver.onNext(id);
+        responseObserver.onCompleted();
+    }
+
+    @Override
+    public void getProduct(ProductInfoOuterClass.ProductID request,
+                           io.grpc.stub.StreamObserver<ProductInfoOuterClass.Product> responseObserver) {
+        String id = request.getValue();
+        if (productMap.containsKey(id)) {
+            responseObserver.onNext((ProductInfoOuterClass.Product) productMap.get(id));
+            responseObserver.onCompleted();
+        } else {
+            responseObserver.onError(new StatusException(Status.NOT_FOUND));
+        }
+    }
+}
+
+```
+
+
+
+#### 서버 생성
+
+```java
+package ecommerce;
+
+import io.grpc.Server;
+import io.grpc.ServerBuilder;
+
+import java.io.IOException;
+import java.util.logging.Logger;
+
+public class ProductInfoServer {
+
+    private static final Logger logger = Logger.getLogger(ProductInfoServer.class.getName());
+
+    private Server server;
+
+    private void start() throws IOException {
+        /* The port on which the server should run */
+        int port = 50051;
+        server = ServerBuilder.forPort(port)
+                .addService(new ProductInfoImpl())
+                .build()
+                .start();
+        logger.info("Server started, listening on " + port);
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            // Use stderr here since the logger may have been reset by its JVM shutdown hook.
+            logger.info("*** shutting down gRPC server since JVM is shutting down");
+            ProductInfoServer.this.stop();
+            logger.info("*** server shut down");
+        }));
+    }
+
+    private void stop() {
+        if (server != null) {
+            server.shutdown();
+        }
+    }
+
+    /**
+     * Await termination on the main thread since the grpc library uses daemon threads.
+     */
+    private void blockUntilShutdown() throws InterruptedException {
+        if (server != null) {
+            server.awaitTermination();
+        }
+    }
+
+    /**
+     * Main launches the server from the command line.
+     */
+    public static void main(String[] args) throws IOException, InterruptedException {
+        final ProductInfoServer server = new ProductInfoServer();
+        server.start();
+        server.blockUntilShutdown();
+    }
+
+}
+
+```
+
+
+
+
+
 ### gRPC 클라이언트 개발
+
+#### gRPC Go 클라이언트 구현
+
+```go
+// Go to ${grpc-up-and-running}/samples/ch02/productinfo
+// Optional: Execute protoc -I proto proto/product_info.proto --go_out=plugins=grpc:go/product_info
+// Execute go get -v github.com/grpc-up-and-running/samples/ch02/productinfo/golang/product_info
+// Execute go run go/client/main.go
+
+package main
+
+import (
+	"context"
+	"log"
+	"time"
+
+	pb "productinfo/client/ecommerce"
+	"google.golang.org/grpc"
+)
+
+const (
+	address = "localhost:50051"
+)
+
+func main() {
+	// Set up a connection to the server.
+	conn, err := grpc.Dial(address, grpc.WithInsecure())
+	if err != nil {
+		log.Fatalf("did not connect: %v", err)
+	}
+	defer conn.Close()
+	c := pb.NewProductInfoClient(conn)
+
+	// Contact the server and print out its response.
+	name := "Apple iPhone 11"
+	description := "Meet Apple iPhone 11. All-new dual-camera system with Ultra Wide and Night mode."
+	price := float32(699.00)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	r, err := c.AddProduct(ctx, &pb.Product{Name: name, Description: description, Price: price})
+	if err != nil {
+		log.Fatalf("Could not add product: %v", err)
+	}
+	log.Printf("Product ID: %s added successfully", r.Value)
+
+	product, err := c.GetProduct(ctx, &pb.ProductID{Value: r.Value})
+	if err != nil {
+		log.Fatalf("Could not get product: %v", err)
+	}
+	log.Printf("Product: %v", product.String())
+}
+
+```
+
+#### 자바 클라이언트 구현 
+
+```java
+package ecommerce;
+
+import io.grpc.ManagedChannel;
+import io.grpc.ManagedChannelBuilder;
+
+import java.util.logging.Logger;
+
+/**
+ * gRPC client sample for productInfo service.
+ */
+public class ProductInfoClient {
+
+    private static final Logger logger = Logger.getLogger(ProductInfoClient.class.getName());
+
+    public static void main(String[] args) throws InterruptedException {
+        ManagedChannel channel = ManagedChannelBuilder.forAddress("localhost", 50051)
+                .usePlaintext()
+                .build();
+
+        ProductInfoGrpc.ProductInfoBlockingStub stub =
+                ProductInfoGrpc.newBlockingStub(channel);
+
+        ProductInfoOuterClass.ProductID productID = stub.addProduct(
+                ProductInfoOuterClass.Product.newBuilder()
+                        .setName("Samsung S10")
+                        .setDescription("Samsung Galaxy S10 is the latest smart phone, " +
+                                "launched in February 2019")
+                        .setPrice(700.0f)
+                        .build());
+        logger.info("Product ID: " + productID.getValue() + " added successfully.");
+
+        ProductInfoOuterClass.Product product = stub.getProduct(productID);
+        logger.info("Product: " + product.toString());
+        channel.shutdown();
+    }
+}
+
+```
+
+
 
 ## 빌드와 실행
 
@@ -249,7 +601,7 @@
 
 ## 요약
 
-
+- gRPC 앱을 개발할 때는 먼저 구조화된 데이터를 직렬화하고자 언어에 구애받지 않는 플랫폼 중립적이며 확장 가능한 메커니즘인 프로토콜 버퍼를 사용해 서비스 인터페이스를 정의해야함
 
 
 
