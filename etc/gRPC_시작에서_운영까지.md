@@ -850,31 +850,294 @@ grpc-encoding = gzip
 
 # #5 gRPC: 고급 기능
 
+- 실제 gRPC 앱을 구축할 때는 수신과 발신 RPC에 대한 인터셉터 처리, 네트워크 지연 처리, 에러 처리, 서비스와 소비자 간의 메타데이터 공유 등과 같은 요구사항을 충족시키기 위해 다양한 기능으로 애플리케이션을 개선해야함
+
 ## 인터셉터
+
+- 클라나 서버에 원격 함수 실행 전후 몇가지 공통적인 로직을 실행할 필요가 있음
+- gRPC에서는 로깅, 인증, 메트릭 등과 같은 특정 요구사항 충족을 위해 RPC 실행을 가로챌 수 있음
+- 단순 RPC의 경우 단일 인터셉터, 스트리밍 RPC의 경우 스트리밍 인터셉터를 사용해야함
 
 ### 서버 측 인터셉터
 
+- 클라가 gRPC 서비스의 원격 메서드를 호출할 때 서버에서 인터셉터를 사용해 원격 메서드 실행 전에 공통 로직을 실행할 수 있음
+- 하나 이상의 인터셉터를 연결할 수 있음
+
+#### 단일 인터셉터
+
+- 단일 RPC를 가로채려면 단일 인터셉터를 구현해야함
+- 자바는 io.grpc.ServerInterceptor를 구현하면 되는듯?
+- 서버측 단일 인터셉터 구현은 일반적으로 전처리, RPC 메서드 호출, 후처리 세부분으로 나눌 수 있음
+- 전처리 단계에서 개발자는 RPC 컨텍스트, 요청 정보 등을 얻을 수 있고 수정할 수 있음
+
+#### 스트리밍 인터셉터
+
+- 서버측 스트리밍 인터셉터는 gRPC 서버가 처리하는 모든 스트리밍 RPC 호출을 인터셉트함
+
 ### 클라이언트 측 인터셉터
+
+- 클라가 gRPC 서비스의 원격 메서드를 호출하고자 RPC를 호출할 때 클라에서 해당 RPC 호출을 가로챌 수 있음
+- 클라 앱 코드 외부에서 gRPC 서비스를 안전하게 호출하는 재사용 가능한 특정 기능을 구현해야할 때 유용함
+
+#### 단일 인터셉터
+
+- 서버로 보내기 전에 RPC 컨텍스트 등에 대한 정보를 확인하고 수정할 수 있음
+
+#### 스트리밍 인터셉터
+
+- gRPC 클라이언트가 처리하는 모든 스트리밍 RPC 호출을 인터셉트함
 
 ## 데드라인
 
+- 데드라인과 타임아웃은 분산 컴퓨팅에서 일반적으로 사용되는 패턴임
+- 데드라인은 RPC가 완료될 때까지 얼마나 기다리는지를 지정함
+- 각 클라이언트 개별로 적용됨
+- 하나의 요청이 하나 이상의 서비스를 함께 묶는 여러 다운스트림 RPC의 경우 각 서비스 호출마다 개별 RPC를 기준으로 타임아웃을 적용할 수 있지만 요청 전체 수명주기에는 직접 적용할 수 없는데 이럴때 데드라인을 사용하면됨
+- 데드라인은 요청 시작 기준으로 특정시간으로 표현되고 여러 서비스 호출에 걸쳐 적용됨
+- gRPC도 네트워크 요청이기 때문에 응답이 지연되거나 오리걸릴 수 있음 데드라인을 사용하지 않는 경우엔 모든 요청이 대기상태가되고 장애가 될 수 있음
+- 클라는 gRPC 서비스를 처음 연결할 때 데드라인을 설정함
+- 해당 시간 내에 RPC 호출이 응답하지 않으면 DEADLIME_EXCEEDED 에러와 함께 RPC 호출이 종료됨
+- 데드라인 자바 코드
+
+```java
+package ecommerce;
+
+import com.google.protobuf.StringValue;
+import io.grpc.*;
+import io.grpc.stub.StreamObserver;
+
+import java.util.Iterator;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.logging.Logger;
+
+public class OrderMgtClient {
+
+    private static final Logger logger = Logger.getLogger(OrderMgtClient.class.getName());
+
+    public static void main(String[] args) {
+        ManagedChannel channel = ManagedChannelBuilder.forAddress(
+                "localhost", 50051).usePlaintext().build();
+
+        OrderManagementGrpc.OrderManagementBlockingStub stub = OrderManagementGrpc.newBlockingStub(channel).withDeadlineAfter(1000, TimeUnit.MILLISECONDS);
+        OrderManagementGrpc.OrderManagementStub asyncStub = OrderManagementGrpc.newStub(channel);
+
+        OrderManagementOuterClass.Order order = OrderManagementOuterClass.Order
+                .newBuilder()
+                .setId("101")
+                .addItems("iPhone XS").addItems("Mac Book Pro")
+                .setDestination("San Jose, CA")
+                .setPrice(2300)
+                .build();
+
+
+        try {
+            // Add Order with a deadline
+            StringValue result = stub.addOrder(order);
+            logger.info("AddOrder Response -> : " + result.getValue());
+        } catch (StatusRuntimeException e) {
+            if (e.getStatus().getCode() == Status.Code.DEADLINE_EXCEEDED) {
+                logger.info("Deadline Exceeded. : " + e.getMessage());
+            } else {
+                logger.info("Unspecified error from the service -> " + e.getMessage());
+            }
+        }
+
+    }
+
+}
+```
+
+- 데드라인의 이상적인 값은 주로 호출하는 개별 서비스의 지연시간, RPC가 직렬화되는지, 병렬로 호출될 수 있는지, 기본 네트워크의 지연시간과 다운스트림 서비스의 데드라인 값 등을 고려할 수 있음
+- gRPC 데드라인과 관련해 클라이언트와 서버 모두 RPC의 성공 여부에 대해 독립적이고 개별적인 결정을 내릴 수 있음
+- 클라가 DEADLIME_EXCEEDED여도 서비스는 여전히 응답을 시도할 수 있음
+- 서버에서는 클라가 RPC를 호출할 때 지정된 데드라인이 초과되었는지도 감지할 수 있음
+
+
+
 ## 취소 처리
+
+- 클라와 서버는 모두 통신 성공 여부를 독립적이고 개별적으로 결정함
+- 서버는 성공했지만 클라는 실패할 수 있음
+- 클라나 서버는 RPC 를 중단시키려고할 때 RPC를 취소하면 됨
+- RPC가 취소되면 더이상 RPC 관련 메시징을 처리할 수 없고 당사자가 RPC를 취소했다는 사실이 상대방에게 전파됨
 
 ## 에러 처리
 
+- RPC를 호출하면 클라는 성공 상태의 응답을 받거나 에러 상태를 갖는 에러를 받음
+- 클라는 적절한 예외를 처리해야하고 서버는 적절한 예외로 응답해야함
+
+| Code                | Number | Description                                                  |
+| ------------------- | ------ | ------------------------------------------------------------ |
+| OK                  | 0      | Not an error; returned on success.                           |
+| CANCELLED           | 1      | The operation was cancelled, typically by the caller.        |
+| UNKNOWN             | 2      | Unknown error. For example, this error may be returned when a `Status` value received from another address space belongs to an error space that is not known in this address space. Also errors raised by APIs that do not return enough error information may be converted to this error. |
+| INVALID_ARGUMENT    | 3      | The client specified an invalid argument. Note that this differs from `FAILED_PRECONDITION`. `INVALID_ARGUMENT` indicates arguments that are problematic regardless of the state of the system (e.g., a malformed file name). |
+| DEADLINE_EXCEEDED   | 4      | The deadline expired before the operation could complete. For operations that change the state of the system, this error may be returned even if the operation has completed successfully. For example, a successful response from a server could have been delayed long |
+| NOT_FOUND           | 5      | Some requested entity (e.g., file or directory) was not found. Note to server developers: if a request is denied for an entire class of users, such as gradual feature rollout or undocumented allowlist, `NOT_FOUND` may be used. If a request is denied for some users within a class of users, such as user-based access control, `PERMISSION_DENIED` must be used. |
+| ALREADY_EXISTS      | 6      | The entity that a client attempted to create (e.g., file or directory) already exists. |
+| PERMISSION_DENIED   | 7      | The caller does not have permission to execute the specified operation. `PERMISSION_DENIED` must not be used for rejections caused by exhausting some resource (use `RESOURCE_EXHAUSTED` instead for those errors). `PERMISSION_DENIED` must not be used if the caller can not be identified (use `UNAUTHENTICATED` instead for those errors). This error code does not imply the request is valid or the requested entity exists or satisfies other pre-conditions. |
+| RESOURCE_EXHAUSTED  | 8      | Some resource has been exhausted, perhaps a per-user quota, or perhaps the entire file system is out of space. |
+| FAILED_PRECONDITION | 9      | The operation was rejected because the system is not in a state required for the operation's execution. For example, the directory to be deleted is non-empty, an rmdir operation is applied to a non-directory, etc. Service implementors can use the following guidelines to decide between `FAILED_PRECONDITION`, `ABORTED`, and `UNAVAILABLE`: (a) Use `UNAVAILABLE` if the client can retry just the failing call. (b) Use `ABORTED` if the client should retry at a higher level (e.g., when a client-specified test-and-set fails, indicating the client should restart a read-modify-write sequence). (c) Use `FAILED_PRECONDITION` if the client should not retry until the system state has been explicitly fixed. E.g., if an "rmdir" fails because the directory is non-empty, `FAILED_PRECONDITION` should be returned since the client should not retry unless the files are deleted from the directory. |
+| ABORTED             | 10     | The operation was aborted, typically due to a concurrency issue such as a sequencer check failure or transaction abort. See the guidelines above for deciding between `FAILED_PRECONDITION`, `ABORTED`, and `UNAVAILABLE`. |
+| OUT_OF_RANGE        | 11     | The operation was attempted past the valid range. E.g., seeking or reading past end-of-file. Unlike `INVALID_ARGUMENT`, this error indicates a problem that may be fixed if the system state changes. For example, a 32-bit file system will generate `INVALID_ARGUMENT` if asked to read at an offset that is not in the range [0,2^32-1], but it will generate `OUT_OF_RANGE` if asked to read from an offset past the current file size. There is a fair bit of overlap between `FAILED_PRECONDITION` and `OUT_OF_RANGE`. We recommend using `OUT_OF_RANGE` (the more specific error) when it applies so that callers who are iterating through a space can easily look for an `OUT_OF_RANGE` error to detect when they are done. |
+| UNIMPLEMENTED       | 12     | The operation is not implemented or is not supported/enabled in this service. |
+| INTERNAL            | 13     | Internal errors. This means that some invariants expected by the underlying system have been broken. This error code is reserved for serious errors. |
+| UNAVAILABLE         | 14     | The service is currently unavailable. This is most likely a transient condition, which can be corrected by retrying with a backoff. Note that it is not always safe to retry non-idempotent operations. |
+| DATA_LOSS           | 15     | Unrecoverable data loss or corruption.                       |
+| UNAUTHENTICATED     | 16     | The request does not have valid authentication credentials for the operation. |
+
+- gRPC와 함께 제공되는 에러 모델은 기본적으로 데이터 형식과 무관하며 매우 제한적임
+- 프로토콜 버퍼를 데이터 형식으로 사용하는 경우 google.rpc 패키지의 Google API에서 제공하는 풍부한 에러 모델을 활용할 수 있으나  C++, Go, 자바, 파이썬, 루비에서만 지원됨
+- 자바 클라에서의 에러처리
+
+```java
+package ecommerce;
+
+import com.google.protobuf.StringValue;
+import io.grpc.*;
+import io.grpc.stub.StreamObserver;
+
+import java.util.Iterator;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.logging.Logger;
+
+public class OrderMgtClient {
+
+    private static final Logger logger = Logger.getLogger(OrderMgtClient.class.getName());
+
+    public static void main(String[] args) {
+        ManagedChannel channel = ManagedChannelBuilder.forAddress(
+                "localhost", 50051).usePlaintext().build();
+
+        OrderManagementGrpc.OrderManagementBlockingStub stub = OrderManagementGrpc.newBlockingStub(channel).withDeadlineAfter(1000, TimeUnit.MILLISECONDS);
+        OrderManagementGrpc.OrderManagementStub asyncStub = OrderManagementGrpc.newStub(channel);
+
+        // Creating an order with invalid Order ID.
+        OrderManagementOuterClass.Order order = OrderManagementOuterClass.Order
+                .newBuilder()
+                .setId("-1")
+                .addItems("iPhone XS").addItems("Mac Book Pro")
+                .setDestination("San Jose, CA")
+                .setPrice(2300)
+                .build();
+
+
+        try {
+            // Add Order with a deadline
+            StringValue result = stub.addOrder(order);
+            logger.info("AddOrder Response -> : " + result.getValue());
+        } catch (StatusRuntimeException e) {
+            logger.info(" Error Received - Error Code : " + e.getStatus().getCode());
+            logger.info("Error details -> " + e.getMessage());
+        }
+
+    }
+
+}
+```
+
+- 가능하면 적절한 gRPC 에러 코드와 더 풍부한 에러 모델을 사용하는 것이 좋음
+- gRPC 에러 상태와 세부 사항은 일반적으로 전송 프로토콜 레벨에서 트레일러 헤더를 통해 전송됨
+
+
+
 ## 멀티플렉싱
+
+- gRPC를 사용하면 동일한 gRPC 서버에서 여러 gRPC 서비스를 실행할 수 있고 여러 gRPC 클라이언트 스텁에 동일한 gRPC 클라이언트 연결을 사용할 수 있음 이 기능을 멀티플렉싱이라 함
+- 여러 서비스를 실행하거나 여러 스텁간 동일한 연결을 사용하는 것은 gRPC 개념과 상관없는 설계 선택의 문제임
+- 마이크로서비스와 같은 대부분의 일반적인 사례에서는 두 서비스 간에 동일한 gRPC 서버 인스턴스를 공유하지 않음
+
+
 
 ## 메타데이터
 
+- gRPC 애플리케이션은 일반적으로 gRPC서비스와 소비자 사이의 RPC 호출을 통해 정보를 공유함
+- 대부분의 경우 비지니스 로직 및 소비자와 직접 관련된 정보는 원격 메서드 호출 인자로 사용하는데 특정 조건에서 RPC 비지니스 컨텍스트와 관련이 없는 RPC 호출 정보를 공유할 수 있는데 이때 메타데이터를 사용하면 됨
+- gRPC헤더를 사용해 클라나 서버에서 생성한 메타데이터를 클라 서버 앱간에 교환할 수 있음
+- 메타데이터는 키/밸류에 대한 목록 형식으로 구분
+- 메타데이터의 가장 일반적인 사용은 gRPC애플리케이션 간에 보안 헤더를 교환할때 사용함
+
 ### 메타데이터 생성과 조회
+
+- 자바 서버에서 메타데이터 조회
+
+```java
+package ecommerce;
+
+import io.grpc.Metadata;
+import io.grpc.ServerCall;
+import io.grpc.ServerCallHandler;
+import io.grpc.ServerInterceptors;
+
+import java.util.logging.Logger;
+
+import static io.grpc.Metadata.ASCII_STRING_MARSHALLER;
+
+public class MDInterceptor implements io.grpc.ServerInterceptor {
+
+    private static final Logger logger = Logger.getLogger(MDInterceptor.class.getName());
+
+
+    @Override
+    public <ReqT, RespT> ServerCall.Listener<ReqT> interceptCall(ServerCall<ReqT, RespT> call, Metadata metadata, ServerCallHandler<ReqT, RespT> next) {
+
+        String ret_MD = metadata.get(Metadata.Key.of("MY_MD_1", ASCII_STRING_MARSHALLER));
+        logger.info("Metadata Retrived : " + ret_MD);
+        return next.startCall(call, metadata);
+    }
+}
+```
+
+- 자바 클라에서 메타데이터 생성
+
+```java
+package ecommerce;
+
+import io.grpc.*;
+import static io.grpc.Metadata.ASCII_STRING_MARSHALLER;
+
+
+public class OrderClientInterceptor implements ClientInterceptor {
+    @Override
+    public <ReqT, RespT> ClientCall<ReqT, RespT> interceptCall(MethodDescriptor<ReqT, RespT> method, CallOptions callOptions, Channel channel) {
+
+        return new ForwardingClientCall.SimpleForwardingClientCall<ReqT, RespT>(channel.newCall(method, callOptions)) {
+            @Override
+            public void start(Listener<RespT> responseListener, Metadata headers) {
+                headers.put(Metadata.Key.of("MY_MD_1", ASCII_STRING_MARSHALLER), "This is metadata of MY_MD_1");
+                super.start(responseListener, headers);
+            }
+        };
+    }
+}
+```
+
+
 
 ### 메타데이터 전송과 수신: 클라이언트 측
 
+- 콘텍스트에서 설정한 메타데이터는 gRPC 헤더나 트레일러 레벨로 변환되기 떄문에 클라가 해당 헤더를 보내면 수신자가 헤더로 수신함
+- 따라서 클라의 메타데이터를 수신할 때는 헤더나 트레일러로 취급해야함
+
 ### 메타데이터 전송과 수신: 서버 측
+
+- 서버에서 메타데이터를 보내려면 메타데이터가 이쓴ㄴ 헤더를 보내거나 메타데이터가 있는 트레일러를 지정하면 됨
 
 ### 네임 리졸버
 
+- 네임 리졸버는 서비스 이름에 대한 백엔드 IP의 목록을 반환함
+- 주키퍼 등등 과 같은 모든 서비스 레지스트리에 대해 리졸버를 구현할 수 있음
+- 로드밸런싱에도 사용되나 보통 인프라레벨에서 로드밸런싱 되는 경우가 많음
+
+
+
 ## 로드밸런싱
+
+- 상품 수준의 gRPC앱을 개발할 때는 고가용성과 확장성 요구사항을 충족시킬 수 있어야함
+- 2개 이상의 RPC 호출을 분산시키려면 일부 엔티티에서 처리해야 하는데, 이것이 로드 밸런싱의 역할임
+- gRPC에서는 일반적으로 로드밸런서 프록시와 클라이언트측 로드밸런싱이라는 두가지 주요 로드밸런싱 메커니즘이 사용됨
 
 ### 로드밸런서 프록시
 
