@@ -1180,23 +1180,437 @@ public class OrderClientInterceptor implements ClientInterceptor {
 
 # #6 보안 적용 gRPC
 
+- 각 gRPC 앱이 endpoint를 외부에 노출시켜야 하는데 보안 관점에서 보면 문제의 소지가 있음
+- 모든 실제 적용 사례에서는 보안된 통신과 endpoint 적용이 필수임
+- 모든 gRPC앱은 암호화된 메시지를 처리하고 모든 중간 노드에서의 통신을 암호화하며, 모든 메시지를 인증과 전자 서명 처리등을 해야함
+
+
+
 ## TLS를 사용한 gRPC 채널 인증
+
+- TLS는 통신하는 두 앱 간에 정보 봅호와 데이터 무결성 제공을 목표로 하고 gRPC 클라와 서버간 안전한 연결을 제공함
+- 클라와 서버간의 연결이 안전한 경우는 아래와 같은 속성중 하나 이상을 만족시켜야함
+
+**연결은 비공개적이다.**
+
+- 데이터를 암호화하고자 대칭키 암호화를 사용함. 암호화와 복호화에 하나의 키만 사용되는 암호화 방식으로 해당 암호화키는 세션 시작시에 협의된 공유 암호키를 기반으로 각 연결에 대해 고유하게 생성됨
+
+**연결은 신뢰적이다.**
+
+- 각 메시지 전송에 있어 감지되지 않은 데이터 손실이나 변경을 방지하고자 메시지 무결성 검사가 포함되기에 가능함
+
+- TLS를사용한 인증 메커니즘은 gRPC 라이브러리에 포함되어 있기 때문에 보안 연결 적용이 어렵지 않음
 
 ### 단방향 보안 연결 활성화
 
+- 단방향 연결에서는 클라만 서버 유효성을 검사해 원래 의도된 서버로부터 데이터가 수신됐는지 확인함
+- 클라와 서버 간의 연결이 시작되면 서버는 공개 인증서를 클라와 공유한 다음 클라는 수신한 인증서의 유효성을 확인함
+- 인증서의 유효성이 확인되면 클라이언트는 비밀키를 사용해 암호화된 데이터를 보냄
+- TLS를 활성화하려면 먼저 다음과 같은 인증서 키를 만들어야함
+  - Server.key: 서명하고 공개키를 인증하기 위한 RSA rodlszl
+  - server.pem/server.crt: 배포를 위해 자체 서명된 X.509 공개키
+- RSA는 공개키가 데이터를 암호화하는데 사용되고 개인키를 사용해 데이터를 복호화함 공개키로 암호화된 메시지는 개인키를 사용해 적절한 시간 안에만 복호화 가능
+- 키를 생성에는 OpenSSL 도구를 사용할 수 있음
+
+#### gRPC 서버에서 단방향 보안 연결 사용
+
+- 단방향 보안은 클라와 서버 사이 통신을 암호화하는 가장 간단한 방법
+- 서버는 공개키/개인키 쌍으로 초기화해야함
+
+
+
+#### gRPC 클라이언트에서 단방향 보안 연결 사용
+
+- 단방향 TLS에서는 서버의 자격만 인증함
+
+
+
 ### mTLS 보안 연결 활성화
+
+- 클라와 서버간 mTLS 연결의 주요 목적은 서버에 연결하는 클라를 제어하는 것
+- 단방향 TLS 연결과 달리 서버는 검증된 클라의 제한된 그룹에서의 연결만을 수락하도록 구성됨
+- 공개인증서를 서로 공유하고 유효성을 검사함
+- 연결의 기본 흐름
+  - 클라는 서버의 보호된 정보에 액세스하기 위하 요청을 보냄
+  - 서버는 X.509 인증서를 클라로 보냄
+  - 클라는 CA 서명 인증서에 대해 CA를 통해 수신된 인증서의 유효성을 검사함
+  - 확인에 성공하면 클라는 인증서를 서버로 보냄
+  - 서버도 CA를 통해 클라 인승서를 검증
+  - 성공하면 서버는 보호된 데이터에 액세스할 수 있는 권한을 부여함
+- 다음과 같은 키와 인증서를 갖고 있어야함
+  - server.key: 서버의 RSA 개인키
+  - server.crt : 서버의 공개 인증서
+  - client.key : 클라이언트의 RSA 개인키
+  - client.crt : 클라이언트의 공개 인증서
+  - ca.crt : 모든 공개 인증서를 서명하는 데 사용되는 CA의 공개 인증서
+
+#### gRPC 서버에서 mTLS 활성화
+
+```java
+package ecommerce;
+
+import io.grpc.Server;
+import io.grpc.netty.GrpcSslContexts;
+import io.grpc.netty.NettyServerBuilder;
+import io.netty.handler.ssl.ClientAuth;
+
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Paths;
+import java.util.logging.Logger;
+
+public class ProductInfoServer {
+
+    private static final Logger logger = Logger.getLogger(ProductInfoServer.class.getName());
+
+    private Server server;
+
+    private void start() throws IOException {
+        File certFile = Paths.get("mutual-tls-channel", "certs", "server.crt").toFile();
+        File keyFile = Paths.get("mutual-tls-channel", "certs", "server.pem").toFile();
+        File caFile = Paths.get("mutual-tls-channel", "certs", "ca.crt").toFile();
+        /* The port on which the server should run */
+        int port = 50051;
+        server = NettyServerBuilder.forPort(port)
+                .addService(new ProductInfoImpl())
+                .sslContext(GrpcSslContexts.forServer(certFile, keyFile)
+                        .trustManager(caFile)
+                        .clientAuth(ClientAuth.OPTIONAL)
+                        .build())
+                .build()
+                .start();
+        logger.info("Server started, listening on " + port);
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            // Use stderr here since the logger may have been reset by its JVM shutdown hook.
+            logger.info("*** shutting down gRPC server since JVM is shutting down");
+            ProductInfoServer.this.stop();
+            logger.info("*** server shut down");
+        }));
+    }
+
+    private void stop() {
+        if (server != null) {
+            server.shutdown();
+        }
+    }
+
+    /**
+     * Await termination on the main thread since the grpc library uses daemon threads.
+     */
+    private void blockUntilShutdown() throws InterruptedException {
+        if (server != null) {
+            server.awaitTermination();
+        }
+    }
+
+    /**
+     * Main launches the server from the command line.
+     */
+    public static void main(String[] args) throws IOException, InterruptedException {
+        final ProductInfoServer server = new ProductInfoServer();
+        server.start();
+        server.blockUntilShutdown();
+    }
+
+}
+```
+
+#### gRPC 클라이언트에서 mTLS 활성화
+
+```java
+package ecommerce;
+
+import io.grpc.ManagedChannel;
+import io.grpc.netty.GrpcSslContexts;
+import io.grpc.netty.NettyChannelBuilder;
+import io.netty.handler.ssl.SslContext;
+
+import java.io.File;
+import java.nio.file.Paths;
+import java.util.logging.Logger;
+import javax.net.ssl.SSLException;
+
+/**
+ * gRPC client sample for productInfo service.
+ */
+public class ProductInfoClient {
+
+    private static final Logger logger = Logger.getLogger(ProductInfoClient.class.getName());
+
+    public static void main(String[] args) throws SSLException {
+        File caFile = Paths.get("mutual-tls-channel", "certs", "ca.crt").toFile();
+        File certFile = Paths.get("mutual-tls-channel", "certs", "client.crt").toFile();
+        File keyFile = Paths.get("mutual-tls-channel", "certs", "client.pem").toFile();
+        SslContext sslContext = GrpcSslContexts.forClient().trustManager(caFile)
+                .keyManager(certFile, keyFile).build();
+        ManagedChannel channel = NettyChannelBuilder.forAddress("localhost", 50051)
+                .useTransportSecurity()
+                .sslContext(sslContext)
+                .build();
+
+        ProductInfoGrpc.ProductInfoBlockingStub stub =
+                ProductInfoGrpc.newBlockingStub(channel);
+
+        ProductInfoOuterClass.ProductID productID = stub.addProduct(
+                ProductInfoOuterClass.Product.newBuilder()
+                        .setName("Samsung S10")
+                        .setDescription("Samsung Galaxy S10 is the latest smart phone, " +
+                                "launched in February 2019")
+                        .setPrice(700.0f)
+                        .build());
+        logger.info("Product ID: " + productID.getValue() + " added successfully.");
+
+        ProductInfoOuterClass.Product product = stub.getProduct(productID);
+        logger.info("Product: " + product.toString());
+        channel.shutdown();
+    }
+}
+```
+
+
 
 ## gRPC 호출 인증
 
+- 발신자 확인을 용이하게 하고자 gRPC는 클라가 모든 호출에 자신의 자격 증명을 주입할 수 있는 기능을 제공함
+- gRPC 서버는 클라의 요청을 가로채서 모든 수신 통신에서 이 자격증명을 확인할 수 있음
+
+
+
 ### 베이직 인증 사용
+
+- 가장 간단한 인증 메커니즘
+- 인코딩된 문자열 username:password 값을 가진 Authorization 헤더로 요청을 보냄
+- 일반적으로 gRPC는 서비스 인증에 사용자명/비밀번호 사용을 권장하지 않음 이유는 유효기간을 지정할 수 없고 비밀번호를 변경하기 전까지 계속 유효함
+- 만약 앱에서 베이직 인증을 활엇ㅇ화해야 하는 경우 클라와 서버 간의 보안 연결을 사용해서 기본 자격 증명을 공유해야함
+
+```java
+package ecommerce;
+
+import io.grpc.Context;
+import io.grpc.Contexts;
+import io.grpc.Metadata;
+import io.grpc.ServerCall;
+import io.grpc.ServerCallHandler;
+import io.grpc.ServerInterceptor;
+import io.grpc.Status;
+
+import java.util.Base64;
+import java.util.logging.Logger;
+
+import static io.grpc.Metadata.ASCII_STRING_MARSHALLER;
+
+public class BasicAuthInterceptor implements ServerInterceptor {
+
+    private static final ServerCall.Listener NOOP_LISTENER = new ServerCall.Listener() {
+    };
+    private static final String ADMIN_USER_CREDENTIALS = "admin:admin";
+    private static final Context.Key<String> USER_ID_CTX_KEY = Context.key("userId");
+    private static final String ADMIN_USER_ID = "admin";
+    private static final Logger logger = Logger.getLogger(BasicAuthInterceptor.class.getName());
+
+    @Override
+    public <ReqT, RespT> ServerCall.Listener<ReqT> interceptCall(ServerCall<ReqT, RespT> call, Metadata headers, ServerCallHandler<ReqT, RespT> next) {
+        String basicAuthString = headers.get(Metadata.Key.of("authorization", ASCII_STRING_MARSHALLER));
+        if (basicAuthString == null) {
+            call.close(Status.UNAUTHENTICATED.withDescription("Basic authentication value is missing in Metadata"),
+                    headers);
+            return NOOP_LISTENER;
+        }
+        if (validUser(basicAuthString)) {
+            Context ctx = Context.current().withValue(USER_ID_CTX_KEY, ADMIN_USER_ID);
+            return Contexts.interceptCall(ctx, call, headers, next);
+        } else {
+            logger.info("Verification failed - Unauthenticated!");
+            call.close(Status.UNAUTHENTICATED.withDescription("Invalid basic credentials"), headers);
+            return NOOP_LISTENER;
+        }
+    }
+
+    private boolean validUser(String basicAuthString) {
+        if (basicAuthString == null) {
+            return false;
+        }
+        String token = basicAuthString.substring("Basic ".length()).trim();
+        byte[] byteArray = Base64.getDecoder().decode(token.getBytes());
+        return ADMIN_USER_CREDENTIALS.equals(new String(byteArray));
+    }
+}
+```
+
+
+
+```java
+package ecommerce;
+
+import io.grpc.CallCredentials;
+import io.grpc.Metadata;
+import io.grpc.Status;
+
+import java.util.Base64;
+import java.util.concurrent.Executor;
+
+public class BasicCallCredentials extends CallCredentials {
+
+    private final String credentials;
+
+    public BasicCallCredentials(String username, String password) {
+        this.credentials = username + ":" + password;
+    }
+
+    @Override
+    public void applyRequestMetadata(RequestInfo requestInfo, Executor executor, MetadataApplier applier) {
+        executor.execute(() -> {
+            try {
+                Metadata headers = new Metadata();
+                Metadata.Key<String> authKey = Metadata.Key.of("authorization", Metadata.ASCII_STRING_MARSHALLER);
+                headers.put(authKey, "Basic " + Base64.getEncoder().encodeToString(credentials.getBytes()));
+                applier.apply(headers);
+            } catch (Throwable e) {
+                applier.fail(Status.UNAUTHENTICATED.withCause(e));
+            }
+        });
+    }
+
+    @Override
+    public void thisUsesUnstableApi() {
+
+    }
+}
+```
+
+
+
+
 
 ### OAuth 2.0 사용
 
+- OAuth 2.0은 액세스 위임을 위한 프레임워크, 사용자가 사용자명과 비밀번호 모두를 제공하지 않고 서비스에 대한 제한된 액세스 권한을 부여받을 수 있음
+- OAuth 처리에는 클라이언트, 권한 서버, 리소스서버, 리소스 소유자의 네가지 역할이 있음 클라는 리소스 서브의 리소스에 액세스하려고 함. 리소스에 액세스하려면 클라가 권한 서버에서 토큰을 가져와야함. 이 토큰은 적절한 길이여야 하며 예측할 수 없어야함. 클라가 토큰을 받으면 클라는 토큰을 사용해 리소스 서버에 요청을 보낼 수 있음. 그런 다음 리소스 서버는 해당 권한 서버와 통신해 토큰의 유효성을 검증함. 해당 리소스 소유자가 유효성을 검증하면 클라이언트가 자원에 액세스할 수 있게 됨
+- gRPC는 애플리케이션에서 OAuth2.0을 적용하기 위한 기본 지원 기능을 갖고 있음
+- 자바예제는 없음
+- 인터셉터를 사용해 모든 RPC에 대한 토큰 유효성을 검사할 수 있음
+
+
+
 ### JWT 사용
+
+- JWT는 클라와 서버 사이 신원 정보 전송용 컨테이너를 정의함
+- JWT는 자체 포함 액세스토큰으로 사용될 수 있어 서버 유효성 검사에서 인증될 수 있음
+- 클라가 서버에 요청하면 인증 서버는 클라의 자격증명을 확인하고 JWT를 작성한 후 클라에게 보냄. JWT가 있는 클라는 앱의 리소스에 접근
+- gRPC는 JWT를 기본적으로 지원함
+
+```java
+package ecommerce;
+
+import io.grpc.Context;
+import io.grpc.Contexts;
+import io.grpc.Metadata;
+import io.grpc.ServerCall;
+import io.grpc.ServerCallHandler;
+import io.grpc.ServerInterceptor;
+import io.grpc.Status;
+
+import java.util.Base64;
+import java.util.logging.Logger;
+
+import static io.grpc.Metadata.ASCII_STRING_MARSHALLER;
+
+public class TokenAuthInterceptor implements ServerInterceptor {
+
+    private static final ServerCall.Listener NOOP_LISTENER = new ServerCall.Listener() {
+    };
+    private static final String ADMIN_USER_TOKEN = "some-secret-token";
+    private static final Context.Key<String> USER_ID_CTX_KEY = Context.key("userId");
+    private static final String ADMIN_USER_ID = "admin";
+    private static final Logger logger = Logger.getLogger(TokenAuthInterceptor.class.getName());
+
+    @Override
+    public <ReqT, RespT> ServerCall.Listener<ReqT> interceptCall(ServerCall<ReqT, RespT> call, Metadata headers, ServerCallHandler<ReqT, RespT> next) {
+        String tokenString = headers.get(Metadata.Key.of("Authorization", ASCII_STRING_MARSHALLER));
+        if (tokenString == null) {
+            call.close(Status.UNAUTHENTICATED.withDescription("Token value is missing in Metadata"),
+                    headers);
+            return NOOP_LISTENER;
+        }
+        if (validUser(tokenString)) {
+            Context ctx = Context.current().withValue(USER_ID_CTX_KEY, ADMIN_USER_ID);
+            return Contexts.interceptCall(ctx, call, headers, next);
+        } else {
+            logger.info("Verification failed - Unauthenticated!");
+            call.close(Status.UNAUTHENTICATED.withDescription("Invalid user token"), headers);
+            return NOOP_LISTENER;
+        }
+    }
+
+    private boolean validUser(String basicAuthString) {
+        if (basicAuthString == null) {
+            return false;
+        }
+        // Perform the token validation here. For the sake of this example, the code
+        // here forgoes any of the usual OAuth2 token validation and instead checks
+        // for a token matching an arbitrary string.
+        String token = basicAuthString.substring("Bearer ".length()).trim();
+        return ADMIN_USER_TOKEN.equals(token);
+    }
+}
+```
+
+
+
+```java
+package ecommerce;
+
+import io.grpc.CallCredentials;
+import io.grpc.Metadata;
+import io.grpc.Status;
+
+import java.util.Base64;
+import java.util.concurrent.Executor;
+
+public class TokenCallCredentials extends CallCredentials {
+
+    private final String credentials;
+
+    TokenCallCredentials(String token) {
+        this.credentials = token;
+    }
+
+    @Override
+    public void applyRequestMetadata(RequestInfo requestInfo, Executor executor, MetadataApplier applier) {
+        executor.execute(() -> {
+            try {
+                Metadata headers = new Metadata();
+                Metadata.Key<String> authKey = Metadata.Key.of("Authorization", Metadata.ASCII_STRING_MARSHALLER);
+                headers.put(authKey, "Bearer " + credentials);
+                applier.apply(headers);
+            } catch (Throwable e) {
+                applier.fail(Status.UNAUTHENTICATED.withCause(e));
+            }
+        });
+    }
+
+    @Override
+    public void thisUsesUnstableApi() {
+
+    }
+}
+```
+
+
 
 ### 구글 토큰 기반 인증 사용
 
+- 사용자를 식별하고 gcp에 배포된 서비스 사용 여부를 결정하는것은  ESP Extensible Server Proxy에 의해 제어됨 
+- ESP는 파이어베이스, 오스제로, 구글 아이디 토큰을 포함한 여러 인증 방법을 지원함
+
+
+
 ## 요약
+
+- 상품 수준의 gRPC 애플리케이션을 구축할 때는 클라와 서버 사이의 보안 통신을 보장하고자 앱들에 최소한의 보안 사항이 요구됨
+- gRPC라이브러리는 다양한 종류의 인증 메커니즘과 함께 작동하도록 설계됐고 커스텀 인증 메커니즘을 추가해 지원을 확장할 수 있음
+- gRPC에는 두가지 유형의 자격증명이 지원되는데 채널과 호출임
+- 채널 자격증명은 TLS 등이 채널에 지정되고 호출 자격증명은 OAuth2.0 토큰, 베이직 인증 등과 같은 호출 자격증명은 호출에 지정됨 이 두 방법을 함께 적용할 수 있음
 
 
 
