@@ -1622,9 +1622,19 @@ public class TokenCallCredentials extends CallCredentials {
 
 ### gRPC 서버 테스트
 
+- gRPC 테스트 케이스는 표준적인 프로그래밍 언어의 테스트 케이스를 기반으로 하기 때문에 실행 방식은 기본적인 테스트 케이스와 다르지 않음 다만 서버 측 gRPC 테스트의 특별한 점은 클라 앱이 연결되는 포트를 서버 앱에서 열어야 한다는 것
+- 위 작업이 싫으면 포트를 안여는 방법도 있음
+-  RPC 네트워크 계층을 거치지 않고 직접 함수를 호출하면 비지니스 로직을 테스트할 수 있음
+
 ### gRPC 클라이언트 테스트
 
+- 자바에서는 모키토사용하면 됨
+- 실제로는 모킹을 통해 일부 선택적인 지능 집합을 검증하고 나머지는 실제 gRPC 서버 구현을 통해 검증되어야 함
+
 ### 부하 테스트
+
+- 기존 도구들은 HTTP와 같은 특정 프로토콜에 다소 제한되어 있기 때문에 부하테스트와 벤치마킹이 쉽지 않음
+- ghz 도구를 사용
 
 ### 지속적인 통합
 
@@ -1652,21 +1662,140 @@ public class TokenCallCredentials extends CallCredentials {
 
 # #8 gRPC 생태계
 
+- 아래는 핵심 gRPC 구현에는 포함되어 있진 않지만 유용한 일부 프로젝트
+
 ## gRPC 게이트웨이 
+
+- gRPC 게이트웨이 플로그인을 사용하면 프로토콜 버퍼 컴파일러가 gRPC 서비스 정의를 읽고 리버스 프록시 서버를 생성하는데 이 서버는 REST api를 gRPC로 변환함
+- golang만 가능한듯?
+- gRPC 서비스의 각 원격 메서드에 대해 REST API를 노출하고 REST 클라이언트의 HTTP 요청을 수락하는 리버스 프록시 서비스를 생성함
+- 프록시가 HTTP 요청을 받으면 gRPC로 변환해 원격 메서드를 호출하는 방식
+
+```protobuf
+syntax = "proto3";
+
+import "google/protobuf/wrappers.proto";
+import "google/api/annotations.proto";
+
+package ecommerce;
+
+service ProductInfo {
+    rpc addProduct(Product) returns (google.protobuf.StringValue) {
+        option (google.api.http) = {
+            post: "/v1/product"
+            body: "*"
+        };
+    }
+    rpc getProduct(google.protobuf.StringValue) returns (Product) {
+         option (google.api.http) = {
+             get:"/v1/product/{value}"
+         };
+    }
+}
+
+message Product {
+    string id = 1;
+    string name = 2;
+    string description = 3;
+    float price = 4;
+}
+
+```
+
+- HTTP 리소스에 매핑할때 알아야할 중요한 규칙
+  - 각 매핑은 URL 경로 템플릿과 HTTP메서드를 지정함
+  - 경로 템플릿은 gRPC 요청 메시지에 하나 이상의 필드를 포함할 수 있음 그러나 해당 필드는 기본 타입으로 반복되지 않아야함
+  - 경로 템플릿에 없는 요청 메시지의 모든 필드는 HTTP 요청 본문이 없는 경우에 자동으로 HTTP 쿼리 파라미터가 됨
+  - URL 쿼리 파라미터에 매피오디는 필드는 기본 타입이거나 기본 타입의 반복 또는 반복되지 않는 메시지 타입이어야함
+  - 쿼리 파라미터에서 반복되는 필드 타입의 경우 url에서 ...?param=A&param=B 와 같이 파라미터가 반복됨
+  - 쿼리 파라미터의 메시지 타입의 경우 메시지 각 필드는 ...?foo.a=A&foo.b=B 와 같은 별도의 파라미터로 매핑됨
+- 별도로 필요한 라이브러리가 있을 수 있음
+- 빌드로 나오는 스텁외에도 REST 클라이언트 호출 지원용 리버스 프록시 서비스를 작성해야함 Go 컴파일러에서 지원되는 게이트웨이 플러고인으로 생성할 수 있음
+
+
 
 ## gRPC를 위한 HTTP/JSON 트랜스코딩
 
+- 트랜스코딩은 HTTP JSON 호출을 RPC 호출로 변환하고 gRPC 서비스에 전달하는 프로세스로 클라이언트 애플리케이션이 gRPC를 지원하지 않고 HTTP 기반 JSONdmf xhdgo gRPC 서비스와 통신할 수 있는 액세스를 제공해야 할 때에 유용함
+- 이스티오와 구글 클라우드 엔드포인트에서 사용됨 엔보이 프록시도 트랜스코딩을 지원함
+- gRPC 게이트웨이와 마찬가지로 서비스 정의에 gRPC 서비스에 대한 HTTP 매핑을 제공해야함
+
+```protobuf
+    rpc getProduct(google.protobuf.StringValue) returns (Product) {
+         option (google.api.http) = {
+             get:"/v1/product/{value}"
+         };
+    }
+```
+
+- http://localhost:8081/v1/product/2 로 호출하면 원격 메서드로 변환됨
+
+
+
 ## gRPC 서버 리플렉션 프로토콜
+
+- 서버 리플렉션은 gRPC 서버에서 정의된 서비스로, 해당 서버에서 공개적으로 액세스 가능한 gRPC 서비스의 정보를 제공함.
+- 서버에 등록된 서비스의 서비스 정의를 클라 앱에 제공하는 것 따라서 클라는 서비스와 통신하고자 미리 컴파일된 서비스 정의가 필요하지 않음
+- 서비스 리플렉션을 사용하려면 서버에서 활성화해야함
 
 ## gRPC 미들웨어
 
+- 일반적으로 미들웨어는 분산 시스템의 소프트웨어 구성 요소, 클라가 생성한 요청을 백엔드 서버로 라우팅하고자 다른 구성 요소를 연결하는데 사용됨
+- gRPC 미들웨어는 인터셉터 개념을 기반으로 함
+- 일반적인 패턴에 재사용할 수 있는 인터셉터 목록
+  - 인증
+    - grpc_auth: AuthFunc를 통해 커스터마이징 가능한 인증 미들웨어
+  - 로깅
+    - grpc_ctxtags
+      - 요청 본문에서 데이터가 채워지는 콘텍스트에 태그 맵을 추가하는 라이브러리
+    - grpc_zap
+      - 젭 로깅 라이브러리를 gRPC 핸들러에 통합
+    - grpc_logrus
+      - 로그러스 로깅 라이브러리를 gRPC 핸들러에 통합
+  - 모니터링
+    - grpc_prometheus
+      - 프로메테우스 클라이언트와 서버 측 모니터링 미들웨어
+    - grpc_opentracing
+      - 스트리밍과 핸들러 반환 태그를 지원하는 오픈트레이싱 클라이언트와 서버 측 인터셉터
+  - 클라이언트
+    - grpc_retry
+      - 일반적인 gRPC 응답 코드 재시도 매커니즘, 클라이언트 측 미들웨어
+  - 서버
+    - grpc_validator
+      - .proto 옵션의 Codegen 인바운드 메시지 유효성 검사
+    - grpc_recovery
+      - 패닉을 gRPC 에러로 변경
+    - ratelimit
+      - 리미터에 의한 gRPC 속도 제한
+
+
+
 ## 상태 확인 프로토콜
 
+- gRPC는 gRPC 서비스가 서버 상태를 노출해 소비자가 서버의 상태 정보를 조사할 수 있게 하는 상태 확인 프로토콜정의함
+- 서버의 상태는 서버가 RPC를 처리할 준비가 되지 않았거나 상태 프로브 요청에 전혀 응답하지 않을 때 비정상 상태로 응답하는지 판별함
+- 상태 확인 서비스의 구현은 기존의 gRPC 서비스와 매우 유사
+- gRPC 상태 확인 프로토콜에서 알아야할 핵심 사항
+  - 서버에 등록된 각 서비스의 상태를 제공하려면 모든 서비스와 서버 상태를 수동으로 등록해야함. 빈 서비스 이름으로 서버의 전체 상태를 설정할 필요도 있음
+  - 클라의 각 상태 확인 요청에는 데드라인이 설정되어 있어야함. 그래야 데드라인 내에 RPC 가 완료되지 않았을때 비정상으로 판단 가능
+  - 각 상태 확인 요청에 대해 클라는 서비스 이름을 지정하거나 비어있는 것으로 설정할 수 있음
+  - 서버 리지스트리에 서비스가 없으면 서버는 NOT_FOUND로 응답해야함
+  - 클라가 서버의 전체 상태를 조회해야 하는 경우 클라는 빈 문자열 값으로 요청을 보내 서버가 서버의 전체 상태로 다시 응답하게 함
+  - 서버에 상태 확인 api가 없으면 클라가 자체적으로 처리해야함
+- 상태확인 서비스는 LB, 프록시와 같은 중간 서브시스템에서 사용됨
+
 ## gRPC 상태 프로브
+
+- grpc_health_probe는 gRPC 상태 점검 프로토콜을 통해 서버 상태를 서비스로 노출해 서버의 상태를 확인하는 커뮤니티 제공 유틸리티임
 
 ## 다른 생태계 프로젝트
 
 ## 요약
+
+- gRPC 생태계 프로젝트는 핵심 gRPC 구현의 일부는 아니지만 실제적인 gRPC 애플리케이션을 구축하고 실행하는데 매우 유용함
+- 이 프로젝트들은 gRPC를 사용해 서비스 수준 시스템을 구축할 때 발생하는 문제나 제한을 극복하고자 gRPC를 중심으로 구축됨
+
+
 
 
 
