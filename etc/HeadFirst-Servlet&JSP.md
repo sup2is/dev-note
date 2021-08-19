@@ -118,9 +118,72 @@
 - 컨테이너는 요청을 처리할 새로운 스레드를 시작하고 서블릿의 service() 메서드에 Request 객체 참조를 인자로 넘김
 - 스레드가 완료되면 클라이언트에게 응답을 보냄.
 
+**서블릿 코드**
+
+```java
+package com.example.web;
+
+import javax.servlet.ServletException;
+import javax.servlet.http.HttpServlet;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import java.io.IOException;
+import java.io.PrintWriter;
+
+public class BeerSelect extends HttpServlet {
+
+    private static final long serialVersionUID = -3027477011419869612L;
+
+    @Override
+    protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
+        resp.setContentType("text/html");
+        PrintWriter out = resp.getWriter();
+        out.println("Beer Selection Advice<br>");
+        String c = req.getParameter("color");
+        out.println("<br>Got beer color " + c);
+    }
+}
+
+```
 
 
 
+- `Servlet`(interface) <- `GenericServlet` <- `HttpServlet`
+
+- `Servlet`의 메서드들
+
+  - `void init(ServletConfig config) throws ServletException`
+    - 서블릿이 서비스에 배치되고 있음을 서블릿에 나타내기 위해 서블릿 컨테이너에 의해 호출됨
+    - 서블릿 컨테이너는 서블릿을 인스턴스화한 후 정확히 한 번 init 메서드를 호출함
+    - 서블릿이 요청을 수신하려면 init() 메서드가 성공적으로 완료되어야함
+  - `ServletConfig getServletConfig()`
+    - 초기화에 사용된 `ServletConfig` 객체를 반환함
+    - `GenericServlet` 클래스에서 구현했음
+  - ` void service(ServletRequest req, ServletResponse res) throws ServletException, IOException`
+    - 서블릿이 요청에 응답할 수 있도록 서블릿 컨테이너에 의해 호출됨
+    - 응답의 상태 코드는 오류를 던지거나 보내는 서블릿에 대해 항상 설정되어야 함
+    - 서블릿은 일반적으로 여러 요청을 동시에 처리할 수 있는 다중 스레드 서블릿 컨테이너 내에서 실행됨
+    - 개발자는 파일, 네트워크 연결, 서블릿의 클래스 및 인스턴스 변수와 같은 공유 리소스에 대한 액세스를 동기화해야 한다는 사실을 알고 있어야함
+  - `String getServletInfo()`
+    - 작성자, 버전 및 저작권과 같은 서블릿에 대한 정보를 반환함
+    - 이 메서드가 반환하는 문자열은 html, xml 등의 마크업이 아닌 일반 텍스트여야함
+  - `void destroy()`
+    - 서블릿이 서비스에서 제외되고 있음을 서블릿에 나타내기 위해 서블릿 컨테이너에 의해 호출됨.
+    - 이 메서드는 서블릿의 서비스 메서드 내의 모든 스레드가 종료되거나 시간 초과 기간이 경과한 후에만 호출됨
+    - 서블릿 컨테이너가 이 메서드를 호출한 후에는 이 서블릿에서 서비스 메서드를 다시 호출하지 않음
+    - 이 방법은 서블릿이 보유하고 있는 리소스를 정리할 기회를 제공하고 모든 영구 상태가 메모리에서 서블릿의 현재 상태와 동기화되도록 함
+
+- [https://docs.oracle.com/javaee/7/api/javax/servlet/Servlet.html%20void%20init(ServletConfig%20config)%20throws%20ServletException%20getServletConfig](https://docs.oracle.com/javaee/7/api/javax/servlet/Servlet.html%20void%20init(ServletConfig%20config)%20throws%20ServletException%20getServletConfig)
+
+  
+
+  
+
+  
+
+  
+
+  
 
 
 
