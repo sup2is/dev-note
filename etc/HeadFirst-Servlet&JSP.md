@@ -85,12 +85,12 @@
   metadata-complete="true">
 
   <servlet>
-    <servlet-name>Ch3 Beer></servlet-name>
+    <servlet-name>Ch3 Beer</servlet-name>
     <servlet-class>com.example.web.BeerSelect</servlet-class>
   </servlet>
 
   <servlet-mapping>
-    <servlet-name>Ch3 Beer></servlet-name>
+    <servlet-name>Ch3 Beer</servlet-name>
     <url-pattern>/SelectionBeer.do</url-pattern>
   </servlet-mapping>
 
@@ -149,7 +149,6 @@ public class BeerSelect extends HttpServlet {
 
 
 - `Servlet`(interface) <- `GenericServlet` <- `HttpServlet`
-
 - `Servlet`의 메서드들
 
   - `void init(ServletConfig config) throws ServletException`
@@ -172,18 +171,158 @@ public class BeerSelect extends HttpServlet {
     - 이 메서드는 서블릿의 서비스 메서드 내의 모든 스레드가 종료되거나 시간 초과 기간이 경과한 후에만 호출됨
     - 서블릿 컨테이너가 이 메서드를 호출한 후에는 이 서블릿에서 서비스 메서드를 다시 호출하지 않음
     - 이 방법은 서블릿이 보유하고 있는 리소스를 정리할 기회를 제공하고 모든 영구 상태가 메모리에서 서블릿의 현재 상태와 동기화되도록 함
-
 - [https://docs.oracle.com/javaee/7/api/javax/servlet/Servlet.html%20void%20init(ServletConfig%20config)%20throws%20ServletException%20getServletConfig](https://docs.oracle.com/javaee/7/api/javax/servlet/Servlet.html%20void%20init(ServletConfig%20config)%20throws%20ServletException%20getServletConfig)
 
-  
+> HttpServlet.java의 service() 구현
+>
+> ```java
+> protected void service(HttpServletRequest req, HttpServletResponse resp)
+>         throws ServletException, IOException
+>     {
+>         String method = req.getMethod();
+> 
+>         if (method.equals(METHOD_GET)) {
+>             long lastModified = getLastModified(req);
+>             if (lastModified == -1) {
+>                 // servlet doesn't support if-modified-since, no reason
+>                 // to go through further expensive logic
+>                 doGet(req, resp);
+>             } else {
+>                 long ifModifiedSince = req.getDateHeader(HEADER_IFMODSINCE);
+>                 if (ifModifiedSince < lastModified) {
+>                     // If the servlet mod time is later, call doGet()
+>                     // Round down to the nearest second for a proper compare
+>                     // A ifModifiedSince of -1 will always be less
+>                     maybeSetLastModified(resp, lastModified);
+>                     doGet(req, resp);
+>                 } else {
+>                     resp.setStatus(HttpServletResponse.SC_NOT_MODIFIED);
+>                 }
+>             }
+> 
+>         } else if (method.equals(METHOD_HEAD)) {
+>             long lastModified = getLastModified(req);
+>             maybeSetLastModified(resp, lastModified);
+>             doHead(req, resp);
+> 
+>         } else if (method.equals(METHOD_POST)) {
+>             doPost(req, resp);
+>             
+>         } else if (method.equals(METHOD_PUT)) {
+>             doPut(req, resp);
+>             
+>         } else if (method.equals(METHOD_DELETE)) {
+>             doDelete(req, resp);
+>             
+>         } else if (method.equals(METHOD_OPTIONS)) {
+>             doOptions(req,resp);
+>             
+>         } else if (method.equals(METHOD_TRACE)) {
+>             doTrace(req,resp);
+>             
+>         } else {
+>             //
+>             // Note that this means NO servlet supports whatever
+>             // method was requested, anywhere on this server.
+>             //
+> 
+>             String errMsg = lStrings.getString("http.method_not_implemented");
+>             Object[] errArgs = new Object[1];
+>             errArgs[0] = method;
+>             errMsg = MessageFormat.format(errMsg, errArgs);
+>             
+>             resp.sendError(HttpServletResponse.SC_NOT_IMPLEMENTED, errMsg);
+>         }
+>     }
+> ```
 
-  
+- `ServletRequest` <- `HttpServletRequest`
+  - 서블릿에 클라이언트 요청 정보를 제공하는 개체를 정의함
+  - 서블릿 컨테이너는 `ServletRequest` 객체를 생성하고 이를 서블릿의 서비스 메서드에 인수로 전달함
+  - `ServletRequest` 객체는 매개변수 이름과 값, 속성 등을 포함한 데이터를 제공함
+  - `ServletRequest` 를 확장하는 인터페이스는 추가 프로토콜별 데이터를 제공할 수 있음 ex Http -> `HttpServletRequest`
+  - [https://docs.oracle.com/javaee/7/api/javax/servlet/ServletRequest.html](https://docs.oracle.com/javaee/7/api/javax/servlet/ServletRequest.html)
+- `ServletResponse` <- `HttpServletResponse`
+  - 클라이언트에 응답을 보낼 때 서블릿을 지원하는 개체를 정의함
+  - 서블릿 컨테이너는 `ServletResponse` 객체를 생성하고 이를 서블릿의 서비스 메서드에 인수로 전달함
+  - 문자는 `getWriter()`, binary는 `getOutPutStream()` 사용
+  - [https://docs.oracle.com/javaee/7/api/javax/servlet/ServletResponse.html](https://docs.oracle.com/javaee/7/api/javax/servlet/ServletResponse.html)
 
-  
 
-  
 
-  
+## 초간단 MVC ver.2
+
+```java
+package com.example.model;
+
+import java.util.ArrayList;
+import java.util.List;
+
+public class BeerExpect {
+    public List<String> getBrands(String color) {
+        ArrayList<String> brands = new ArrayList<>();
+
+        if(color.equals("red")) {
+            brands.add("red rock");
+        } else if (color.equals("blue")) {
+            brands.add("blue moon");
+        } else {
+            brands.add("cass");
+            brands.add("tera");
+        }
+
+        return brands;
+    }
+}
+
+```
+
+
+
+```java
+package com.example.web;
+
+import com.example.model.BeerExpect;
+
+import javax.servlet.ServletException;
+import javax.servlet.annotation.WebServlet;
+import javax.servlet.http.HttpServlet;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.util.List;
+
+public class BeerSelect extends HttpServlet {
+
+    private static final long serialVersionUID = -3027477011419869612L;
+
+    @Override
+    protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
+
+        String c = req.getParameter("color");
+        BeerExpect be = new BeerExpect();
+        List<String> brands = be.getBrands(c);
+
+        resp.setContentType("text/html");
+        PrintWriter out = resp.getWriter();
+        out.println("Beer Selection Advice<br>");
+
+        for (String brand : brands) {
+            out.println("<br>try: " + brand);
+        }
+    }
+}
+```
+
+- 작업 흐름
+  - 브라우저가 컨테이너에게 요청을 보냄
+  - 컨테이너는 url이 올바른 서블릿을 호출할 것인지를 판단한 다음, 요청을 서블릿으로 넘김
+  - 서블릿은 `BeerExpert`에게 도움을 요청
+  - 서블릿이 `Response` 객체에 쓰기 작업을 함
+  - 컨테이너는 페이지를 클라이언트로 보냄
+
+
 
 
 
@@ -202,16 +341,74 @@ public class BeerSelect extends HttpServlet {
   5. 서블릿은 클라이언트에게 응답을 작성하기 위해 Response 객체를 사용함. 이 작업을 완료하면, Response에 대한 제어는 컨테이너에게 넘어감
   6. service() 메서드가 끝나면, 스레드를 소멸하거나 아니면 컨테이너가 관리하는 스레드 풀로 돌려 보냄. 그 다음 Request와 Response객체는 가비지 컬렉션이 될 준비를 할 것이며, 이 객체에 대한 참조는 이제 범위를 벗어나기에 사라짐. 마지막으로 클라는 서버로부터 응답을 받게 됨
 
+## 초간단 MVC ver.3
+
+```java
+<%@ page import="java.util.List" %>
+
+<html>
+<body>
+<h1 align="center">Beer Recommendations</h1>
+
+<p>
+    <%
+        List<String> brands = (List<String>) request.getAttribute("brands");
+        for (String brand : brands) {
+            out.println("<br>try: " + brand);
+        }
+    %>
+
+</p>
+</body>
+</html>
+
+```
 
 
 
+```java
+package com.example.web;
+
+import com.example.model.BeerExpect;
+
+import javax.servlet.RequestDispatcher;
+import javax.servlet.ServletException;
+import javax.servlet.annotation.WebServlet;
+import javax.servlet.http.HttpServlet;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.util.List;
+
+public class BeerSelect extends HttpServlet {
+
+    private static final long serialVersionUID = -3027477011419869612L;
+
+    @Override
+    protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
+
+        String c = req.getParameter("color");
+        BeerExpect be = new BeerExpect();
+        List<String> brands = be.getBrands(c);
+
+        resp.setContentType("text/html");
+        PrintWriter out = resp.getWriter();
+        out.println("Beer Selection Advice<br>");
+
+//        for (String brand : brands) {
+//            out.println("<br>try: " + brand);
+//        }
+
+        req.setAttribute("brands", brands);
+
+        RequestDispatcher view = req.getRequestDispatcher("result.jsp");
+        view.forward(req, resp);
+    }
+}
+```
 
 
-
-
-**References**
-
-- [https://developer.mozilla.org/ko/docs/Web](https://developer.mozilla.org/ko/docs/Web)
 
 # #5 웹 애플리케이션이 되어보자
 
