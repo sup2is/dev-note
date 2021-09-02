@@ -217,15 +217,102 @@
 
 ## #6 함수형 프로그래밍
 
+- 함수형 패러다임에서 핵심이 되는 기반은 람다 계산법으로 알론조 처치가 1930년대에 발명했음
+
 ### 정수를 제곱하기
+
+- 자바의 0부터 25까지 정수 제곱을 출력하는 프로그램
+
+```java
+public class Squint {
+  public static void main(String args[]) {
+    for (int i = 0; i < 25; i ++) {
+      System.out.println(i * i);
+    }
+  }
+}
+```
+
+- LISP에서 클로저를 이용하는 프로그램
+
+```lisp
+(println (take 25 (map (fn [x] (* x x)) (range))))
+```
+
+- 가장 안쪽부터 호출 함수 설명
+  - range함수는 0부터 시작해서 끝이 없는 정수 리스트를 반환
+  - 반환된 정수 리스트는 map 함수로 전달되고, 각 정수에 대해 제곱을 계싼하는 익명 함수를 호출하여, 모든 정수의 제곱에 대해 끝이 없는 리스트를 생성
+  - 제곱된 리스트는 take 함수로 전달되고, 이 함수는 앞의 25개까지의 항목으로 구성된 새로운 리스트를 반환
+  - println함수는 입력 값을 출력하는데 이 경우 입력은 앞의 25개의 정수에 대한 제곱 값으로 구성된 리스트
+- 끝이 없는 리스트라고 표현했지만 실제로 접근하기 전까지는 생성하지 않음
+
+
+
+- 자바에서는 가변 변수를 사용하지만 클로저 프로그램에서는 불변 변수만 사용함
+- 함수형 언어에서 변수는 변경되지 않음
 
 ### 불변성과 아키텍처
 
+- race condition, deadlock, concurrent update 문제는 모두 가변 변수로 인해 발생함
+- 만약 어떠한 변수도 갱신되지 않는다면 race condition, concurrent update 은 일어나지 않고 lock도 가변이 아니라면 deadlock이 일어나지 않음
+- 다수의 스레드와 프로세스를 사용하는 애플리케이션에서 마주치는 모든 문제는 가변변수가 없다면 절대로 생기지 않음
+- 아키텍트라면 동시성 문제에 지대한 관심을 가져야만 함
+- 불변성은 저장 공간이 무한하고 프로세서의 속도가 무한히 빠를때 실현 가능함. 만약 아니라면 어느정도 타협을해서 불변성을 실현할 수 있음
+
 ### 가변성의 분리
+
+- 불변성과 관련해서 가장 주요한 타협중 하나는 서비스 내부의 가변 컴포넌트와 불변 컴포넌트로 분리하는 일임
+- 불변 컴포넌트는 가변 변수를 사용하지 않고 1개 이상의 다른 컴포넌트와 서로 통신함
+- 상태변경은 컴포넌트를 갖가지 동시성 문제에 노출하는 꼴이므로 흔히 트랜잭션 메모리와 같은 실천법을 사용하여 동시 업데이트와 경합 조건 문제로부터 가변 변수를 보호함
+
+> 트랜잭션 메모리
+>
+> **트랜잭셔널 메모리**(transactional memory)는 불러오기와 저장하기 명령의 집합이 [원자적](https://ko.wikipedia.org/wiki/원자성) 방법으로 실행할 수 있게 함으로써 [병행성 프로그래밍](https://ko.wikipedia.org/wiki/병행성_프로그래밍)을 단순하게 하는 방식이다. [병행 컴퓨팅](https://ko.wikipedia.org/wiki/병행_컴퓨팅)에서 [공유 메모리](https://ko.wikipedia.org/wiki/공유_메모리)로의 접근을 제어하기 위한 병행성 제어 방식으로, [데이터베이스 트랜잭션](https://ko.wikipedia.org/wiki/데이터베이스_트랜잭션)과 유사한 [동시성 제어](https://ko.wikipedia.org/w/index.php?title=동시성_제어&action=edit&redlink=1) 구조이다.
+>
+> [https://ko.wikipedia.org/wiki/%ED%8A%B8%EB%9E%9C%EC%9E%AD%EC%85%94%EB%84%90_%EB%A9%94%EB%AA%A8%EB%A6%AC](https://ko.wikipedia.org/wiki/%ED%8A%B8%EB%9E%9C%EC%9E%AD%EC%85%94%EB%84%90_%EB%A9%94%EB%AA%A8%EB%A6%AC)
+>
+> 예제
+>
+> ```
+> // 이중 연결 리스트에 새 노드를 원자적으로 추가함
+> atomic {
+>     newNode->prev = node;
+>     newNode->next = node->next;
+>     node->next->prev = newNode;
+>     node->next = newNode;
+> }
+> ```
+>
+> **atomic**(원자적)으로 표시된 구역이 끝나면 트랜잭션이 완료된다. 이때 충돌이 없었다면 커밋되고, 있었다면 재시작될것이다. 임계 구역 문법은 또한 종료 조건을 명시할 수도 있다.
+>
+> [https://ko.wikipedia.org/wiki/%EC%86%8C%ED%94%84%ED%8A%B8%EC%9B%A8%EC%96%B4_%ED%8A%B8%EB%9E%9C%EC%9E%AD%EC%85%94%EB%84%90_%EB%A9%94%EB%AA%A8%EB%A6%AC](https://ko.wikipedia.org/wiki/%EC%86%8C%ED%94%84%ED%8A%B8%EC%9B%A8%EC%96%B4_%ED%8A%B8%EB%9E%9C%EC%9E%AD%EC%85%94%EB%84%90_%EB%A9%94%EB%AA%A8%EB%A6%AC)
+
+- 불변, 가변 컴포넌트를 분리하고 가변 변수들을 보호하는 적절한 수단을 동원해 뒷받침해야함
+- 현명한 아키텍트라면 가능한 한 많은 처리를 불변 컴포넌트로 옮겨야 하고 가변 컴포넌트에서는 가능한 한 많은 코드를 빼내야함
+
+
 
 ### 이벤트 소싱
 
+- 이벤트 소싱에 깔려 있는 기본 발상은 상태가 아닌 트랜잭션을 저장하자는 전략임. 상태가 필요해지면 단순히 상태의 시작점부터 모든 트랜잭션을 처리하면됨
+  - 고객 잔고를 관리하는 은행 애플리케이션의 경우 상태가아닌 계좌의 모든 트랜잭션을 저장(write)하고 특정 고객이 잔고를 요청할때마다 저장한 트랜잭션을 모두 처리(read)하면 해당 고객의 잔고를 알 수 있음. but 무한한 저장공간과 무한한 처리능력이 있어야하기 때문에 이런 방식은 불가능함
+- 결과적으로 애플리케이션은 CRUD가 아니라 C or R로만 이루어짐 변경과 삭제가 없다면 동시성 문제가 일어나지 않음
+
+> git의 commit은 불변임 --amend나 rebase로 커밋을 수정하거나 합치는것처럼 보일 수 있지만 git reflog로 확인해보면 실제로 커밋을 수정하는 것이 아닌 새로운 commit을 만들어내는 것을 확인할 수 있음
+>
+> [https://wiki.emulab.net/wiki/everything-you-need-to-unlearn-about-git](https://wiki.emulab.net/wiki/everything-you-need-to-unlearn-about-git)
+>
+> [https://blog.jayway.com/2013/03/03/git-is-a-purely-functional-data-structure/](https://blog.jayway.com/2013/03/03/git-is-a-purely-functional-data-structure/)
+
 ### 결론
+
+- 2부 요약
+  - 구조적 프로그래밍은 제어흐름의 직접적인 전환에 부과되는 규율
+  - 객체 지향 프로그래밍은 제어흐름의 간접적인 전환에 부과되는 규율
+  - 함수형 프로그래밍은 변수 할당에 부과되는 규율
+- 각 패러다임은 코드를 작성하는 방식의 형태를 한정시킴
+- 지난 반 세기동안 우리가 배운것은 해서는 안되는 것에 대해서임.
+- 소프트웨어는 순차, 분기, 반복, 참조로만 구성됨
 
 
 
