@@ -352,7 +352,7 @@ public class Squint {
 
 
 
-![1](/Users/a10300/Choi/Git/dev-note/etc/images/clean-architecture/1.jpeg)
+![1](./images/clean-architecture/1.jpeg)
 
 
 
@@ -403,7 +403,7 @@ public class Squint {
 - 가장 중요한것은 책임을 분리하는 것.
 - 책임을 분리했다면 두 책임중 하나에서 변경이 발생하더라도 다른 하나는 변경되지 않도록 소스 코드 의존성도 확실히 조직화 해야함
 
-![4](/Users/a10300/Choi/Git/dev-note/etc/images/clean-architecture/4.jpeg)
+![4](./images/clean-architecture/4.jpeg)
 
 - 화살표가 A클래스에서 B클래스로 향한다면 A클래스에서는 B 클래스를 호출하지만 B클래스에서는 A클래스를 전혀 호출하지 않음 (전혀 모름)
 - 모든 컴포넌트 관계는 단방향으로 이루어짐 이들 화살표는 변경으로부터 보호하려는 컴포넌트를 향하도록 그려짐
@@ -469,11 +469,31 @@ public class Squint {
 
 ## #10 ISP: 인터페이스 분리 원칙
 
+
+
+![8](./images/clean-architecture/8.jpeg)
+
+- 다수의 사용자가 OPS 클래스의 오퍼레이션을 사용하는데 User1은 op1, User2는 op2, User3은 op3만을 사용한다고 가정
+- OPS가 정적 타입언어인 경우 User1에서는 op2와 op3를 전혀 사용하지 않음에도 소스코드는 두 메서드에 의존함
+- 이런 경우 ISP를 사용해서 해결 가능
+
+![7](./images/clean-architecture/7.jpeg)
+
+- User1은 U1Ops에 의존하지만 OPS는 직접적으로 의존하지 않음
+
 ### ISP와 언어
+
+- ISP는 언어 종류에 따라 영향받는 정도가 큼
+- 동적 타입 언어를 사용하면 정적 타입 언어를 사용할 때보다 유연하며 결합도가 낮은 시스템을 만들 수 있음
 
 ### ISP와 아키텍처
 
+- 일반적으로 필요 이상으로 많은 걸 포함하는 모듈에 의존하는 것은 해로운 일임
+- 아키텍처 수준에서도 마찬가지
+
 ### 결론
+
+- 불필요한 짐을 실은 무언가에 의존하면 예상치도 못한 문제에 빠질 수 있음
 
 
 
