@@ -523,7 +523,7 @@ public class Squint {
 
 - 자바 등 대다수의 객체지향 언어에서는 의존성을 처리할 때 추상 팩토리를 사용곤 함
 
-![9](/Users/a10300/Choi/Git/dev-note/etc/images/clean-architecture/9.jpeg)
+![9](./images/clean-architecture/9.jpeg)
 
 - Application은 Service인터페이스를 통해 ConcreteImpl을 사용하지만, Application은 어떤식으로든 ConcreteImpl을 생성해야 할 때
 - Application을 ServiceFactory에 의존하도록 만들어서 Application에 ConcreteImpl의 존재를 숨길 수 있음
@@ -640,7 +640,7 @@ public class Squint {
 - 컴포넌트를 개발하는 팀은 특정 컴포넌트가 새롭게 릴리즈 되면 다른 팀에 즉각 영향을 주지 않고 컴포넌트를 사용하는 팀은 버저닝되는 컴포넌트의 특정 컴포넌트 버전을 직접 결정할 수 있음
 - 이 방법을 사용하려면 의존성 구조를 반드시 관리해야함. 의존성 구조에 순환이 있어서는 안됨
 
-![11](/Users/a10300/Choi/Git/dev-note/etc/images/clean-architecture/11.jpeg)
+![11](./images/clean-architecture/11.jpeg)
 
 - 위 사진에서 어느 컴포넌트에서 시작하더라도 의존성 관계를 따라가면서 최초의 컴포넌트로 되돌아갈 수 없음. 비순환 방향 그래프(Directed Acyclic Graph, DAG)임
 - Main의 존재를 아무도 모르기때문에 Main의 변경사항이 아무 컴포넌트에게 영향을 미치지 않음
@@ -651,7 +651,7 @@ public class Squint {
 
 - 아래 사진처럼 Entities에 포함된 클래스가 Authorizer에 포함된 클래스 하나를 사용하도록 변경할 수 밖에 없다고 가정
 
-![12](/Users/a10300/Choi/Git/dev-note/etc/images/clean-architecture/12.jpeg)
+![12](./images/clean-architecture/12.jpeg)
 
 - 순환 의존성이 발생됨
 - 이런 순환 문제가 생긴다면 Entities, Authorizer, Interactors는 사실상 거대한 하나의 컴포넌트가 되어버리고 빌드하기도 힘들어짐
@@ -663,13 +663,13 @@ public class Squint {
 
 - 의존성 역전 원칙 적용하기
 
-![13](/Users/a10300/Choi/Git/dev-note/etc/images/clean-architecture/13.jpeg)
+![13](./images/clean-architecture/13.jpeg)
 
 - Entities와 Authorizer가 모두 의존하는 새로운 컴포넌트를 만든 후 두 컴포넌트가 모두 의존하는 클래스들을 새로운 컴포넌트로 이동시킨다
 
 
 
-![14](/Users/a10300/Choi/Git/dev-note/etc/images/clean-architecture/14.jpeg)
+![14](./images/clean-architecture/14.jpeg)
 
 **흐트러짐(Jitters)**
 
@@ -696,11 +696,11 @@ public class Squint {
 - 소프트웨어 컴포넌트를 변경하기 어렵게 만드는 확실한 방법은 수 많은 다른 컴포넌트가 해당 컴포넌트를 의존하도록 만드는 것
 - 아래 X 컴포넌트는 안정적. X를 의존하는 세 컴포넌트에 의해 책임성을 갖게 되고 X는 어디에도 의존하지 않으므로 X가 변경되도록 만들 수 있는 외적인 영향이 전혀 없음
 
-![22](/Users/a10300/Choi/Git/dev-note/etc/images/clean-architecture/22.jpeg)
+![22](./images/clean-architecture/22.jpeg)
 
 - 아래 Y 컴포넌트는 불안정적. 어떤 컴포넌트도 Y에 의존성이 없기때문에 Y에는 책임성이 없고 변경요인이 발생할 수 있는 외부 요인이 세가지임
 
-![21](/Users/a10300/Choi/Git/dev-note/etc/images/clean-architecture/21.jpeg)
+![21](./images/clean-architecture/21.jpeg)
 
 **안전성 지표**
 
@@ -718,17 +718,17 @@ public class Squint {
 - 모든 컴포넌트가 최고로 안정적인 시스템이라면 변경이 불가능함
 - 이상적인 컴포넌트 구조
 
-![15](/Users/a10300/Choi/Git/dev-note/etc/images/clean-architecture/15.jpeg)
+![15](./images/clean-architecture/15.jpeg)
 
 - SDP를 위배하는 구조
 
-![16](/Users/a10300/Choi/Git/dev-note/etc/images/clean-architecture/16.jpeg)
+![16](./images/clean-architecture/16.jpeg)
 
 - Stable이 변경 가능한 Flexible에게 의존하는 상황
 - 의존성을 반드시 끊어야함
 - DIP를 도입하면 문제를 해결할 수 있음
 
-![18](/Users/a10300/Choi/Git/dev-note/etc/images/clean-architecture/18.jpeg)
+![18](./images/clean-architecture/18.jpeg)
 
 **추상 컴포넌트**
 
@@ -766,7 +766,7 @@ public class Squint {
 - 모는 컴포넌트가 (0, 1) 또는 (1, 0)에 위치해야 한다는 규칙을 강요할 수는 없음
 - 이 궤적은 컴포넌트가 절대로 위치해서는 안되는 영역, 배제할 구역을 찾는 방식으로 추론할 수 있음
 
-![20](/Users/a10300/Choi/Git/dev-note/etc/images/clean-architecture/20.jpeg)
+![20](./images/clean-architecture/20.jpeg)
 
 `고통의 구역`
 
