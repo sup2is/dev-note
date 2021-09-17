@@ -16,6 +16,19 @@
 
 # #3 초간단 미니 MVC 튜토리얼
 
+
+
+1. 사용자가 선택한 정보를 컨테이너로 보냄
+2. 컨테이너는 url을 분석하여 담당 서블릿을 찾아 요청을 넘김
+3. 서블릿은 BeerExpert 클래스를 호출함
+4. BeerExpert 클래스는 맥주에 대한 조언을 서블릿으로 넘겨줌, 서블릿은 이 정보를 Request객체에 저장함
+5. JSP에 이 Request 객체를 포워딩 함
+6. JSP는 서블릿이 넣어 놓은 정보를 Request객체에서 추출함
+7. JSP는 여기에 바탕하여 HTML 페이지를 작성함
+8. 컨테이너는 이 페이지를 사용자에게 넘겨줌
+
+
+
 - 개발환경 만들기
 
 ![KakaoTalk_Image_2021-08-18-08-30-55_002](https://user-images.githubusercontent.com/30790184/129813880-e723f6da-c536-4975-a895-3391306f5db9.jpeg)
@@ -51,6 +64,7 @@
 
   - 요청 본문의 유형은 Content-Type 헤더로 결정됨
 
+    - 대부분의 언어에서는 default값이 `text/html` 임
     - 여러 Content-Type들 [https://www.freeformatter.com/mime-types-list.html](https://www.freeformatter.com/mime-types-list.html)
 
     | 요청에 본문 존재                                             | 예                  |
