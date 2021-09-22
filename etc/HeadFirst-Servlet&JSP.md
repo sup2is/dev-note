@@ -16,7 +16,9 @@
 
 # #3 초간단 미니 MVC 튜토리얼
 
+- 초간단 미니 mvc 튜토리얼 flow
 
+![3](./images/head-first-jsp-servlet/3.jpeg)
 
 1. 사용자가 선택한 정보를 컨테이너로 보냄
 2. 컨테이너는 url을 분석하여 담당 서블릿을 찾아 요청을 넘김
@@ -25,18 +27,20 @@
 5. JSP에 이 Request 객체를 포워딩 함
 6. JSP는 서블릿이 넣어 놓은 정보를 Request객체에서 추출함
 7. JSP는 여기에 바탕하여 HTML 페이지를 작성함
-8. 컨테이너는 이 페이지를 사용자에게 넘겨줌
+8. 컨테이너는 이 페이지를 사용자에게 넘겨줌 
 
 
 
 - 개발환경 만들기
 
-![KakaoTalk_Image_2021-08-18-08-30-55_002](https://user-images.githubusercontent.com/30790184/129813880-e723f6da-c536-4975-a895-3391306f5db9.jpeg)
+![1](./images/head-first-jsp-servlet/1.jpeg)
+
+
 
 
 - 배포환경 만들기
 
-![KakaoTalk_Image_2021-08-18-08-30-55_001](https://user-images.githubusercontent.com/30790184/129813886-aeabd278-61d8-4097-927c-fe44cdfd5919.jpeg)
+![2](./images/head-first-jsp-servlet/2.jpeg)
 
 ## 초간단 MVC ver.1
 
@@ -51,8 +55,8 @@
 				<option value="red"> red </option>
 			</select>
 			<input type="submit"/>
+    </form>
 	</center>
-</form>
 </body>
 </html>
 
@@ -67,13 +71,13 @@
     - 대부분의 언어에서는 default값이 `text/html` 임
     - 여러 Content-Type들 [https://www.freeformatter.com/mime-types-list.html](https://www.freeformatter.com/mime-types-list.html)
 
-    | 요청에 본문 존재                                             | 예                  |
-    | :----------------------------------------------------------- | ------------------- |
-    | 성공 응답에 본문 존재                                        | 예                  |
-    | [안전함](https://developer.mozilla.org/ko/docs/Glossary/Safe) | 아니오              |
-    | [멱등성](https://developer.mozilla.org/ko/docs/Glossary/Idempotent) | 아니오              |
-    | [캐시 가능 (en-US)](https://developer.mozilla.org/en-US/docs/Glossary/cacheable) | 신선도 정보 포함 시 |
-    | HTML 양식에서 사용 가능                                      | 예                  |
+    | 요청에 본문 존재                                             | 예                             |
+    | :----------------------------------------------------------- | ------------------------------ |
+    | 성공 응답에 본문 존재                                        | 예                             |
+    | [안전함](https://developer.mozilla.org/ko/docs/Glossary/Safe) | 아니오                         |
+    | [멱등성](https://developer.mozilla.org/ko/docs/Glossary/Idempotent) | 아니오                         |
+    | [캐시 가능 (en-US)](https://developer.mozilla.org/en-US/docs/Glossary/cacheable) | freshness(신선도) 정보 포함 시 |
+    | HTML form에서 사용 가능                                      | 예                             |
 
   - 안전함은 맥락에 따라 여러 의미를 가질 수 있지만 HTTP 메서드가 서버의 상태를 바꾸지 않으면 그 메서드가 안전하다고 말함. ex GET, HEAD, OPTIONS
 
@@ -88,6 +92,10 @@
   - 클라이언트가 요청한 SelectionBeer.do는 컨테이너가 사용하는 실제 서블릿 클래스 파일에 매핑되어 있음
   - .do는 논리적인 이름의 일부이고 실제 파일의 확장자나 타입이 아님
 
+
+
+- web.xml
+
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
 
@@ -99,12 +107,15 @@
   metadata-complete="true">
 
   <servlet>
+    <!-- 서블릿 이름 -->
     <servlet-name>Ch3 Beer</servlet-name>
-    <servlet-class>com.example.web.BeerSelect</servlet-class>
+    <!-- 실제 서블릿 매핑 클래스 -->
+    <servlet-class>com.example.web.BeerSelect</servlet-class> 
   </servlet>
 
   <servlet-mapping>
     <servlet-name>Ch3 Beer</servlet-name>
+    <!-- 실제 매핑될 서블릿 url -->
     <url-pattern>/SelectionBeer.do</url-pattern>
   </servlet-mapping>
 
@@ -114,20 +125,24 @@
 
 - tomcat 디렉토리 모습
 
-![스크린샷 2021-08-18 오전 9 51 24](https://user-images.githubusercontent.com/30790184/129819283-da0dc9ab-fedf-434c-a64d-3455f2963079.png)
+
+
+![5](./images/head-first-jsp-servlet/5.png)
 
 - 사이트 모습
 
-![스크린샷 2021-08-18 오후 9 02 03](https://user-images.githubusercontent.com/30790184/129896702-5e9b26af-5a2a-4af0-9d6c-271410eee95c.png)
+
+
+![6](./images/head-first-jsp-servlet/6.png)
 
 **'제출'버튼 을 클릭했을때의 과정**
 
 - `action="/SelectionBeer.do"` 에서 `/` 는 context root를 의미함
-- submit을 하면 컨에티어는 xml의 `<servlet-mapping>` 항목에서 `/SelectionBeer.do` 이라는 값을 가진 `<url-pattern>`을 찾음
+- submit을 하면 컨테이너는 xml의 `<servlet-mapping>` 항목에서 `/SelectionBeer.do` 이라는 값을 가진 `<url-pattern>`을 찾음
 - 일치하는 `<servlet-mapping>`이 있다면 `<servlet-name>` 을 통해 `<servlet-class>` 를 찾음. 이 값이 바로 요청을 처리할 서블릿 클래스
 - 이 과정에서 서블릿이 초기화된 적이 없다면 컨테이너는 클래스를 로드하고 초기화함
 
-> 위 문장은 한번 초기화되어 컨테이너에 올라가면 계속 재사용한다는 뜻..?
+> 서블릿이 한번 초기화되고 이후에 변경되지 않는 이상 해당 객체를 재활용함
 
 - 컨테이너는 요청을 처리할 새로운 스레드를 시작하고 서블릿의 service() 메서드에 Request 객체 참조를 인자로 넘김
 - 스레드가 완료되면 클라이언트에게 응답을 보냄.
@@ -250,13 +265,13 @@ public class BeerSelect extends HttpServlet {
 >     }
 > ```
 
-- `ServletRequest` <- `HttpServletRequest`
+- `ServletRequest`(interface) <- `HttpServletRequest`(interface) <- `RequestFacade`(default boot 2.5.4) [docs](https://tomcat.apache.org/tomcat-8.0-doc/api/org/apache/catalina/connector/RequestFacade.html)
   - 서블릿에 클라이언트 요청 정보를 제공하는 개체를 정의함
   - 서블릿 컨테이너는 `ServletRequest` 객체를 생성하고 이를 서블릿의 서비스 메서드에 인수로 전달함
   - `ServletRequest` 객체는 매개변수 이름과 값, 속성 등을 포함한 데이터를 제공함
   - `ServletRequest` 를 확장하는 인터페이스는 추가 프로토콜별 데이터를 제공할 수 있음 ex Http -> `HttpServletRequest`
   - [https://docs.oracle.com/javaee/7/api/javax/servlet/ServletRequest.html](https://docs.oracle.com/javaee/7/api/javax/servlet/ServletRequest.html)
-- `ServletResponse` <- `HttpServletResponse`
+- `ServletResponse`(interface) <- `HttpServletResponse`(interface) <- `ResponseFacade` (default boot 2.5.4) [docs](https://tomcat.apache.org/tomcat-8.0-doc/api/org/apache/catalina/connector/ResponseFacade.html)
   - 클라이언트에 응답을 보낼 때 서블릿을 지원하는 개체를 정의함
   - 서블릿 컨테이너는 `ServletResponse` 객체를 생성하고 이를 서블릿의 서비스 메서드에 인수로 전달함
   - 문자는 `getWriter()`, binary는 `getOutPutStream()` 사용
@@ -338,47 +353,11 @@ public class BeerSelect extends HttpServlet {
 
 
 
+![4](./images/head-first-jsp-servlet/4.jpeg)
 
 
-
-
-# #4 서블릿이 되어보자
-
-- 컨테이너와 서블릿 생성주기
-
-  1. 사용자가 서블릿에 대한 링크를 클릭함
-  2. 컨테이너는 요청된 Request가 서블릿이라는 것을 간파하고는 다음 두개의 객체를 생성함
-     1. HttpServletResponse
-     2. HttpServletRequest
-  3. 접수한 요청의 URL을 분석해서 어떤 서블릿을 요청했는지 파악함. 그 다음 해당 서블릿 스레드를 생성하여 Request, Response 객체 참조를 넘김
-  4. 컨테이너는 서블릿 service()메서드를 호출함. 브라우저에서 지정한 방식에 따라 doGet()을 호출할지 doPost()를 호출할지 결정함. 클라이언트가 HTTP GET 메서드를 날렸다면 service() 메서드는 서블릿의 doGet() 메서드를 호출함. 호출할 때 Reqeust와 Response 객체를 인자로 넘김
-  5. 서블릿은 클라이언트에게 응답을 작성하기 위해 Response 객체를 사용함. 이 작업을 완료하면, Response에 대한 제어는 컨테이너에게 넘어감
-  6. service() 메서드가 끝나면, 스레드를 소멸하거나 아니면 컨테이너가 관리하는 스레드 풀로 돌려 보냄. 그 다음 Request와 Response객체는 가비지 컬렉션이 될 준비를 할 것이며, 이 객체에 대한 참조는 이제 범위를 벗어나기에 사라짐. 마지막으로 클라는 서버로부터 응답을 받게 됨
 
 ## 초간단 MVC ver.3
-
-```java
-<%@ page import="java.util.List" %>
-
-<html>
-<body>
-<h1 align="center">Beer Recommendations</h1>
-
-<p>
-    <%
-        List<String> brands = (List<String>) request.getAttribute("brands");
-        for (String brand : brands) {
-            out.println("<br>try: " + brand);
-        }
-    %>
-
-</p>
-</body>
-</html>
-
-```
-
-
 
 ```java
 package com.example.web;
@@ -414,15 +393,52 @@ public class BeerSelect extends HttpServlet {
 //            out.println("<br>try: " + brand);
 //        }
 
-        req.setAttribute("brands", brands);
+        req.setAttribute("brands", brands); //brands 라는 이름으로 brands객체 넣기
 
         RequestDispatcher view = req.getRequestDispatcher("result.jsp");
-        view.forward(req, resp);
+        view.forward(req, resp); //result.jsp라는 이름의 view로 포워딩
     }
 }
 ```
 
 
+
+
+
+```java
+<%@ page import="java.util.List" %>
+
+<html>
+<body>
+<h1 align="center">Beer Recommendations</h1>
+
+<p>
+    <%
+        List<String> brands = (List<String>) request.getAttribute("brands");
+        for (String brand : brands) {
+            out.println("<br>try: " + brand);
+        }
+    %>
+</p>
+</body>
+</html>
+
+```
+
+
+
+# #4 서블릿이 되어보자
+
+- 컨테이너와 서블릿 생성주기
+
+  1. 사용자가 서블릿에 대한 링크를 클릭함
+  2. 컨테이너는 요청된 Request가 서블릿이라는 것을 간파하고는 다음 두개의 객체를 생성함
+     1. HttpServletResponse
+     2. HttpServletRequest
+  3. 접수한 요청의 URL을 분석해서 어떤 서블릿을 요청했는지 파악함. 그 다음 해당 서블릿 스레드를 생성하여 Request, Response 객체 참조를 넘김
+  4. 컨테이너는 서블릿 service()메서드를 호출함. 브라우저에서 지정한 방식에 따라 doGet()을 호출할지 doPost()를 호출할지 결정함. 클라이언트가 HTTP GET 메서드를 날렸다면 service() 메서드는 서블릿의 doGet() 메서드를 호출함. 호출할 때 Reqeust와 Response 객체를 인자로 넘김
+  5. 서블릿은 클라이언트에게 응답을 작성하기 위해 Response 객체를 사용함. 이 작업을 완료하면, Response에 대한 제어는 컨테이너에게 넘어감
+  6. service() 메서드가 끝나면, 스레드를 소멸하거나 아니면 컨테이너가 관리하는 스레드 풀로 돌려 보냄. 그 다음 Request와 Response객체는 가비지 컬렉션이 될 준비를 할 것이며, 이 객체에 대한 참조는 이제 범위를 벗어나기에 사라짐. 마지막으로 클라는 서버로부터 응답을 받게 됨
 
 # #5 웹 애플리케이션이 되어보자
 
