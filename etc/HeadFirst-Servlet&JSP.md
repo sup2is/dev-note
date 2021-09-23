@@ -496,11 +496,7 @@ WeblogicSpring-Implementation-Version: 12.1.2.0.0
 
 
 
-사진
-
-
-
-
+![7](./images/head-first-jsp-servlet/7.jpeg)
 
 ## Q & A
 
@@ -514,9 +510,109 @@ WeblogicSpring-Implementation-Version: 12.1.2.0.0
 - 클라이언트가 웹 애플리케이션의 실제 물리적인 구조에 대해서는 알 필요가 없음
 - 서블릿 매핑을 하기 위해서는 웹 애플리케이션(서블릿)이 실제로 있는 물리적인 디렉토리 및 파일 구조, 그리고 다른 하나는 가상/논리적은 구조
 
-사진
 
-- 컨테이너는
+
+![8](./images/head-first-jsp-servlet/8.jpeg)
+
+- 컨테이너는 아래 순서대로 url을 선택함
+  1. 정확하게 일치하는 경우
+  2. 디렉토리까지만 일치하는 경우
+  3. 확장자만 일치하는 경우
+- 둘 이상의 디렉토리가 일치하는경우
+  - /foo/bar/\*, /foo/\* 중에 /foo/bar/\* 를 선택함
+
+
+
+## DD에 환경파일 설정하기
+
+- DD파일에서 http://www.oreilly.com 이라고 입력해도 특정 자원 이름 (ex: home.html) 을 노출하지 않고 index 페이지를 설정할 수 있음
+
+`web.xml`
+
+```xml
+<welcome-file-list>
+  <welcome-file>index.html</welcome-file>
+  <welcome-file>index.htm</welcome-file>
+  <welcome-file>index.jsp</welcome-file>
+  <welcome-file>default.html</welcome-file>
+  <welcome-file>default.htm</welcome-file>
+  <welcome-file>default.jsp</welcome-file>
+</welcome-file-list>
+```
+
+- 특정 디렉토리 (ex: http://www.oreilly.com/foo/bar) 로 접근해도 /foo/bar 내부에 `welcome-file` 이 있다면 해당 파일을 보여줌
+- 가장 먼저 일치하는 파일 순서대로 선택
+- 일치하는 파일이 없다면 컨테이너마다 다르게 동작함 ex: 404 Not Found 등등 ..
+
+
+
+## DD에 오류 페이지 설정하기
+
+###### 
+
+**모든 예외 사항에 적용되는 오류 페이지 정의**
+
+```xml
+<error-page>
+     <exception-type>java.lang.Throwable</exception-type>
+     <location>/WEB-INF/error/errorPage.jsp</location>
+</error-page>
+```
+
+- 패키지명을 포함해야함
+
+**예외 상황별로 오류 페이지 정의**
+
+```xml
+<error-page>
+    <exception-type>java.lang.NullPointerException</exception-type>
+    <location>/WEB-INF/error/errorPage.jsp</location>
+</error-page>
+```
+
+**HTTP 상태 코드별로 오류 페이지 정의하기**
+
+```xml
+<error-page>
+    <error-code>404</error-code>
+    <location>/WEB-INF/error/errorPage.jsp</location>
+</error-page>
+```
+
+
+
+## DD에서 강제로 서블릿 초기화하기
+
+- 서블릿은 최초 요청이 들어올 때 초기화함
+- 첫번째 요청한 클라이언트가 클래스 로딩, 인스턴스화, 초기화 등등의 작업을 도맡고 service()를 호출함
+- DD의 `<load-on-startup>` 을 사용하면 최초 요청이 올 때 초기화하는 것이 아니라 배포 시점에 서블릿을 로딩할 수 있음
+
+```xml
+     <servlet>
+        <servlet-name>HelloServlet</servlet-name>
+        <servlet-class>servlet.HelloServlet</servlet-class>
+        <load-on-startup>1</load-on-startup>
+     </servlet>
+```
+
+- `<load-on-startup>` 은 0보다 큰 값일 경우 배포 시에 로딩하라는 의미이고 값이 작은 순서부터 먼저 로딩함으로써 순서를 제어할 수 있음
+- `<load-on-startup>` 값이 같다면 정의된 순서대로 초기화
+
+
+
+## DD에서 MIME타입 매핑하기
+
+```xml
+<mime-mapping>
+  <extension>zip</extension>
+  <mime-type>application/zip</mime-type>
+</mime-mapping>
+
+<mime-mapping>
+  <extension>hwp</extension>
+  <mime-type>application/unknown</mime-type>
+</mime-mapping>
+```
 
 
 
