@@ -102,27 +102,181 @@ public class UserDaoTest {
 
 **수동 확인 작업의 번거로움**
 
+- 입력한 값과 가져온 값이 일치하는지 테스트에서 자동으로 확인해주지 않고 콘솔에 나온 값을 보고 등록 조회가 성공적으로 되고 있는지를 확인하는 건 사람의 책임
+- 테스트의 결과를 확인하는 일은 사람의 책임이기 때문에 완전히 자동으로 테스트되는 방법이라고 말할 수 없음
+
+**실행 작업의 번거로움**
+
+- 테스트를 만들때마다 main()메서드를 생성할 수 없으므로 main()메서드를 이용하는 방법보다 좀 더 편리하고 체계적으로 테스트를 실행하고 그결과를 확인하는 방법이 필요함
+
 ## USERDAOTEST 개선
 
 ### 테스트 검증의 자동화
 
+- 수정 전 테스트코드
+
+```java
+    System.out.println(user2.getName());
+    System.out.println(user2.getPassword());
+    System.out.println(user2.getId() + " 조회 성공");
+```
+
+- 수정 후 테스트코드
+
+```java
+		if (!user.getName().eqauls(user2.getName())) {
+				System.out.println("테스트 실패 (name)")
+		} else if (!user.getPassword().eqauls(user2.getPassword())) {
+				System.out.println("테스트 실패 (password)")
+		} else {
+      	System.out.println("조회 테스트 성공")
+    }
+```
+
+- add()는 별도로 검증하지 않고 get()을 검증함으로써 add()와 get()메서드를 동시에 검증
+- 이 테스트는 추후 코드의 동작에 영향을 미칠 수 있는 어떤 변화라도 생기면 언제든 다시 실행시켜볼 수 있음
+- "테스트란 개발자가 마음 편하게 잠자리에 들 수 있게 해주는 것" - 켄트백
+- 개발과정, 유지보수를 하면서 기존 애플리케이션 코드에 수정을 할 때 마음의 평안을 얻고 자신이 만ㄷ지는 코드에 대해 항상 자신감을 가질 수 있으며, 새로 도입한 기술의 적용에 문제가 없는지 확인할 수 있는 가장 좋은 방법은 빠르게 실행 가능하고 스스로 테스트 수행과 기대하는 결과에 대한 확인까지 해주는 코드로된 자동화된 테스트를 만들어주는 것
+
+
+
 ### 테스트의 효율적인 수행과 결과 관리
+
+- main() 메서드로는 한계가 있음
+- 일정한 패턴을 가진 테스트를 만들 수 있고, 테스트가 실패한 곳을 빠르게 찾을 수 있는 기능을 갖춘 테스트 지원 도구와 그에 맞는 테스트 작성 방법이 필요함
+- JUnit은 자바로 단위 테스트를 만들 때 유용하게 사용할 수 있음
 
 #### JUnit 테스트로 전환
 
+- 개발자가 만든 클래스의 오브젝트를 생성하고 실행하는 일은 프레임워크에 의해 진행됨
+
 #### 테스트 메서드 전환
+
+- 기존에 만들었던 main() 메서드에 있던 테스트 코드를 일반 메서드로 옮기는 것
+- 새로 만들 테스트 메서드는 JUnit 프레임워크가 요구하는 조건 두가지를 따라야함
+  - ~~메서드가 public으로 선언되어야 함~~
+  - 메서드가 private으로 선언되지 않아야함 [https://junit.org/junit5/docs/current/user-guide/#writing-tests-classes-and-methods](https://junit.org/junit5/docs/current/user-guide/#writing-tests-classes-and-methods)
+  - 메서드에 @Test 애너테이션을 붙여줘야 함
+
+```java
+import org.junit.Test;
+
+...
+
+public class UserDaoTest {
+  
+	@Test //Junit에게 테스트용 메서드임을 알려줌
+	public void addAndGet() throws SQLException {
+    ...
+  }
+}
+
+```
+
+
 
 #### 검증 코드 전환
 
+- `assertThat()` 메서드는 첫 번째 파라미터의 값을 뒤에 나오는 Matcher 라고 불리는 조건으로 비교해서 일치하면 다음으로 넘어가고 아니면 테스트가 실패하도록 만들어 줌
+- `is()` 는 Matcher의 일종으로 `eqauls()` 로 비교해주는 기능을 가짐
+- Junit은 예외가 발생하거나 `assertThat()` 에서 실패하지 않고 테스트 메서드의 실행이 완료되면 테스트가 성공했다고 인식함.
+- Junit을 적용한 UserDaoTest
+
+```java
+import static org.hamcrest.CoreMatchers.is;
+import static org.junit.Assert.assertThat;
+
+...
+
+public class UserDaoTest {
+
+	@Test
+	public void addAndGet() throws SQLException {
+    
+    ApplicationContext context = new GenericXmlApplicationContext("applicationContext.xml");
+    
+    UserDao dao = context.getBean("userDao", UserDao.class);
+    User user = new User();
+    user.setId("user");
+    user.setName("백기선");
+    user.setPassword("married");
+    
+    dao.add(user);
+
+		User user2 = dao.get(user.getId());
+    
+		assertThat(user2.getName(), is(user.getName()));
+		assertThat(user2.getPassword(), is(user.getPassword()));
+	}
+}
+```
+
+
+
 #### Junit 테스트 실행
+
+- 생성한 JUnit 테스트코드도 어디선가는 실행시켜줘야하기 때문에 main() 메서드에 추가
+
+```java
+import org.junit.runner.JUnitCore;
+
+...
+  
+public static void main(String[] args) {
+  JUnitCore.main("springbook.user.dao.UserDaoTest");
+}
+```
+
+- 성공할 경우 메시지
+
+```
+Jnit version 4.7
+Time: 0.578
+OK (1 test)
+```
+
+- 실패할 경우 메시지
+
+```
+Time: 1.094
+Ther was 1 failure:
+1) addAndGet(spring.dao.UserDaoTest)
+java.lang.AssertionError:
+Expected is "백기선"
+	got: null
+	...
+		at springbook.dao.UserDaoTest.main(UserDaoTest.java:36)
+FAILURES!!!
+Tests run: 1, Failures: 1
+```
+
+- 함께 출력된 호출 스택을 살펴보면 실패한 원인이 무엇이고 테스트 코드에서 검증에 실패한 위치는 어디인지도 확인할 수 있음
+- Junit은 `assertThat()` 을 이용해 검증을 했을 때 기대한 결과가 아니면 `AssertionError`를 던짐 따라서 `assertThat()`의 조건을 만족하지 못하면 테스트는 더이상 진행되지 않고 JUnit은 테스트가 실패했음을 알게됨
+- 테스트 수행 중에 일반 예외가 발생한 경우에도 마찬가지로 테스트 수행은  중단되고 테스트는 실패함
+
+
 
 ## 개발자를 위한 테스팅 프레임워크 JUNIT
 
+- 스프링을 학습하고 제대로 활용하려면 최소한의 JUnit 테스트 작성 방법과 실행 방법은 알고 있어야함
+- 대부분의 자바 IDE는 JUnit 테스트를 손쉽게 실행할 수 있는 JUnit 테스트 지원 기능을 내장하고 있어서 더욱 편리하게 JUnit 테스트를 만들고 활용할 수 있게 해줌
+
 ### JUnit 테스트 실행 방법
+
+- JUnitCore를 이용해 테스트를 실행하고 콘솔에 출력된 메시지를 보고 결과를 확인하는 방법은 간단하긴 하지만 테스트의 수가 많아지면 관리하기가 힘들어진다는 단점이 있음
+- 가장 좋은 JUnit 테스트 실행 방법은 자바 IDE에 내장된 JUnit 테스트 지원 도구를 사용하는 것
 
 #### IDE
 
+- IDE에서 Run As > Jnit Test를 선택하면 테스트가 자동으로 실행됨
+- main() 메서드 없이 테스트할 수 있음
+- IDE에서 테스트의 총 수행시간, 실행한 테스트의 수, 테스트 에러의 수, 테스트 실패의 수를 확인할 수 있음
+- JUnit은 한 번에 여러 테스트 클래스를 동시에 실행할 수도 있음
+- JUnit 테스트의 실행과 그 결과를 확인하는 방법이 매우 간단하고 직관적이며 소스와 긴밀하게 연동된 결과를 볼 수 있기 때문에 IDE의 지원을 받는 것이 가장 편리함
+
 #### 빌드 툴
+
+- 빌드 툴에서 제공하는 JUnit 플로그인이나 태스크를 이용해 JUnit 테스트를 실행할 수 있음
 
 ### 테스트 결과의 일관성
 
