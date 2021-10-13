@@ -280,23 +280,73 @@ Tests run: 1, Failures: 1
 
 ### 테스트 결과의 일관성
 
+- 테스트가 외부 상태에 따라 결과값이 달라지면 안됨. ex DB, network, etc ...
+- 코드의 변경사항이 없다면 테스트는 항상 동일한 결과를 내야함
+
 #### deleteAll()의 getCount() 추가
 
 #### deleteAll()과 getCount()의 테스트
 
 #### 동일한 결과를 보장하는 테스트
 
+- 단위 테스트는 코드가 바뀌지 않는다면 매번 실행할 때마다 동일한 테스트 결과를 얻을 수 있어야함
+
 ### 포괄적인 테스트
 
+- 테스트를 안만드는것도 위험한 일이지만 성의 없이 테스트를 만드는 바람에 문제가 있는 코드인데도 성공하게 만드는 건 더 위험함
+- 다양한 케이스를 검증해야함
+
 #### getCount()테스트
+
+- ~~JUnit은 특정한 테스트 메서드의 실행 순서를 보장해주지 않음~~
+  - [https://junit.org/junit5/docs/current/user-guide/#writing-tests-test-execution-order-methods](https://junit.org/junit5/docs/current/user-guide/#writing-tests-test-execution-order-methods)
+- 단위테스트는 실행 순서에 상관없이 독립적으로 항상 동일한 결과를 낼 수 있도록 해야 함
 
 #### addAndGet() 테스트 보완
 
 #### get() 예외조건에 대한 테스트
 
+- JUnit은 `assertThat()` 검증 뿐만 아니라 테스트 에러. 즉 예외 조건에 대한 검증도 할 수 있음
+- JUnit4 에러 검증 방법
+
+```java
+	@Test(expected=EmptyResultDataAccessException.class) // 테스트 중에 발생할 것으로 기대하는 예외 클래스를 지정해 준다.
+	public void getUserFailure() throws Exception {
+	
+		dao.deleteAll();
+		assertThat(dao.getCount(), is(0));
+		
+		dao.get("unkown_id"); // 이 메소드 실행 중에 예외가 발생해야 한다. 예외가 발생하지 않으면 테스트가 실패한다.
+	}
+```
+
+- `@Test` 애너테이션의 expected 앨리먼트를 사용해서 테스트 메서드중에 발생하리라 기대하는 예외 클래스를 넣어주면 됨
+- expected를 지정하면 지정한 예외가 던져져야 테스트가 성공함
+
+- JUnit5 에러 검증 방법
+
+```java
+    @Test
+    void exceptionTesting() {
+        Exception exception = assertThrows(ArithmeticException.class, () ->
+            calculator.divide(1, 0));
+        assertEquals("/ by zero", exception.getMessage());
+    }
+
+```
+
+
+
 #### 테스트를 성공시키기 위한 코드의 수정
 
 #### 포괄적인 테스트
+
+- 간단한 코드라도 포괄적인 테스트를 만들어두는 편이 훨씬 안전하고 유용함.
+- 종종 단순하고 간단한 테스트가 치명적인 실수를 피할 수 있게 해주기도 함
+- 개발자는 성공하는 테스트만 골라서 만드는 경향이 있으므로 QA나 인수담당자에 의해 꼼꼼하게 준비된 전문적인 테스트가 수행될 필요가 있음
+- 하지만 개발자 레벨에서도 다양항 상황과 입력값을 고려하는 포괄적인 테스트를 만들수 있음
+- "항상 네거티브 테스트를 먼저 만들라" - 로드존슨
+- 테스트를 작성할 때 부정적인 케이스를 먼저 만드는 습관을 들이는게 좋음
 
 ### 테스트가 이끄는 개발
 
@@ -304,7 +354,57 @@ Tests run: 1, Failures: 1
 
 #### 테스트 주도 개발
 
+- 만들고자 하는 기능의 내용을 담고 있으면서 만들어진 코드를 검증도 해줄 수 있도록 테스트 코드를 먼저 만들고 테스트를 성공하게 해주는 코드를 작성하는 방식의 개발 방법을 테스트 주도 개발이라고함
+- 실패한 테스트를 성공시키기 위한 목적이 아닌 코드는 만들지 않는다는 것이 tdd의 기본 원칙. 기본 원칙을 따랐다면 모든 코드는 검증된 코드
+- tdd에서는 테스트를 작성하고 이를 성공시키는 코드를 만드는 작업의 주기를 가능한 한 짧게 가져가도록 권장함. 개발한 코드의 오류는 빨리 발견할수록 좋음
+- tdd를 하면 자연스럽게 단위 테스트를 만들 수 있음
+
 ### 테스트 코드 개선
+
+- JUnit 프레임워크는 테스트 메서드를 실행때마다 반복되는 준비 작업을 별도의 메서드에 넣어 동작시키게 할 수 있음
+
+#### @Before
+
+```java
+	
+...
+  
+		@Before // JUnit이 제공하는 애노테이션 @Test 메소드가 실행되기 전에 먼저 실행되야 하는 메소드를 정의한다.
+	public void setUp() {	
+		DataSource dataSource = new SingleConnectionDataSource( // 테스트에서 UserDao가 사용할 DataSource 오브젝트를 직접생성한다.
+				"jdbc:mysql://localhost/testdb", "spring", "book", true);
+		this.user1 = new User("gyumee", "박성철", "springno1");
+		this.user2 = new User("leegw700", "이길원", "springno2");
+		this.user3 = new User("bumjin", "박범진", "springno3");
+		
+	} // 각 테스트 메소드에 반복적으로 나타났던 코드를 제거하고 별도의 메소드로 옮긴다.
+
+...
+
+```
+
+- JUnit5에서는 `@BeforeEach`, `@BeforeAll`로 사용가능
+  - [https://junit.org/junit5/docs/current/user-guide/#writing-tests-annotations](https://junit.org/junit5/docs/current/user-guide/#writing-tests-annotations)
+- JUnit 프레임워크 테스트 메서드 실행 과정
+  1. 테스트 클래스에서 `@Test`가 붙은 public이고 void형이며 파라미터가 없는 테스트 메서드를 모두 찾는다.
+  2. 테스트 클래스의 오브젝트를 하나 만든다.
+  3. `@Before`가 붙은 메서드가 있으면 실행한다.
+  4. `@Test`가 붙은 메서드를 하나 호출하고 테스트 결과를 저장해둔다.
+  5. `@After`가 붙은 메서드가 있으면 실행한다.
+  6. 나머지 테스트 메서드에 대해 2~5번을 반복한다.
+  7. 모든 테스트의 결과를 종합해서 돌려준다.
+- JUnit4에서는 `@Test`가 붙은 메서드를 실행하기 전과 후에 각각 `@Before`, `@After`가 붙은 메서드를 자동으로 실행함
+- JUnit4에서는 `@Test` 메서드의 수만큼 이 클래스의 오브젝트를 만듦. 각 테스트가 서로 영향을 주지 않고 독립적으로 실행됨을 확실히 보장해주기 위해서임
+- JUnit5에서는 `@TestInstance(Lifecycle.PER_CLASS)` 라는 옵션을 제공해주기때문에 모든 테스트를 하나의 인스턴스에서 실행할 수 있음
+
+
+
+#### 픽스처
+
+- 테스트를 수행하는 데 필요한 정보나 오브젝트를 픽스처라함
+- 픽스처는 여러 테스트에서 반복적으로 사용되기때문에 `@Before` 를 사용하면 편리함
+
+
 
 ## 스프링 테스트 적용
 
