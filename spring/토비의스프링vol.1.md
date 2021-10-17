@@ -408,7 +408,38 @@ Tests run: 1, Failures: 1
 
 ## 스프링 테스트 적용
 
+- 애플리케이션 컨텍스트가 만들어질 때는 모든 싱글톤 빈 오브젝트를 초기화함
+- 테스트는 가증한 한 독립적으로 매번 새로운 오브젝트를 만들어서 사용하는 것이 원칙임. 하지만 애플리케이션 컨텍스트처럼 생성에 많은 시간과 자원이 소모되는 경우에는 테스트 전체가 공유하는 오브젝트를 만들기도 함. 하지만 이때도 테스트는 일관성 있는 실행 결과를 보장해야하고 테스트의 실행 순서가 결과에 영향을 미치지 않아야함
+
 ### 테스트를 위한 애플리케이션 컨텍스트 관리
+
+#### 스프링 테스트 컨텍스트 프레임워크 적용
+
+- 스프링은 JUnit을 이용하는 테스트 컨텍스트 프레임워크를 제공함
+- 테스트 컨텍스트의 지원을 받으면 간단한 애너테이션 설정만으로 테스트에서 필요로 하는 애플리케이션 컨텍스트를 만들어서 모든 테스트가 공유하게 할 수 있음
+
+```java
+@RunWith(SpringJUnit4ClassRunner.class) // 스프링의 테스트 컨텍스트 프레임워크의 JUnit 확장기능 지정
+@ContextConfiguration(locations="/applicationContext.xml") // 테스트 컨텍스트가 자동으로 만들어줄 애플리케이션 컨텍스트의 위치 지정
+public class UserDaoTest {
+	// 2-19 UserDao를 직접 DI 받도록 만든 테스트
+	@Autowired
+	private UserDao dao;
+ 
+  ...
+}
+```
+
+
+
+- JUnit5 부터 @RunWith는 @ExtendWith로 변경
+  - [https://junit.org/junit5/docs/current/user-guide/#migrating-from-junit4-tips](https://junit.org/junit5/docs/current/user-guide/#migrating-from-junit4-tips)
+
+#### 테스트 메서드의 컨텍스트 공유
+
+
+
+
 
 ### DI와 테스트
 
