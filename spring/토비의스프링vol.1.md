@@ -519,17 +519,229 @@ public class BarTest {
 
 #### 테스트 코드에 의한 DI
 
+- DI는 스프링 컨테이너에서만 할 수 있는 작업이 아님
+- 수동으로 DI를 아래와 같이 구현할 수 있음
+- 테스트를 위한 수동 DI를 적용한 UserDaoTest
+
+```java
+
+@DirtiesContext //테스트 메서드에서 애플리케이션 컨텍스트의 구성이나 상태를 변경한다는 것을 테스트 컨텍스트 프레임워크에 알려줌
+public class UserDaoTest {
+  @Autowired
+  UserDao dao;
+  
+  @Before
+  public void setup() {
+    DataSource ds = new SingleConnectionDataSource("jdbc:mysql://localhost/testdb", "spring", "book", true); // 테스트에서만 사용할 db
+    dao.setDataSource(ds); // 코드에 의한 수동 DI
+  }
+
+}
+
+```
+
+- `@DirtiesContext`  는 메서드레벨에도 가능. 테스트 클래스나 메서드를 수행하기 전 또는 수행한 후에 컨텍스트를 초기화하는것도 가능함
+
 #### 테스트를 위한 별도의 DI 설정
+
+- 기존에 사용하던 applicationContext.xml을 사용해서 test-applicationContext.xml 설정 파일을 만드는 방법으로 테스트를 위한 컨텍스트를 만들 수 있음
+
+```java
+@RunWith(SpringJUnit4ClassRunner.class)
+@ContextConfiguration(locations="/test-applicationContext.xml")
+public class BarTest {
+
+  ...
+    
+}
+```
+
+
 
 #### 컨테이너 없는 DI 테스트
 
+- 스프링을 사용하지 않고 테스트를 만들수도 있음
+
+```java
+
+public class UserDaoTest {
+
+  UserDao dao;
+  
+  @Before
+  public void setup() {
+  
+    //오브젝트의 설정 관계, di 등을 직접해줌
+    dao = new UserDao();
+    DataSource ds = new SingleConnectionDataSource("jdbc:mysql://localhost/testdb", "spring", "book", true);
+    dao.setDataSource(ds);
+  }
+
+}
+```
+
+- 컨텍스트를 만들지 않아서 테스트 속도를 절약할 수 있음
+- DI는 객체지향 프로그래밍 스타일임. DI 컨테이너나 프레임워크는 DI를 편하게 적용하도록 도움을 줄 뿐 컨테이너가 DI를 가능하게 해주는 것은 아님
+
 #### DI를 이용한 테스트 방법 선택
+
+- 세가지 방법 모두 장단점이 있고 상황에 따라 선택해서 유용하게 사용할 수 있음
+- 항상 스프링 컨테이너 없이 테스트할 수 있는 방법을 가장 우선적으로 고려할 것
+- 여러 오브젝트와 복잡한 의존 관계를 갖고 있는 경우엔 DI를 활용할 것
+- 테스트의 경우 별도의 설정 파일을 만들어 따로 사용하는편이 일반적임
+- 경우에따라 예외적인 의존 관계를 강제로 구성해서 테스트해야할 경우가 있음 이때는 수동 DI를 사용할 것
 
 
 
 ## 학습 테스트로 배우는 스프링
 
+- 자신이 만들지 않은 프레임워크나 다른 개발팀에서 만들어서 제공한 라이브러리 등에 대해서 테스트하는것을 학습 테스트라함
+- 학습 테스트의 목적은 자신이 사용할 api나 프레임워크의 기능을 테스트로 보면서 사용 방법을 익히는 것
+
+### 학습 테스트의 장점
+
+**다양한 조건에 따른 기능을 손쉽게 확인해볼 수 있다**
+
+- 자동화된 테스트의 모든 장점이 학습 테스트에도 그대로 적용됨
+- 다양한 조건에 따라 기능이 어떻게 동작하는지 빠르게 확인할 수 있음
+
+**학습 테스트 코드를 개발 중에 참고할 수 있다**
+
+- 학습 테스트는 다양한 기능과 조건에 대한 테스트 코드를 개별적으로 만들고 남겨둘 수 있음
+- 테스트코드는 좋은 참고 자료가됨
+
+**프레임워크나 제품을 업그레이드할 때 호환성 검증을 도와준다**
+
+- 학습 테스트에서 만든 테스트는 새로운 버전의 프레임워크나 제품을 바로 적용시켜서 피드백을 얻을 수 있음
+
+**테스트 작성에 대한 좋은 훈련이 된다**
+
+- 학습 테스트를 작성해보면서 테스트 코드 작성을 연습할 수 있음
+
+**새로운 기술을 공부하는 과정이 즐거워진다**
+
+- 책이나 레퍼런스 문서 등을 그저 읽기만 하는 공부는 쉽게 지루해짐
+- 학습 테스트코드를 만들면서 하는 학습은 흥미있게 할 수 있음
+
+### 학습 테스트 예제
+
+#### JUnit 테스트 오브젝트 테스트
+
+- 테스트 메서드를 수행할때마다 새로운 오브젝트를 만드는지에 대한 학습 테스트
+
+```java
+package springbook.learningtest.junit;
+
+import ...
+
+public class JUnitTest {
+	
+	static Set<JUnitTest> testObjects = new HashSet<>();
+	
+	@Test public void test1() {
+		assertThat(testObjects,  not(hasItem(this)));
+		testObjects.add(this);
+	}
+	
+	@Test public void test2() {
+		assertThat(testObjects,  not(hasItem(this)));
+		testObjects.add(this);
+	}
+	
+	@Test public void test3() {
+		assertThat(testObjects,  not(hasItem(this)));
+		testObjects.add(this);
+	}
+}
+```
+
+#### 스프링 테스트 컨텍스트 테스트 
+
+
+
+```java
+package springbook.learningtest.junit;
+
+import static org.hamcrest.CoreMatchers.either;
+import static org.hamcrest.CoreMatchers.hasItem;
+import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.CoreMatchers.not;
+import static org.hamcrest.CoreMatchers.nullValue;
+import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
+import java.util.HashSet;
+import java.util.Set;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
+
+@RunWith(SpringJUnit4ClassRunner.class)
+@ContextConfiguration("file:src/main/resources/junit.xml")
+public class JUnitTest {
+	@Autowired ApplicationContext context;  // 테스트 컨텍스트가 매번 주입해주는 애플리케이션 컨텍스트는 항상 같은 오브젝트인지 테스트로 확인해 본다.
+	
+	static Set<JUnitTest> testObjects = new HashSet<>();
+	static ApplicationContext contextObject = null;
+	
+	@Test public void test1() {
+		assertThat(testObjects,  not(hasItem(this)));
+		testObjects.add(this);
+		
+		assertThat(contextObject == null || contextObject == this.context, is(true));
+		contextObject = this.context;
+	}
+	
+	@Test public void test2() {
+		assertThat(testObjects,  not(hasItem(this)));
+		testObjects.add(this);
+		
+		assertTrue(contextObject == null || contextObject == this.context);
+		contextObject = this.context;
+	}
+	
+	@Test public void test3() {
+		assertThat(testObjects,  not(hasItem(this)));
+		testObjects.add(this);
+		
+		assertThat(contextObject,  either(is(nullValue())).or(is(this.context)));
+		contextObject = this.context;
+	}
+}
+```
+
+
+
+### 버그 테스트
+
+- 버그 테스트란 코드에 오류가 있을 때 그 오류를 가장 잘 드러내줄수 있는 테스트를 말함
+- 오류가 발견되었을 때 무턱대고 코드를 수정하는것보다는 먼저 실패하는 테스트를 만드는것이 중요함
+- 실패하는 테스트코드를 만들고 버그 테스트가 성공할 수 있도록 애플리케이션 코드를 수정하는 방식으로 버그를 해결하는것
+- 버그테스트의 장점
+  - 테스트의 완성도를 높여줌
+  - 버그의 내용을 명확하게 분석해줌
+  - 기술적인 문제를 해결하는 데 도움이 됨
+
+
+
 ## 정리
+
+- 테스트는 자동화돼야하고 빠르게 실행할 수 있어야한다.
+- main() 테스트 대신 JUnit 프레임워크를 이용한 테스트 작성이 편리하다.
+- 테스트 결과는 일관성이 있어야 한다. 코드의 변경 없이 환경이나 테스트 실행 순서에 따라서 결과가 달라지면 안된다.
+- 테스트는 포괄적으로 작성해야 한다. 충분한 검증을 하지 않는 테스트는 없는 것보다 나쁠 수 있다.
+- 코드 작성과 테스트 수행의 간격이 짧을수록 효과적이다.
+- 테스트하기 쉬운 코드가 좋은 코드다.
+- 테스트를 먼저 만들고 테스트를 성공시키는 코드를 만들어가는 테스트 주도 개발 방법도 유용하다.
+- 테스트 코드도 애플리케이션 코드와 마찬가지로 적절한 리팩토링이 필요하다.
+- @Before, After를 사용해서 테스트 메서드들의 공통 준비 작업과 정리 작업을 처리할 수 있다.
+- 스프링 테스트 컨텍스트 프레임워크를 이용하면 테스트 성능을 향상시킬 수 있다.
+- 동일한 설정파일을 사용하는 테스트는 하나의 애플리케이션 컨텍스트를 공유한다.
+- @Autowired를 사용하면 컨텍스트의 빈을 테스트 오브젝트에 DI할 수 있다.
+- 기술의 사용 방법을 익히고 이해를 돕기 위해 학습 테스트를 먼저 작성하자.
+- 오류가 발견될 경우 그에 대한 버그 테스트를 만들어두면 유용하다.
 
 
 
