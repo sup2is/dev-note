@@ -437,11 +437,95 @@ public class UserDaoTest {
 
 #### 테스트 메서드의 컨텍스트 공유
 
+```java
+
+@RunWith(SpringJUnit4ClassRunner.class)
+@ContextConfiguration(classes = ExampleApplication.class)
+public class ExamApplicationTests {
+
+    @Autowired
+    ApplicationContext applicationContext;    
+
+		@Before
+    public void setup() {
+        System.out.println("test context = " + applicationContext);
+        System.out.println("my test class = " + this);
+    }
+  
+}
+```
+
+
+
+```
+test context = org.springframework.context.support.GenericApplicationContext@31368b99, started on Mon Oct 18 07:37:36 KST 2021
+my test = com.example.springmvcexam.SpringMvcExamApplicationTests@1d119efb
+test context = org.springframework.context.support.GenericApplicationContext@31368b99, started on Mon Oct 18 07:37:36 KST 2021
+my test = com.example.springmvcexam.SpringMvcExamApplicationTests@65c33b92
+test context = org.springframework.context.support.GenericApplicationContext@31368b99, started on Mon Oct 18 07:37:36 KST 2021
+my test = com.example.springmvcexam.SpringMvcExamApplicationTests@78cd163b
+
+```
+
+- 출력된 context와 this의 오브젝트 값을 잘 살펴보면 context는 세 번 모두 동일함. 따라서 하나의 애플리케이션 컨텍스트가 만들어져 모든 테스트 메서드에서 사용되고 있음을 알 수 있음
+- 반면에 this의 오브젝트 주소는 매번 값이다름. 따라서 JUnit은 테스트 메서드를 실행할 때마다 새로운 테스트 오브젝트를 만듦
+
+#### 테스트 클래스의 컨텍스트 공유
+
+- 여러개의 테스트 클래스가 있는데 모두 애플리케이션 컨텍스트를 사용한다면 스프링은 테스트 클래스 사이에서도 애플리케이션 컨텍스트를 공유하게 해줌
+
+```java
+@RunWith(SpringJUnit4ClassRunner.class)
+@ContextConfiguration(locations="/applicationContext.xml")
+public class FooTest {
+
+  ...
+    
+}
+
+...
+
+@RunWith(SpringJUnit4ClassRunner.class)
+@ContextConfiguration(locations="/applicationContext.xml")
+public class BarTest {
+
+  ...
+    
+}
+```
+
+- 수백개의 테스트 클래스라도 모두 같은 설정 파일을 사용한다면 단 한 개의 애플리케이션 컨텍스트를 공유할 수 있어서 테스트 성능을 향상시킬 수 있음
+
+
+
+> junit5.8.1의 클래스 order 기능
+>
+> [https://www.wimdeblauwe.com/blog/2021/02/12/junit-5-test-class-orderer-for-spring-boot/](https://www.wimdeblauwe.com/blog/2021/02/12/junit-5-test-class-orderer-for-spring-boot/)
+>
+> 실제로 회사코드에 적용시켜본 결과 테스트 속도 개선을 위해 class order를 쓰는 것은 크게 차이가 없는듯 보였고 docs에서 소개시켜준것처럼 class order를 사용하는 가장 bestcase는 통합테스트 이전에 단위테스트를 먼저 실행시켜서 fail fast를 실현하는것일듯 ..
+>
+> [https://junit.org/junit5/docs/current/user-guide/#writing-tests-test-execution-order-classes](https://junit.org/junit5/docs/current/user-guide/#writing-tests-test-execution-order-classes)
+
 
 
 
 
 ### DI와 테스트
+
+- DI를 사용해야 하는 이유
+  - 소프트웨어 개발에서 절대로 바뀌지 않는 것은 없음
+  - 클래스의 구현 방식은 바뀌지 않는다고 하더라도 인터페이스를 두고 DI를 적용하게 되면 다른 서비스 기능을 도입하는것이 쉬워짐
+  - 효율적인 테스트를 손쉽게 만들 수 있음
+
+#### 테스트 코드에 의한 DI
+
+#### 테스트를 위한 별도의 DI 설정
+
+#### 컨테이너 없는 DI 테스트
+
+#### DI를 이용한 테스트 방법 선택
+
+
 
 ## 학습 테스트로 배우는 스프링
 
