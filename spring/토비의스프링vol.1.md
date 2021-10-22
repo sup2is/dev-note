@@ -763,25 +763,191 @@ public class JUnitTest {
 
 # #6 AOP
 
-## 트랜잭션 코드의 분리
+## 트랜잭션 코드의 분리
 
 ### 메소드 분리
 
+- 비지니스 로직이 주인이어야 할 메서드 안에 트랜잭션코드들이 더 많은 자리를 차지하고 있는 모습
+- 하지만 논리적으로 트랜잭션의 경계는 비지니스 로직의 전후에 설정되어야 하는 것이 명확함
+
+```java
+
+public void upgradeLevels() 
+  
+  TransactionStatus status = this.transactionManager.getTransaction(new DefaultTransactionDefinition());
+
+  try {
+    List<User> users = userDao.getAll();
+    for (User user : users) {
+      if (canUpgradeLevel(user)) {
+        upgradeLevel(user);
+      }
+    }
+
+    this.transcationManager.commit(status);
+  } catch (Exception e) {
+    this.transcationManager.rollback(status);
+    throw e;
+  } 
+
+}
+```
+
+- 자세히 살펴보면 뚜렷하게 두가지 종류의 코드가 구분되어 있음을 알 수 있음
+  - 파란색 영역: 비지니스 로직
+  - 빨간색 영역: 트랜잭션 경계 설정 로직
+- 또 하나의 특징으로 트랜잭션 경계설정의 코드와 비지니스 로직 코드간에 서로 주고받는 정보가 없음. 따라서 완벽하게 독립적인 코드임
+- 아래와 같이 분리 가능
+
+```java
+
+public void upgradeLevels() {
+  TransactionStatus status = this.transactionManager.getTransaction(new DefaultTransactionDefinition());
+
+  try {
+		upgradeLevelsInternal(); //메서드로 분리
+    this.transcationManager.commit(status);
+  } catch (Exception e) {
+    this.transcationManager.rollback(status);
+    throw e;
+  } 
+}
+
+
+private void upgradeLevelsInternal() {
+  List<User> users = userDao.getAll();
+  for (User user : users) {
+    if (canUpgradeLevel(user)) {
+      upgradeLevel(user);
+    }
+  }
+}
+```
+
+
+
 ### DI를 이용한 클래스의 분리
+
+- 메서드로 분리했지만 여전히 UserService.class 안에 비지니스 외 로직이 존재하고 있음
+- 따라서 UserService 클래스에서 트랜잭션 경계를 완전히 분리해야함
 
 #### DI 적용을 이용한 트랜잭션 분리
 
+- 지금까지 UserServiceTest는 직접적으로 UserService를 바라보는 강결합 구조 였지만 아래와 같이 UserService를 인터페이스를 만들고 기존 코드는 UserService 인터페이스의 구현체로 만들면 결합이 약해지고 직접 구현 클래스에 의존하고 있지 않기 때문에 유연한 확장이 가능함
+
+
+
+![1](/Users/a10300/Choi/Git/dev-note/spring/images/toby-spring-vol1/1.jpeg)
+
+
+
+- UserServiceImpl은 UserService의 실제 비지니스 로직 구현체로 생성하고 UserServiceTx는 비지니스 로직을 제외한 트랜잭션 경계설정만을 담당하는 클래스로 구현하면 아래와 같이 모두 UserService 타입의 구현체가 될 수 있음
+
+
+
+![2](./images/toby-spring-vol1/2.jpeg)
+
 #### UserService 인터페이스 도입
+
+- 인터페이스로 변경하기
+
+```java
+public interface UserService {
+	void add(User user);
+  void upgradeLevels();
+}
+```
+
+- 트랜잭션 코드를 제거한 UserService 구현 클래스
+
+```java
+public class UserServiceImpl implements UserService {
+  UserDao userDao;
+  MailSender mailSender;
+  
+  private void upgradeLevelsInternal() {
+    List<User> users = userDao.getAll();
+    for (User user : users) {
+      if (canUpgradeLevel(user)) {
+        upgradeLevel(user);
+      }
+    }
+  }
+}
+```
+
+
 
 #### 분리된 트랜잭션 기능
 
+- 비지니스 트랜잭션 처리를 담은 UserService 구현 클래스 
+
+```java
+public class UserServiceTx implements UserService {
+	UserService userService;
+  PlatformTranscationManager transcationManager;
+ 
+  public void setTranscationManager(PlatformTranscationManager transcationManager) {
+    this.transcationManager = transcationManager;
+  }
+  
+  public void setUserService(UserService userService) {
+    this.userService = userService;
+  }
+  
+  public void add(User user) {
+    userService.add(user);
+  }
+  
+  public void upgradeLevels() {
+    TransactionStatus status = this.transactionManager.getTransaction(new DefaultTransactionDefinition());
+
+    try {
+			userService.upgradeLevel(user);
+
+      this.transcationManager.commit(status);
+    } catch (Exception e) {
+      this.transcationManager.rollback(status);
+      throw e;
+    } 
+  }
+}
+```
+
+- UserServiceTx는 사용자 관리라는 비지니스 로직을 전혀 갖지 않고 고스란히 다른 UserService 구현 오브젝트에 기능을 위임함
+
 #### 트랜잭션 적용을 위한 DI 설정
+
+- 이제 클라이언트가 UserService 라는 인터페이스를 통해 사용자 관리 로직을 이용하려고 할 때 UserServiceTx 클래스를 주입함
+
+```xml
+<bean id="userService" class="springbook.service.UserServiceTx">
+    <property name="userService" ref="userServiceImpl"/>
+    <property name="transactionManager" ref="transactionManager"/>
+</bean>
+<bean id="userServiceImpl" class="springbook.service.UserServiceImpl">
+    <property name="userDao" ref="userDaoJdbc"/>
+    <property name="userLevelUpgradePolicy" ref="userLevelUpgradePolicy"/>
+    <property name="mailSender" ref="mailSender"/>
+</bean>
+```
+
+
 
 #### 트랜잭션 분리에 따른 테스트 수정
 
+- @Autowired는 기본적으로 타입을 이용해 빈을 찾지만 만약 타입으로 하나의 빈을 결정할 수 없을 경우에는 필드이름을 이용해 빈을 찾음. 따라서 최종적으로 컨테이너가 제공해주는 대표적인 UserService 구현체를 사용하게됨
+
+```java
+@Autowired UserService userService;
+```
+
+- 그 외에도 변경되는 부분이 여럿있지만 원래 하나의 오브젝트만 만들던 것을 두 개로 나눴을 뿐이지 내용은 달라지는게 없음
+
 #### 트랜잭션 경계설정 코드 분리의 장점
 
-
+- 비지니스 로직을 담당하고 있는 UserServiceImpl의 코드를 작성할 때는 트랜잭션과 같은 기술적인 내용에는 전혀 신경쓰지 않아도 됨
+- 비지니스 로직에 대한 테스트를 손쉽게 만들어낼 수 있음
 
 ## 고립된 단위 테스트
 
