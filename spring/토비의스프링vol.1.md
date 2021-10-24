@@ -67,6 +67,7 @@ public class UserDaoTest {
 }
 ```
 
+- 이 테스트의 특징은 main() 메서드를 사용해서 쉽게 테스트할 수 있고 `UserDao`를 직접 호출한다는 점.
 
 
 #### 웹을 통한 DAO 테스트 방법의 문제점
@@ -89,9 +90,9 @@ public class UserDaoTest {
 
 #### 자동수행 테스트 코드
 
-- UserDaoTest의 한가지 특징은 테스트할 데이터가 코드를 통해 제공되고, 테스트 작업 역시 코드를 통해 자동으로 실행한다는 점
+- `UserDaoTest`의 한가지 특징은 테스트할 데이터가 코드를 통해 제공되고, 테스트 작업 역시 코드를 통해 자동으로 실행한다는 점
 - 테스트는 자동으로 수행되도록 코드로 만들어지는 것이 중요함
-- 자동으로 수행되는 테스트의 장점은 자주 반족할 수 있다는 것
+- 자동으로 수행되는 테스트의 장점은 자주 반복할 수 있다는 것
 - 만들어둔 기능 테스트가 있다면 리팩토링, 수정을 안전하게 수행할 수 있음
 
 #### 지속적인 개선과 점진적인 개발을 위한 테스트
@@ -107,7 +108,7 @@ public class UserDaoTest {
 
 **실행 작업의 번거로움**
 
-- 테스트를 만들때마다 main()메서드를 생성할 수 없으므로 main()메서드를 이용하는 방법보다 좀 더 편리하고 체계적으로 테스트를 실행하고 그결과를 확인하는 방법이 필요함
+- 테스트를 만들때마다 `main()`메서드를 생성할 수 없으므로 `main()`메서드를 이용하는 방법보다 좀 더 편리하고 체계적으로 테스트를 실행하고 그결과를 확인하는 방법이 필요함
 
 ## USERDAOTEST 개선
 
@@ -133,16 +134,16 @@ public class UserDaoTest {
     }
 ```
 
-- add()는 별도로 검증하지 않고 get()을 검증함으로써 add()와 get()메서드를 동시에 검증
+- `add()`는 별도로 검증하지 않고 `get()`을 검증함으로써 `add()`와 `get()`메서드를 동시에 검증
 - 이 테스트는 추후 코드의 동작에 영향을 미칠 수 있는 어떤 변화라도 생기면 언제든 다시 실행시켜볼 수 있음
 - "테스트란 개발자가 마음 편하게 잠자리에 들 수 있게 해주는 것" - 켄트백
-- 개발과정, 유지보수를 하면서 기존 애플리케이션 코드에 수정을 할 때 마음의 평안을 얻고 자신이 만ㄷ지는 코드에 대해 항상 자신감을 가질 수 있으며, 새로 도입한 기술의 적용에 문제가 없는지 확인할 수 있는 가장 좋은 방법은 빠르게 실행 가능하고 스스로 테스트 수행과 기대하는 결과에 대한 확인까지 해주는 코드로된 자동화된 테스트를 만들어주는 것
+- 개발과정, 유지보수를 하면서 기존 애플리케이션 코드에 수정을 할 때 마음의 평안을 얻고 자신이 만지는 코드에 대해 항상 자신감을 가질 수 있으며, 새로 도입한 기술의 적용에 문제가 없는지 확인할 수 있는 가장 좋은 방법은 빠르게 실행 가능하고 스스로 테스트 수행과 기대하는 결과에 대한 확인까지 해주는 코드로된 자동화된 테스트를 만들어주는 것
 
 
 
 ### 테스트의 효율적인 수행과 결과 관리
 
-- main() 메서드로는 한계가 있음
+- `main()` 메서드로는 한계가 있음
 - 일정한 패턴을 가진 테스트를 만들 수 있고, 테스트가 실패한 곳을 빠르게 찾을 수 있는 기능을 갖춘 테스트 지원 도구와 그에 맞는 테스트 작성 방법이 필요함
 - JUnit은 자바로 단위 테스트를 만들 때 유용하게 사용할 수 있음
 
@@ -152,11 +153,11 @@ public class UserDaoTest {
 
 #### 테스트 메서드 전환
 
-- 기존에 만들었던 main() 메서드에 있던 테스트 코드를 일반 메서드로 옮기는 것
+- 기존에 만들었던 `main()` 메서드에 있던 테스트 코드를 일반 메서드로 옮기는 것
 - 새로 만들 테스트 메서드는 JUnit 프레임워크가 요구하는 조건 두가지를 따라야함
   - ~~메서드가 public으로 선언되어야 함~~
   - 메서드가 private으로 선언되지 않아야함 [https://junit.org/junit5/docs/current/user-guide/#writing-tests-classes-and-methods](https://junit.org/junit5/docs/current/user-guide/#writing-tests-classes-and-methods)
-  - 메서드에 @Test 애너테이션을 붙여줘야 함
+  - 메서드에 `@Test` 애너테이션을 붙여줘야 함
 
 ```java
 import org.junit.Test;
@@ -180,7 +181,7 @@ public class UserDaoTest {
 - `assertThat()` 메서드는 첫 번째 파라미터의 값을 뒤에 나오는 Matcher 라고 불리는 조건으로 비교해서 일치하면 다음으로 넘어가고 아니면 테스트가 실패하도록 만들어 줌
 - `is()` 는 Matcher의 일종으로 `eqauls()` 로 비교해주는 기능을 가짐
 - Junit은 예외가 발생하거나 `assertThat()` 에서 실패하지 않고 테스트 메서드의 실행이 완료되면 테스트가 성공했다고 인식함.
-- Junit을 적용한 UserDaoTest
+- Junit을 적용한 `UserDaoTest`
 
 ```java
 import static org.hamcrest.CoreMatchers.is;
@@ -215,7 +216,7 @@ public class UserDaoTest {
 
 #### Junit 테스트 실행
 
-- 생성한 JUnit 테스트코드도 어디선가는 실행시켜줘야하기 때문에 main() 메서드에 추가
+- 생성한 JUnit 테스트코드도 어디선가는 실행시켜줘야하기 때문에 `main()` 메서드에 추가
 
 ```java
 import org.junit.runner.JUnitCore;
@@ -268,15 +269,15 @@ Tests run: 1, Failures: 1
 
 #### IDE
 
-- IDE에서 Run As > Jnit Test를 선택하면 테스트가 자동으로 실행됨
-- main() 메서드 없이 테스트할 수 있음
+- IDE에서 `Run As > Jnit Test`를 선택하면 테스트가 자동으로 실행됨
+- `main()` 메서드 없이 테스트할 수 있음
 - IDE에서 테스트의 총 수행시간, 실행한 테스트의 수, 테스트 에러의 수, 테스트 실패의 수를 확인할 수 있음
 - JUnit은 한 번에 여러 테스트 클래스를 동시에 실행할 수도 있음
 - JUnit 테스트의 실행과 그 결과를 확인하는 방법이 매우 간단하고 직관적이며 소스와 긴밀하게 연동된 결과를 볼 수 있기 때문에 IDE의 지원을 받는 것이 가장 편리함
 
 #### 빌드 툴
 
-- 빌드 툴에서 제공하는 JUnit 플로그인이나 태스크를 이용해 JUnit 테스트를 실행할 수 있음
+- 빌드 툴에서 제공하는 JUnit 플러그인이나 태스크를 이용해 JUnit 테스트를 실행할 수 있음
 
 ### 테스트 결과의 일관성
 
@@ -350,7 +351,19 @@ Tests run: 1, Failures: 1
 
 ### 테스트가 이끄는 개발
 
+
+
 #### 기능설계를 위한 테스트
+
+- gwt 패턴
+
+|            | 단계               |
+| ---------- | ------------------ |
+| 조건 given | 어떤 조건을 가지고 |
+| 행위 when  | 무엇을 할 때       |
+| 결과 then  | 어떤 결과가 나온다 |
+
+- 테스트 코드를 설계 문서처럼 만들고 then절에서 실패하면 이때는 설계한 대로 코드가 만들어지지 않았음을 바로 알 수 있기 때문에 코드를 수정해서 예상한대로 성공하도록 만들면 그 순간 코드 구현과 테스트라는 작업을 한번에 구현할 수 있음
 
 #### 테스트 주도 개발
 
@@ -385,7 +398,7 @@ Tests run: 1, Failures: 1
 
 - JUnit5에서는 `@BeforeEach`, `@BeforeAll`로 사용가능
   - [https://junit.org/junit5/docs/current/user-guide/#writing-tests-annotations](https://junit.org/junit5/docs/current/user-guide/#writing-tests-annotations)
-- JUnit 프레임워크 테스트 메서드 실행 과정
+- JUnit 프레임워크 테스트 메서드 실행 과정 (junit 4 기준)
   1. 테스트 클래스에서 `@Test`가 붙은 public이고 void형이며 파라미터가 없는 테스트 메서드를 모두 찾는다.
   2. 테스트 클래스의 오브젝트를 하나 만든다.
   3. `@Before`가 붙은 메서드가 있으면 실행한다.
@@ -409,7 +422,7 @@ Tests run: 1, Failures: 1
 ## 스프링 테스트 적용
 
 - 애플리케이션 컨텍스트가 만들어질 때는 모든 싱글톤 빈 오브젝트를 초기화함
-- 테스트는 가증한 한 독립적으로 매번 새로운 오브젝트를 만들어서 사용하는 것이 원칙임. 하지만 애플리케이션 컨텍스트처럼 생성에 많은 시간과 자원이 소모되는 경우에는 테스트 전체가 공유하는 오브젝트를 만들기도 함. 하지만 이때도 테스트는 일관성 있는 실행 결과를 보장해야하고 테스트의 실행 순서가 결과에 영향을 미치지 않아야함
+- 테스트는 가능한 한 독립적으로 매번 새로운 오브젝트를 만들어서 사용하는 것이 원칙임. 하지만 애플리케이션 컨텍스트처럼 생성에 많은 시간과 자원이 소모되는 경우에는 테스트 전체가 공유하는 오브젝트를 만들기도 함. 하지만 이때도 테스트는 일관성 있는 실행 결과를 보장해야하고 테스트의 실행 순서가 결과에 영향을 미치지 않아야함
 
 ### 테스트를 위한 애플리케이션 컨텍스트 관리
 
@@ -500,9 +513,13 @@ public class BarTest {
 
 > junit5.8.1의 클래스 order 기능
 >
+> 회사코드는 spring restdocs를 사용해서 반드시 controller에 대한 모든 테스트코드를 작성하도록 강제되었는데 단위테스트, 통합테스트가 섞여있는 환경.
+>
+> 다들 잘 아시다시피 `@MockBean`은 테스트 컨텍스트를 재사용할 수 없게 만드는 원인이되기 때문에 이리저리 섞여있는 단위테스트, 통합테스트들로 인해 테스트 속도가 느려진다고 판단했음.
+>
 > [https://www.wimdeblauwe.com/blog/2021/02/12/junit-5-test-class-orderer-for-spring-boot/](https://www.wimdeblauwe.com/blog/2021/02/12/junit-5-test-class-orderer-for-spring-boot/)
 >
-> 실제로 회사코드에 적용시켜본 결과 테스트 속도 개선을 위해 class order를 쓰는 것은 크게 차이가 없는듯 보였고 docs에서 소개시켜준것처럼 class order를 사용하는 가장 bestcase는 통합테스트 이전에 단위테스트를 먼저 실행시켜서 fail fast를 실현하는것일듯 ..
+> 따라서 테스트 성능향상을 위해 통합테스트는 전부 맨 나중에 실행시키는 방법으로 회사코드에 적용시켜본 결과 테스트 속도 개선을 위해 class order를 쓰는 것은 크게 차이가 없는듯 보였고 docs에서 소개시켜준것처럼 class order를 사용하는 가장 bestcase는 통합테스트 이전에 단위테스트를 먼저 실행시켜서 fail fast를 실현하는것일듯 ..
 >
 > [https://junit.org/junit5/docs/current/user-guide/#writing-tests-test-execution-order-classes](https://junit.org/junit5/docs/current/user-guide/#writing-tests-test-execution-order-classes)
 
@@ -521,7 +538,7 @@ public class BarTest {
 
 - DI는 스프링 컨테이너에서만 할 수 있는 작업이 아님
 - 수동으로 DI를 아래와 같이 구현할 수 있음
-- 테스트를 위한 수동 DI를 적용한 UserDaoTest
+- 테스트를 위한 수동 DI를 적용한 `UserDaoTest`
 
 ```java
 
@@ -544,7 +561,7 @@ public class UserDaoTest {
 
 #### 테스트를 위한 별도의 DI 설정
 
-- 기존에 사용하던 applicationContext.xml을 사용해서 test-applicationContext.xml 설정 파일을 만드는 방법으로 테스트를 위한 컨텍스트를 만들 수 있음
+- 기존에 사용하던 `applicationContext.xml`을 사용해서 `test-applicationContext.xml` 설정 파일을 만드는 방법으로 테스트를 위한 컨텍스트를 만들 수 있음
 
 ```java
 @RunWith(SpringJUnit4ClassRunner.class)
