@@ -968,23 +968,156 @@ public class UserServiceTx implements UserService {
 
 ## 고립된 단위 테스트
 
+- 가장 편하고 좋은 테스트 방법은 가능한 한 작은 단위로 쪼개서 테스트하는 것
+- 작은 단위의 테스트가 좋은 이유는 테스트가 실패했을 때 그 원인을 찾기 쉽기 때문임
+
 ### 복잡한 의존관계 속의 테스트
+
+- UserService는 세개의 의존 관계를 갖고있는데 이런 경우 테스트는 준비하기 힘들고 여러 환경에 영향을 받음. 따라서 단위 테스트가 아님
+
+사진 
 
 ### 테스트 대상 오브젝트 고립시키기
 
+- 테스트의 대상이 환경이나, 외부 서버, 다른 클래스의 코드에 종속되고 영향을 받지 않도록 고립시킬 필요가 있음
+- 방법은 테스트를 의존 대상으로부터 분리해서 테스트 스텁, 목 오브젝트를 사용하는 것
+
 #### 테스트를 위한 UserServiceImpl 고립
 
-#### 고립된 단위 테스트 활용
+사진
+
+- UserServiceImpl이 테스트에 사용할 MockUserDao, MockMailsender 이라는 준비된 목 오브젝트를 의존함으로써 UserServiceImpl을 고립된 테스트 대상으로 만들 수 있음
 
 #### UserDao 목 오브젝트
 
+- UserDao의 목 오브젝트인 MockUserDao 구현하기
+
+```java
+static class MockUserDao implements UserDao {
+
+     private List<User> users;
+     private List<User> updated = new ArrayList();
+
+     private MockUserDao(List<User> users) {
+         this.users = users;
+     }
+
+     public List<User> getUpdated() {
+         return updated;
+     }
+
+     @Override
+     public void addUser(User user) {
+         throw new UnsupportedOperationException();
+     }
+
+     @Override
+     public User getUser(String id) {
+         return null;
+     }
+
+     @Override
+     public void deleteAll() {
+         throw new UnsupportedOperationException();
+     }
+
+     @Override
+     public int getCount() {
+         throw new UnsupportedOperationException();
+     }
+
+     @Override
+     public List<User> getAll() {
+         return this.users;
+     }
+
+     @Override
+     public void update(User user1) {
+         updated.add(user1);
+     }
+}
+```
+
+
+
+#### 고립된 단위 테스트 활용
+
+```java
+
+@Test
+public void upgradeLevels() throws Exception {
+  UserServiceImpl userServiceImpl = new UserServiceImpl();
+  
+  //MockUserDao를 직접 di
+  MockUserDao mockUserDao = new MockUserDao(this.users);
+  userServiceImpl.setUserDao(mockUserDao);
+  
+  //MockMailSender를 직접 di
+  MockMailSender mockMailSender = new MockMailSender();
+  userServiceImpl.setMailSender(mcokMailSender);
+  
+  userServiceImpl.upgradeLevels();
+  t
+  List<User> updated = mockUserDao.getUpdated();
+  assertThat(updated.size(), is(2));
+  checkUserAndLevel(updated.get(0), "joytouch", Level.SILVER);
+  checkUserAndLevel(updated.get(1), "joytouch", Level.SILVER);
+
+  List<String> request = mockMailSender.getRequests();
+  assertThat(request.size, is(2));
+  assertThat(request.get(0), is(user.get(1).getEmail()));
+  assertThat(request.get(1), is(user.get(3).getEmail()));
+  
+}
+
+//id와 level을 확인하는 간단한 헬퍼 메서드
+private void checkUserAndLevel(User udated, String expectedId, Level expected Level) {
+  assertThat(updated.getId(), is(expectedId));
+  assertThat(updated.getLevel(), is(expectedLevel));
+}
+
+
+```
+
+- UserServiceImpl을 직접 생성하고 직접 di해주기 때문에 스프링 컨텍스트를 이용하기 위한 @RunWith 등의 애너테이션을 제거할 수 있음
+
 #### 테스트 수행 성능의 향상
+
+- 고립된 테스트를 하면 테스트가 다른 의존 대상에 영향을 받을 경우를 대비해 복잡하게 준비할 필요가 없을 뿐만 아니라, 테스트 수행 성능도 크게 향상됨
 
 ### 단위 테스트와 통합 테스트
 
+- 단위 테스트의 단위는 정하기 나름. 중요한 것은 하나의 단위에 초점을 맞춘 테스트라는 점
+- 통합 테스트는 두 개 이상의 단위가 결합해서 동작하면서 테스트가 수행되는 것. ex 스프링 테스트 컨텍스트 프레임워크를 사용하는 테스트
+- 단위 테스트와 통합 테스트 중에서 어떤 방법을 쓸지에 대한 가이드라인
+  - 항상 단위 테스트를 먼저 고려한다.
+  - 하나의 클래스나 성격과 목적이 같은 긴밀한 클래스 몇 개를 모아서 외부와의 의존 관계를 모두 차단하고 필요에 따라 스텁이나 목 오브젝트 등의 테스트 대역을 이용하도록 테스트를 만든다.
+  - 외부 리소스를 사용해야만 가능한 테스트는 통합 테스트로 만든다.
+  - 단위 테스트를 만들기가 너무 복잡하다고 판단하면 코드는 처음부터 통합 테스트를 고려해본다. 하지만 통합 테스트에 참여하는 코드중에서 가능한 한 많은 부분을 미리 단위 테스트로 검중해두는게 유리하다.
+
 ### 목 프레임워크
 
+- 단위테스트를 만들기 위해서는 스텁이나 목 오브젝트의 사용이 필수이지만 단위테스트마다 MockUserDao, MockMailSender 같은 목 객체를 직접 만들어줄 수 없기 때문에 목 오브젝트를 편리하게 작성하도록 도와주는 다양항 목 오브젝트 지원 프레임워크를 사용해야함 
+
 #### Mockito 프레임워크
+
+- Mockito 프레임워크를 사용하면 목 클래스를 직접 준비해둘 필요도 없고 간단한 메서드 호출만으로 다이내믹하게 특정 인터페이스를 구현한 테스트용 목 오브젝트를 만들 수 있음
+
+```java
+
+//mock 오브젝트 생성
+UserDao mockUserDao = mock(UserDao.class);
+
+//스텁 기능을 추가하기
+when(mockUserDao.getAll()).thenReturn(this.users);
+
+//검증하기
+verify(mockUserDao, times(2)).update(User.class));
+```
+
+
+
+- 
 
 
 
