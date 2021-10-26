@@ -975,7 +975,7 @@ public class UserServiceTx implements UserService {
 
 - UserService는 세개의 의존 관계를 갖고있는데 이런 경우 테스트는 준비하기 힘들고 여러 환경에 영향을 받음. 따라서 단위 테스트가 아님
 
-사진 
+
 
 ### 테스트 대상 오브젝트 고립시키기
 
@@ -1332,12 +1332,82 @@ public class HelloUppercase implements Hello {
 - 이 프록시는 프록시 적용의 일반적인 문제점 두 가지를 모두 갖고 있음
   - 인터페이스의 모든 메서드를 구현해 위임하도록 코드를 만들어야함
   - 부가기능인 리턴 값을 대문자로 바꾸는 기능이 모든 메서드에서 중복
-
-
+- 다이내믹 프록시로 변경해서 문제점들을 개선해야함
 
 #### 다이내믹 프록시 적용
 
+- 다이내믹 프록시는 프록시 팩토리에 의해 런타임 시 다이내믹하게 만들어지는 오브젝트임
+- 다이내믹 프록시 오브젝트는 타깃의 인터페이스와 같은 타입으로 만들어짐
+- 클라이언트는 다이내믹 프록시 오브젝트를 타깃 인터페이스를 통해 사용할 수 있음
+- 실제로 부가기능은 InvocationHandler를 구현한 오브젝트에 담음
+
+```java
+public interface InvocationHandler {
+
+    public Object invoke(Object proxy, Method method, Object[] args)
+        throws Throwable;
+}
+
+```
+
+- 타깃 인터페이스의 모든 메서드 요청이 하나의 메서드로 집중되기 때문에 중복되는 기능을 효과적으로 제공할 수 있음
+
+
+
+```java
+public class Uppercasehandler implements InvocationHandler {
+
+    private Hello target;
+  	//다이내믹 프록시로부터 전달받은 요청을 다시 타깃 오브젝트에 위임해야 하기 때문에 타깃 오브젝트를 주입받아둠
+    public Uppercasehandler(Hello target) {
+        this.target = target;
+    }
+
+    @Override
+    public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+        String result = (String) method.invoke(target, args); // <- 타깃으로 위임. 인터페이스의 메서드 호출에 모두 적용됨
+        return result.toUpperCase();
+    }
+}
+```
+
+- InvocationHandler를 사용하고 Hello 인터페이스를 구현하는 프록시 만들기
+
+```java
+Hello proxy = (Hello) Proxy.newProxyInstance(
+  getClass().getClassLoader(), //<- 동적으로 생성되는 다이내믹 프록시 클래스 로딩에 사용할 클래스 로더
+  new Class[]{Hello.class}, // <- 구현할 인터페이스
+  new Uppercasehandler(new HelloTarget())); // <- 부가기능과 위임 코드를 담은 InvocationHandler
+
+```
+
+
+
 #### 다이내믹 프록시의 확장
+
+- InvocationHandler 방식의 또 한가지 장점은 타깃의 종류에 상관없이도 적용이 가능하다는 점
+
+```java
+public class Uppercasehandler implements InvocationHandler {
+
+    private Object target;
+
+    public Uppercasehandler(Object target) { //Object 타입으로 받기
+        this.target = target;
+    }
+
+    @Override
+    public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+        Object object = method.invoke(target, args);
+        if (object instanceof String) { // <- 호출한 메서드의 리턴타입을 검사하기
+            return ((String) object).toUpperCase();
+        }
+        return object;
+    }
+}
+```
+
+
 
 ### 다이내믹 프록시를 이용한 트랜잭션 부가기능
 
