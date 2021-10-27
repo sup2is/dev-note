@@ -854,7 +854,7 @@ private void upgradeLevelsInternal() {
 
 
 
-![1](/Users/a10300/Choi/Git/dev-note/spring/images/toby-spring-vol1/1.jpeg)
+![1](./images/toby-spring-vol1/1.jpeg)
 
 
 
@@ -975,7 +975,7 @@ public class UserServiceTx implements UserService {
 
 - UserService는 세개의 의존 관계를 갖고있는데 이런 경우 테스트는 준비하기 힘들고 여러 환경에 영향을 받음. 따라서 단위 테스트가 아님
 
-
+![4](./images/toby-spring-vol1/4.jpeg)
 
 ### 테스트 대상 오브젝트 고립시키기
 
@@ -984,7 +984,7 @@ public class UserServiceTx implements UserService {
 
 #### 테스트를 위한 UserServiceImpl 고립
 
-사진
+![3](./images/toby-spring-vol1/3.jpeg)
 
 - UserServiceImpl이 테스트에 사용할 MockUserDao, MockMailsender 이라는 준비된 목 오브젝트를 의존함으로써 UserServiceImpl을 고립된 테스트 대상으로 만들 수 있음
 
@@ -1126,6 +1126,9 @@ verify(mockUserDao, times(2)).update(User.class));
 - 클라이언트의 입장에서는 실제로 핵심기능을 사용하는것으로 알지만 실제로는 부가기능을 거쳐서 사용하도록 만들어야함
 - **클라이언트가 사용하려고하는 실제 대상인 것처럼 위장해서 클라이언트의 요청을 받아주는 것을 대리자, 대리인과 같은 역할을 한다고 해서 프록시라고 부름**
 - **프록시를 통해 최종적으로 요청을 위임받아 처리하는 실제 오브젝트를 타깃 또는 실체라고 부름**
+
+![5](./images/toby-spring-vol1/5.jpeg)
+
 - 프록시의 특징은 타깃과 같은 인터페이스를 구현했다는 것과 프록시가 타깃을 제어할 수 있는 위치에 있다는 것
 - 프록시의 사용 목적
   - 클라이언트가 타깃에 접근하는 방법을 제어하기 위해서
@@ -1135,6 +1138,9 @@ verify(mockUserDao, times(2)).update(User.class));
 
 - 데코레이터 패턴은 타깃에 부가적인 기능을 런타임 시 다이내믹하게 부여해주기 위해 프록시를 사용하는 패턴
 - 다이내믹하게 기능을 부가한다는 의미는 컴파일 시점, 즉 코드상에서 어떤 방법과 순서로 프록시와 타깃이 연결되어 사용되는지 정해져 있지 않다는 뜻
+
+![6](./images/toby-spring-vol1/6.jpeg)
+
 - 프록시로서 동작하는 각 데코레이터는 위임하는 대상에도 인터페이스로 접근하기 때문에 자신이 최종 타깃으로 위임하는지, 아니면 다음 단계의 데코레이터 프록시로 위임하는지는 알지 못하는 특징이 있음
 - 따라서 데코레이터의 다음 위임 대상은 인터페이스로 선언하고 생성자나 수정자 메서드를 통해 위임 대상을 외부에서 런타임 시에 주입받을 수 있도록 만들어야함
 - 대표적으로 자바 IO 패키지의 InputStream과 OutputStream 구현 클래스는 데코레이터 패턴이 사용된 대표적인 예
@@ -1336,6 +1342,10 @@ public class HelloUppercase implements Hello {
 
 #### 다이내믹 프록시 적용
 
+![7](./images/toby-spring-vol1/7.jpeg)
+
+
+
 - 다이내믹 프록시는 프록시 팩토리에 의해 런타임 시 다이내믹하게 만들어지는 오브젝트임
 - 다이내믹 프록시 오브젝트는 타깃의 인터페이스와 같은 타입으로 만들어짐
 - 클라이언트는 다이내믹 프록시 오브젝트를 타깃 인터페이스를 통해 사용할 수 있음
@@ -1349,6 +1359,10 @@ public interface InvocationHandler {
 }
 
 ```
+
+
+
+![8](./images/toby-spring-vol1/8.jpeg)
 
 - 타깃 인터페이스의 모든 메서드 요청이 하나의 메서드로 집중되기 때문에 중복되는 기능을 효과적으로 제공할 수 있음
 
@@ -1411,29 +1425,301 @@ public class Uppercasehandler implements InvocationHandler {
 
 ### 다이내믹 프록시를 이용한 트랜잭션 부가기능
 
+- UserServiceTx를 다이내믹 프록시 방식으로 변경해서 트랜잭션 부가기능을 제공하는 다이내믹 프록시를 만들기
+
 #### 트랜잭션 InvocationHandler
+
+```java
+public class TransactionHandler implements InvocationHandler {
+
+    private Object target; // <- 부가기능을 제공할 타깃 오브젝트, 어떤 타입의 오브젝트도 가능함
+    private PlatformTransactionManager transactionManager; // <- 트랜잭션 기능을 제공하는데 필요한 트랜잭션 매니저
+    private String pattern;
+
+    public void setTarget(Object target) {
+        this.target = target;
+    }
+
+    public void setTransactionManager(PlatformTransactionManager transactionManager) {
+        this.transactionManager = transactionManager;
+    }
+
+    public void setPattern(String pattern) {
+        this.pattern = pattern;
+    }
+
+    @Override
+    public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+        if (method.getName().startsWith(pattern)) {
+            return invokeInTransaction(method, args);
+        }
+        return method.invoke(target, args);
+    }
+
+    private Object invokeInTransaction(Method method, Object[] args) throws Throwable {
+        TransactionStatus transaction = transactionManager.getTransaction(new DefaultTransactionDefinition());
+        try {
+            Object result = method.invoke(target, args);
+            transactionManager.commit(transaction);
+            return result;
+        } catch (InvocationTargetException e) {
+            transactionManager.rollback(transaction);
+            throw e.getTargetException();
+        }
+    }
+}
+```
+
+
 
 #### TransactionHandler와 다이내믹 프록시를 이용하는 테스트
 
+```java
+@Test
+public void upgradeAllOrNothing() {
+  UserServiceImpl testUserService = new TestUserServiceImpl(users.get(3).getId());
+  testUserService.setUserDao(this.userDao);
+  testUserService.setMailSender(this.mailSender);
+
+  TransactionHandler txHandler = new TransactionHandler();
+  
+  // 트랜잭션 핸들러가 필요한 정보와 오브젝트를 di
+  txHandler.setTarget(testUserService);
+  txHandler.setTransactionManager(transactionManager);
+  txHandler.setPattern("upgradeLevels");
+  
+  // UserService 인터페이스 타입의 다이내믹 프록시 생성
+  UserService txUserService = (UserService) Proxy.newProxyInstance(
+    getClass().getClassLoader(), new Class[] {UserService.class}, txHandler
+  );
+
+  userDao.deleteAll();
+  for(User user : users) userDao.add(user);
+
+  try {
+    txUserService.upgradeLevels();
+    fail("TestUserServiceException expected");
+  }
+  catch(TestUserServiceException e) {
+  }
+}
+```
+
+
+
 ### 다이내믹 프록시를 위한 팩토리 빈
+
+- TransactionHandler와 다이내믹 프록시를 스프링 DI를 통해 사용할 수 있도록 만들어야하지만 문제가 있음
+  - 스프링은 내부적으로 리플렉션  api를 이용해서 빈 정의에 나오는 클래스 이름을 가지고 빈 오브젝트를 생성하는데 다이내믹 프록시 오브젝트는 이런식으로 프록시 오브젝트가 생성되지 않는다는 점.
+  - 클래스 자체도 내부적으로 다이내믹하게 새로 정의해서 사용하기 때문
+  - 프록시 오브젝트의 클래스 정보를 미리 알아내서 스프링 빈에 정의할 방법이 없음
+  - 다이내믹 프록시의 인스턴스는 `newProxyInstance()` 라는 스태틱 팩토리 메서드를 통해서만 만들 수 있음
 
 #### 팩토리 빈
 
+- 팩토리 빈이란 스프링을 대신해서 오브젝트의 생성로직을 담당하도록 만들어진 특별한 빈
+- 팩토리 빈은 `FactoryBean` 이라는 인터페이스를 구현해서 만들 수 있음
+
+```java
+public interface FactoryBean<T> {
+  @Nullable
+	T getObject() throws Exception;
+
+	@Nullable
+	Class<?> getObjectType();
+
+	default boolean isSingleton() {
+		return true;
+	}
+}
+```
+
+- FactoryBean 인터페이스를 구현한 클래스를 스프링의 빈으로 등록하면 팩토리 빈으로 동작함
+- FactoryBean을 등록하는 예제
+
+`Message`
+
+```java
+public class Message {
+  String text;
+
+  private Message(String text) { // <- private 생성자
+    this.text = text;
+  }
+
+  public static Message newMessage(String text) { // static 팩토리 메서드
+    return new Message(text);
+  }
+}
+```
+
+`MessageFactoryBean`
+
+```java
+public class MessageFactoryBean implements FactoryBean<Message> {
+  private String text;
+
+  public void setText(String text) {
+    this.text = text;
+  }
+  
+  @Override
+  public Message getObject() throws Exception {
+    return Message.newMessage(text); // <- 실제 빈으로 사용될 오브젝트를 팩토리 메서드를 통해서 생성함
+  }
+
+  @Override
+  public Class<?> getObjectType() {
+    return Message.class;
+  }
+
+  @Override
+  public boolean isSingleton() {
+    return false;
+  }
+}
+```
+
+- 스프링은 FactoryBean 인터페이스를 구현한 클래스가 빈의 클래스로 지정되면, 팩토리 빈 클래스의 오브젝트의 `getObject()` 메서드를 이용해 오브젝트를 가져오고 이를 빈 오브젝트로 사용함
+
+
+
 #### 팩토리 빈의 설정 방법
+
+
+
+```java
+@Configuration
+public class MyConfig {
+
+    @Bean
+    MessageFactoryBean messageFactoryBean() {
+        return new MessageFactoryBean("test");
+    }
+}
+
+```
+
+
+
+```java
+    @Test
+    void getMessageFromFactoryBean() {
+        Message message = (Message) applicationContext.getBean("message");
+        assertThat(message).isInstanceOf(Message.class);
+        assertThat(message.getText()).isEqualTo("test");
+    }
+
+
+// 팩토리 빈 타입으로 가져오기
+    @Test
+    void getMessageFromFactoryBean() {
+        MessageFactoryBean messageFactoryBean = (MessageFactoryBean) applicationContext.getBean("&message");
+        assertThat(messageFactoryBean).isInstanceOf(MessageFactoryBean.class);
+    }
+
+```
+
+
 
 #### 다이내믹 프록시를 만들어주는 팩토리 빈
 
+- 팩토리 빈을 사용하면 다이내믹 프록시 오브젝트를 스프링의 빈으로 만들어줄 수 있음
+
 #### 트랜잭션 프록시 팩토리 빈
 
+
+
+```java
+public class TxProxyFactoryBean implements FactoryBean<Object> {
+    Object target;
+    PlatformTransactionManager transactionManager;
+    String pattern;
+    Class<?> serviceInterface;
+    
+    public void setTarget(Object targer) {
+        this.target = targer;
+    }
+    
+    public void setTransactionManager(PlatformTransactionManager transactionManager) {
+        this.transactionManager = transactionManager;
+    }
+    
+    public void setPattern(String pattern) {
+        this.pattern = pattern;
+    }
+    
+    public void setServiceInterface(Class<?> serviceInterface) {
+        this.serviceInterface = serviceInterface;
+    }
+    
+    //FactoryBean 인터페이스 구현 메소드
+    public Object getObject() throws Exception {
+        TransactionHandler txHandler = new TransactionHandler();
+        txHandler.setTarget(targer);
+        txHandler.setTransactionManager(transactionManager);
+        txHandler.setPattern(pattern);
+        return Proxy.newProxyInstance(
+                getClass().getCalssLoader(), new Class[] { serviceInterface },
+                txHandler);
+    }
+    
+    /*
+	 * DI 받은 인터페이스 타입에 따라 팩토리 빈이 생성하는 오브젝트 타입이 달라진다.
+	 * 다양한 프록시 오브젝트 생성을 위한 재사용 코드
+	 */
+    public Class<?> getObjectType() {
+        return serviceInterface;
+    }
+    
+    /*
+     * 싱글톤 빈이 아니라는 뜻이 아니라
+     * getObject()가 매번 같은 오브젝트를 리턴하지 않는다는 의미
+     */
+    public boolean isSingleton() {
+        return false;
+    }
+}
+```
+
+
+
 #### 트랜잭션 프록시 팩토리 빈 테스트
+
+
+
+```java
+
+
+@Test
+public void upgradeAllOrNothing() throws Exception {
+  TestUserService testUserService = new TestUserService(users.get(3).getId));
+  testUserService.setUserDao(userDao);
+  testUserService.setMailSender(mailSender);
+  
+  TxProxyFactoryBean txProxyFactoryBean = context.getBean("&userService", TxProxyFactoryBean.class);
+  txProxyFactoryBean.setTarget(testUserService);
+  UserService txUserService = (UserService) txProxyFactoryBean.getObject();
+}
+
+```
+
+
 
 ### 프록시 팩토리 빈 방식의 장점과 한계
 
 #### 프록시 팩토리 빈의 재사용
 
+- TxProxyFactoryBean은 코드의 수정 없이도 다양한 클래스에 적용할 수 있음
+
 #### 프록시 팩토리 빈 방식의 장점
 
+- 다이내믹 프록시를 이용하면 타깃 인터페이스를 구현하는 클래스를 일일이 만드는 번거로움을 제거할 수 있음
+
 #### 프록시 팩토리 빈의 한계
+
+- 하나의 클래스를 대상으로 하는것은 문제가 없지만 여러 클래스를 대상으로 하는것은 불가능함
+- 따라서 설정에서의 중복을 피할 수 없음
 
 
 
