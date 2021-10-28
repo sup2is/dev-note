@@ -1727,9 +1727,124 @@ public void upgradeAllOrNothing() throws Exception {
 
 ### ProxyFactoryBean
 
+- 스프링은 일관된 방법으로 프록시를 프록시를 만들 수 있게 도와주는 추상 레이어가 있음
+- 스프링의 ProxyFactoryBean은 프록시를 생성해서 빈 오브젝트로 등록하게 해주는 팩토리 빈
+- ProxyFactoryBean은 순수하게 프록시를 생성하는 작업만을 담당하고 프록시를 통해 제공해줄 부가 기능은 별도의 빈에 둘 수 있음
+- ProxyFactoryBean이 생성하는 프록시에사 사용할 부가기능은 MethodInterceptor 인터페이스를 구현해서 만듦
+  - InvocationHandler: invoke() 메서드에 타깃 오브젝트에 대한 정보를 제공받지 않음
+  - MethodInterceptor: invoke() 메서드에 타깃 오브젝트에 대한 정보까지도 함께 제공받음
+
+
+
+```java
+public class DynamicProxyTest {
+    @Test
+    public void simpleProxy() {
+        Hello proxiedHello = (Hello) Proxy.newProxyInstance(
+                getClass().getClassLoader(),
+                new Class[] { Hello.class },
+                new UppercaseHandler(new HelloTarget()));
+        ...
+    }
+    
+    @Test
+    public void proxyFactoryBean() {
+        ProxyFactoryBean pfBean = new ProxyFactoryBean();
+        pfBean.setTarget(new HelloTarget()); //타깃 설정
+        pfBean.addAdvice(new UppercaseAdvice()); //부가기능 추가
+        Hello proxiedHello = (Hello) pfBean.getObject(); //FacotryBean이므로 생성된 프록시를 가져온다.
+        
+        assertThat(ProxiedHello.sayHello("Havi"), is("Hello Havi"));
+        ...
+    }
+    
+    static class UppercaseAdvice implements MethodInterceptor {
+        public Object invoke(MethodInvocation invocation) throws Throwable {
+            String ret = (String)invocation.proceed(); //타깃을 알고 있기에 타깃 오브젝트를 전달할 필요가 없다.
+            return ret.toUpperCase(); //부가기능 적용
+        }
+    }
+    
+    static interface Hello {
+        String sayHello(String name);
+        String sayHi(String name);
+        String sayThankYor(String name);
+    }
+    static class HelloTarget implements Hello {
+        public String sayHello(String name) { return "Hello" + name; }
+        ...
+    }
+}
+
+
+```
+
+
+
 #### 어드바이스: 타깃이 필요 없는 순수한 부가기능
 
+- ProxyFactoryBean 을 적용한 코드와 기존의 다이내믹 프록시와 다른점
+- InvocationHandler를 구현했을 때와 달리 MethodInterceptor를 구현한 UppercaseAdvice에는 타깃 오브젝트가 등장하지 않음
+- MethodInterceptor은 MethodInvocation은 일종의 콜백 오브젝트로 proceed() 메서드를 사용하면 타깃 오브젝트의 메서드를 내부적으로 실행해주는 기능이 있음
+
+> MethodInvocation의 proceed() 메서드
+
+- ProxyFactoryBean은 작은 단위의 템플릿/콜백 구조를 응요해서 적용했기 때문에 템플릿 역할을 하는 MethodInvocation을 싱글톤으로 두고 공유할 수 있음
+- ProxyFactoryBean에는 여러개의 MethodInvocation를 추가할 수 있는 것도 특징. 따라서 새로운 부가기능을 추가할 때마다 프록시와 프록시 팩토리 빈도 추가해줘야 한다는 문제를 해결할 수 있음.
+- MethodInvocation처럼 타깃 오브젝트에 적용하는 부가기능을 담은 오브젝트를 스프링에서는 어드바이스라고 부름
+- ProxyFactoryBean을 생성할때는 타겟 오브젝트의 인터페이스를 알려주지 않아도 되는데 ProxyFactoryBean에 있는 인터페이스 자동 검출 기능을 사용해 타깃 오브젝트가 구현하고 있는 인터페이스 정보를 알아냄
+
+
+
+> ProxyFactoryBean의 인터페이스 자동 검출 기능
+
+- 경우에 따라서 CGLib이라고 하는 오픈소스 바이트코드 생성프레임워크를 이용해 프록시를 만들기도 함 (이건 vol.2에 있답니다 ..^^ toss .. )
+- 어드바이스는 타깃 오브젝트에 종속되지 않는 순수한 부가기능을 담은 오브젝트라는 사실을 기억해두면 됨
+
+
+
 #### 포인트컷: 부가기능 적용 대상 메소드 선정 방법
+
+- MethodInvocation은 재사용 가능한 순수한 부가 기능 제공 코드만 남겨주기 때문에 아래와 같이 특정 메서드를 선정해서 적용 대상을 판별할 수 없음
+
+```java
+		//InvocationHandler 구현부
+		@Override
+    public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+        if (method.getName().startsWith(pattern)) {
+            return invokeInTransaction(method, args);
+        }
+        return method.invoke(target, args);
+    }
+```
+
+- 스프링의 ProxyFactoryBean 방식은 두가지 확장 기능인 부가기능과 메서드 선정 알고리즘을 활용하는 유연한 구조를 제공함
+- 스프링은 부가기능을 제공하는 오브젝트를 어드바이스라고 부르고, 메서드 선정 알고리즘을 담은 오브젝트를 포인트컷 이라고 부름
+- 어드바이스와 포인트컷은 모두 프록시에 DI로 주입되어 사용되기 때문에 스프링의 싱글톤 빈으로 등록이 가능함
+- 프록시는 포인트컷으로부터 부각기능을 적용할 대상 메서드인지 확인받으면 MethodInvocation 타입의 어드바이스를 호출함
+- 재사용 가능한 기능을 만들어두고 바뀌는 부분만 외부에서 주입해서 이를 작업흐름중에 사용하도록 하는 전형적인 템플릿/콜백 구조
+- 어드바이스가 일종의 템플릿이 되고 타깃을 호출하는 기능을 갖고 있는 MethodInvocation 오브젝트가 콜백
+- 프록시로부터 어드바이스와 포인트컷을 독립시키고 DI를 사용하게 한 것은 전형적인 전략 패턴 구조
+- 포인트컷 구현체중 하나인 NameMatchMethodPointcut 사용해보기
+
+```java
+@Test
+public void pointcutAdvisor() {
+    ProxyFactoryBean pfBean = new ProxyFactoryBean();
+    pfBean.setTarget(new HelloTarget());
+    
+    NameMatchMethodPointcut pointcut = new NameMatchMethodPointcut(); //메소드이름을 비교대상으로 선정하는 포인트컷 생성
+    pointcut.setMappedName("sayH*"); //이름 비교조건 설정(sayH로 시작하는 모든 메소드 선택)
+    pfBean.addAdvisor(new DefaultPointcutAdvisor(pointcut, new UppercaseAdvice())); //포인트컷과 어드바이스를 Advisor로 묶어서 한 번에 추가
+    
+    Hello proxiedHello = (Hello) pfBean.getObject();
+    assertThat(ProxiedHello.sayHello("Havi"), is("Hello Havi"));
+    assertThat(ProxiedHello.sayThankYou("Havi"), is("Thank You Havi")); //적용 안됨
+}
+```
+
+- 어드바이스와 포인트컷을 묶은 오브젝트를 어드바이서 라고함
+  - 어드바이저 = 포인트컷 (메서드 선정 알고리즘) + 어드바이스 (부가 기능)
 
 ### ProxyFactoryBean 적용
 
