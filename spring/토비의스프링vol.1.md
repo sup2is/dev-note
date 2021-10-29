@@ -1850,6 +1850,36 @@ public void pointcutAdvisor() {
 
 #### TransactionAdvice
 
+
+
+```java
+public class TransactionAdvice implements MethodInterceptor {
+
+    private PlatformTransactionManager transactionManager;
+
+    public void setTransactionManager(PlatformTransactionManager transactionManager) {
+        this.transactionManager = transactionManager;
+    }
+
+    @Override
+    public Object invoke(MethodInvocation invocation) throws Throwable {
+        TransactionStatus transaction = transactionManager.getTransaction(new DefaultTransactionDefinition());
+        try {
+            Object result = invocation.proceed();
+            transactionManager.commit(transaction);
+            return result;
+        } catch (RuntimeException runtimeException) {
+            transactionManager.rollback(transaction);
+            throw runtimeException;
+        }
+    }
+}
+```
+
+- InvocationHandler 보다 재사용성이 높고 타깃 메서드가 던지는 예외도 RuntimeException으로 바로 받을 수 있음
+
+
+
 #### 스프링 XML 설정파일
 
 #### 테스트
@@ -1862,13 +1892,93 @@ public void pointcutAdvisor() {
 
 ### 자동 프록시 생성
 
+- 여전히 남아있는 문제가 하나 있는데 바로 설정쪽에 번거로운 작업과 중복문제
+
 #### 중복 문제의 접근 방법
 
 #### 빈 후처리기를 이용한 자동 프록시 생성기
 
+- 스프링은 OCP의 가장 중요한 요소인 유연한 확장이라는 개념을 스프링 컨테이너 자신에게도 다양한 방법으로 적용하고 있음
+- DefaultAdvisorAutoProxyCreator를 사용해서 빈 후처리기 기능을 사용할 수 있음
+- DefaultAdvisorAutoProxyCreator는 어드바이저를 이용한 자동 프록시 생성기임
+- 빈 후처리기 자체를 빈으로 등록하면 빈 오브젝트가 생성될 때마다 빈 후처리기에 부내서 후처리 작업을 요청할 수 있음
+- 빈 후처리기는 빈 오브젝트의 프로퍼티를 강제로 수정할 수도 있고 별도의 초기화 작업을 수행할 수도 있음
+- 따라서 스프링이 설정을 참고해서 만든 오브젝트가 아닌 다른 오브젝트를 빈으로 등록시키는 것이 가능함
+- DefaultAdvisorAutoProxyCreator는 빈으로 등록된 모든 어드바이저 내의 포인트컷을 이용해 전달받은 빈이 프록시 적용 대상인지 확인함
+- 프록시 적용 대상이면 그때는 내장된 프록시 생성기에게 현재 빈에 대한 프록시를 만들게 하고, 만들어진 프록시에 어드바이저를 연결해줌
+- 빈 후처리기는 프록시가 생성되면 원래 컨테이너가 전달해준 빈 오브젝트 대신 프록시 오브젝트를 컨테이너에게 돌려줌
+
+
+
+사진
+
+- 적용할 빈을 선정하는 로직이 추가된 포인트컷이 담긴 어드바이저를 등록하고 빈 후처리기를 사용하면 일일이 빈을 등록하지 않아도 타깃 오브젝트에 자동으로 프록시가 적용되게 할 수 있음
+
 #### 확장된 포인트컷
 
+- 포인트컷은 클래스필터와 메서드 매처 기능을 하는 두가지 메서드가 존재함
+
+```java
+public interface Pointcut {
+
+	ClassFilter getClassFilter();
+	MethodMatcher getMethodMatcher();
+}
+
+```
+
+- 만약 포인트컷 선정 기능을 모두 적용한다면 먼저 프록시를 적용할 클래스인지 판단 후 적용 대상 클래스의 메서드를 확인하는 식으로 동작함
+- 결론적으로 이 두가지 조건이 모두 충족되는 타깃의 메서드에 어드바이스가 적용됨
+
+
+
 #### 포인트컷 테스트
+
+
+
+```java
+@Test
+void classNamePointcutAdvisor() {
+    NameMatchMethodPointcut nameMatchMethodPointcut = new NameMatchMethodPointcut() {
+        @Override
+        public ClassFilter getClassFilter() {
+            return new ClassFilter() {
+                @Override
+                public boolean matches(Class<?> clazz) {
+                    return clazz.getSimpleName().startsWith("HelloT");
+                }
+            };
+        }
+    };
+    nameMatchMethodPointcut.setMappedName("sayH*");
+
+    checkAdviced(new HelloTarget(), nameMatchMethodPointcut, true);
+    checkAdviced(new HelloWorld(), nameMatchMethodPointcut, false);
+    checkAdviced(new HelloToby(), nameMatchMethodPointcut, true);
+
+}
+
+private void checkAdviced(Hello hello, NameMatchMethodPointcut nameMatchMethodPointcut, boolean isAdviced) {
+    ProxyFactoryBean proxyFactoryBean = new ProxyFactoryBean();
+    proxyFactoryBean.setTarget(hello);
+    proxyFactoryBean.addAdvisor(new DefaultPointcutAdvisor(nameMatchMethodPointcut, new UppercaseAdvice()));
+    Hello proxy = (Hello) proxyFactoryBean.getObject();
+
+    if (isAdviced) {
+        assertThat(proxy.sayHello("abc")).isEqualTo("HELLOABC");
+        assertThat(proxy.sayHi("abc")).isEqualTo("HIABC");
+        assertThat(proxy.sayThankYou("abc")).isNotEqualTo("THANK YOUABC");
+    } else {
+        assertThat(proxy.sayHello("abc")).isNotEqualTo("HELLOABC");
+        assertThat(proxy.sayHi("abc")).isNotEqualTo("HIABC");
+        assertThat(proxy.sayThankYou("abc")).isNotEqualTo("THANK YOUABC");
+    }
+}
+```
+
+- 
+
+
 
 ### DefaultAdvisorAutoProxyCreator의 적용
 
