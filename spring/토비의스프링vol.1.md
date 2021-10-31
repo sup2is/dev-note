@@ -1976,13 +1976,38 @@ private void checkAdviced(Hello hello, NameMatchMethodPointcut nameMatchMethodPo
 }
 ```
 
-- 
+
 
 
 
 ### DefaultAdvisorAutoProxyCreator의 적용
 
 #### 클래스 필터를 적용한 포인트컷 작성
+
+```java
+public class NameMatchClassMethodPointcut extends NameMatchMethodPointcut {
+
+    public void setMappedClassName(String mappedClassName) {
+        setClassFilter(new SimpleClassFilter(mappedClassName));
+    }
+
+    static class SimpleClassFilter implements ClassFilter {
+
+        private final String mappedName;
+
+        public SimpleClassFilter(String mappedName) {
+            this.mappedName = mappedName;
+        }
+
+        @Override
+        public boolean matches(Class<?> clazz) {
+            return PatternMatchUtils.simpleMatch(mappedName, clazz.getSimpleName());
+        }
+    }
+}
+```
+
+
 
 #### 어드바이저를 이용하는 자동 프록시 생성기 생성
 
@@ -1998,21 +2023,149 @@ private void checkAdviced(Hello hello, NameMatchMethodPointcut nameMatchMethodPo
 
 ### 포인트컷 표현식을 이용하는 포인트컷 적용
 
+- 스프링은 아주 간단하고 효과적인 방법으로 포인트컷의 클래스와 메서드를 선정하는 알고리즘을 작성할 수 있는 방법을 제공함
+- 표현식 언어를 사용해서 포인트컷을 작성할 수 있음 이것을 포인트컷 표현식이라고 부름
+
+#### 포인트컷 표현식
+
+- 포인트컷 표현식을 지원하는 포인트컷을 적용하려면 AspectExpressionPointcut 클래스를 사용하면 됨
+- Pointcut 인터페이스를 구현하는 방식은 클래스 필터와 메서드 선정을 위한 매처 두가지를 각각 제공했지만 AspectExpressionPointcut은 클래스와 메서드의 선정 알고리즘을 포인트컷 표현식을 이용해 한 번에 지정할 수 있게 해줌
+- 포인트컷 표현식은 자바의RegEx 클래스가 지원하는 정규식처럼 간단한 문자열로 복잡한 선정조건을 쉽게 만들어낼 수 있음
+- 이 포인트컷 표현식은 AspectJ라는 프레임워크에서 제공하는 것을 가져와 일부 문법을 확장해서 사용하는 것이라 AspectJ 포인트컷 표현식이라고도 부름
+
+#### 포인트컷 표현식 문법
+
+
+
+```java
+public class Target implements TargetInterface {
+
+    @Override
+    public void hello() {}
+
+    @Override
+    public void hello(String a) {}
+
+    @Override
+    public int minus(int a, int b) throws RuntimeException { return 0; }
+
+    @Override
+    public int plus(int a, int b) { return 0;}
+
+    public void method() {}
+}
+
+```
+
+
+
+- AspectJ 포인트컷 표현식은 포인트컷 지시자를 이용해 작성하고 가장 대표적으로 사용되는 것은 `execution()` 임
+
+> `execution()` 이외에 여러 포인트컷 지시자
+
+
+
+```
+//[] 괄호는 옵션, | 는 OR 조건
+
+execution([접근제한자 패턴] 타입패턴 [타입패턴.] 이름패턴 (타입패턴 | ".." ...) [throws 예외 패턴])
+
+```
+
+- 위 Target 클래스의 `minus()` 메서드의 풀 시그니처
+- `public int springbook.learningtest.spring.pointcut.Target.minus(int,int) throws java.lang.RuntimeException`
+  - `public` : 접근 제한자 패턴, 생략 가능
+  - `int`: 리턴 값의 타입 패턴, `*` 도 가능 생략은 불가능
+  - `springbook.learningtest.spring.pointcut.Target`: 패키지와 타입 이름을 포함한 클래스 타입 패턴, 생략가능. 생략하는 경우 모든 타입을 다 허용하겠다는 뜻. 패키지 이름과 클래스 또는 인터페이스 이름에 `*` 사용 가능. `..` 를 사용하면 한 번에 여러 개의 패키지를 선택할 수 있음
+  - `minus` 메서드 이름 패턴. 생략 불가능. 모든 메서드를 다 선택하겠다 하면 `*` 를 사용
+  - `(int,int)`: 메서드 파라미터 타입 패턴, 필수항목, 모두 다 허용하려면 `..` 을 넣고 `...` 으로 뒷부분의 파라미터 조건만 생략할 수 있음
+  - `throws java.lang.RuntimeException`: 예외 이름에 대한 타입 패턴, 생략 가능
+
+```java
+    @Test
+    public void methodSignaturePointcut() throws NoSuchMethodException {
+        AspectJExpressionPointcut pointcut =new AspectJExpressionPointcut();
+
+        pointcut.setExpression("execution(public int springbook.learningtest.pointcut.Target.minus(int,int) throws java.lang.RuntimeException)");
+
+        assertThat(pointcut.getClassFilter().matches(Target.class), is(true));
+        assertThat(pointcut.getMethodMatcher().matches(Target.class.getMethod("minus", int.class, int.class), null), is(true));
+        assertThat(pointcut.getMethodMatcher().matches(Target.class.getMethod("plus", int.class, int.class), null), is(false));
+    }
+```
+
+- 포인트컷 표현식은 메서드 시그니처를 `execution()` 안에 넣어서 작성함
+- 포인트컷 적용 예제
+
+```
+//int 타입의 리턴 값, minus라는 메서드 이름, 두 개의 int 파라미터를 가진 모든 메서드를 선정하는 포인트컷 표현식
+execution(int minus(int,int))
+
+//리턴 타입은 상관 없이 minus라는 메서드 이름, 두 개의 int 파라미터를 가진 모든 메서드를 선정하는 포인트컷 표현식
+execution(* minus(int, int))
+
+//리턴 타입과 파라미터의 종류, 개수에 상관없이 minus라는 메서드 이름을 가진 모든 메서드를 선정하는 포인트컷 표현식
+execution(* minus(..))
+
+//리턴 타입, 파라미터, 메서드 이름에 상관없이 모든 메서드 조건을 다 허용하는 포인트컷 표현식
+execution(* *(..))
+```
+
+
+
+#### 포인트컷 표현식을 이용하는 포인트컷 적용
+
+- `execution()` 외에도 다양한 문법과 활용 방법이 많음
+- `bean()` 은 스프링 빈의 이름으로 비교함
+- `annotation()`은 애너테이션 이름으로 비교함
+- 포인트컷 표현식을 사용하면 로직이 짧은 문자열에 담기기 때문에 클래스나 코드를 추가할 필요가 없어서 코드와 설정이 단순해짐
+- 하지만 문자열로 된 표현식이므로 런타임 시점까지 문법의 검증이나 기능이 확인되지 않는다는 단점이 있음
+- 장점만큼 단점도 명확하기 때문에 충분히 학습하고 다양한 테스트로 검증한 표현식을 사용할 것
+
+
+
 #### 타입 패턴과 클래스 이름 패턴
+
+- 포인트컷 표현식의 클래스 이름에 적용되는 패턴은 클래스 이름 패턴이 아니라 타입 패턴임
+- TestUserService 클래스의 슈퍼타입이 UserServiceImpl, 구현 인터페이스가 UserService라면 `execution(* *..ServiceImpl.upgrade*(..))` 로 된 포인트컷 표현식을 사용하더라도 TestUserService가 타입 패턴의 조건을 충족할 수 있음
+
+
 
 ### AOP란 무엇인가?
 
 #### 트랜잭션 서비스 추상화
 
+- 트랜잭션 추상화란 결국 인터페이스와 DI를 통해 무엇을 하는지는 남기고, 그것을 어떻게 하는지를 분리한 것.
+- 어떻게 할지는 더 이상 비지니스 로직 코드에는 영향을 주지 않고 독립적으로 변경할 수 있게 됨
+
 #### 프록시와 데코레이터 패턴
+
+- 프록시와 데코레이터를 적용함으로써 비지니스 로직 코드는 트랜잭션과 같은 성격의 다른 코드로부터 자유로워지고 독립적으로 로직을 검증하는 고립된 단위 테스트를 만들 수도 있게 됨
 
 #### 다이내믹 프록시와 프록시 팩토리 빈
 
+- 프록시 클래스 없이도 프록시 오브젝트를 런타임 시에 만들어주는 jdk 다이내믹 프록시 기술을 적용해서 프록시 클래스 코드 작성의 부담도 덜고 기능 부여 코드가 여기저기 중복돼어 나타나는 문제점도 일부 해결할 수 있음
+
 #### 자동 프록시 생성 방법과 포인트컷
+
+- 프록시를 적용할 대상을 일일이 지정하지 않고 패턴을 이용해 자동으로 선정할 수 있도록, 클래스를 선정하는 기능을 담은 확장된 포인트컷을 사용
+- 트랜잭션 부가기능을 어디에 적용하는지에 대해 정보를 포인트컷이라는 독립적인 정보로 완전히 분리할 수 있음
 
 #### 부가기능의 모듈화
 
+- 관심사가 같은 코드를 분리해 한데 모으는 것은 소프트웨어 개발의 가장 기본이 되는 원칙
+- 트랜잭션 같은 부가기능은 핵심 기능과 같은 방식으로 모듈화하기개 매우 힘듦
+- DI, 데코레이터 패턴, 다이내믹 프록시, 오브젝트 생성 후처리, 자동 프록시 생성, 포인트컷과 같은 기법은 이런 문제를 해결하기 위해 적용한 대표적인 방법
+
+
+
 #### AOP: 에스펙트 지향 프로그래밍
+
+- 애스펙트란 그 자체로 애플리케이션의 핵심기능을 담고 있지는 않지만 애플리케이션을 구성하는 중요한 한가지 요소이고, 핵심기능에 부가되어 의미를 갖는 특별한 모듈을 가르킴
+- 애스펙트는 부가될 기능을 정의한 코드인 어드바이스와, 어드바이스를 어디에 적용할지를 결정하는 포인트컷을 함께 갖고 있음.
+- 애플리케이션의 핵심적인 기능에서 부가적인 기능을 분리해서 애스펙트라는 독특한 모듈로 만들어서 설계하고 개발하는 방법을 애스펙트 지향 프로그래밍(Aspect Oriented Programming) 또는 AOP라고 부름 
+- AOP는 OOP를 돕는 보조적인 기술이지 OOP를 완전히 대체하는 새로운 개념은 아님
+- AOP는 애플리케이션을 다양한 측면에서 독립적으로 모델링하고, 설계하고 개발할 수 있도록 만들어주는 것
 
 ### AOP 적용기술
 
