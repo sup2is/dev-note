@@ -2281,21 +2281,54 @@ execution(* *(..))
 
 #### TransactionInterceptor
 
+- 스프링에는 편리하게 트랜잭션 경계 설정을 위해 TransactionInterceptor 가 존재함
+- TransactionInterceptor에는 PlatformTransactionManager와 Properties 타입의 두가지 프로퍼티를 가짐
+- Properties는 트랜잭션 속성을 정의한 프로퍼티
+- 트랜잭션 속성은 TransactionAttribute 인터페이스로 정의됨 이 인터페이스로 트랜잭션 부가기능의 동작 방식을 모두 제어할 수 있음
+- TransactionInterceptor에는 기본적으로 런타임 예외는 롤백시키고 체크 예외를 던지는 경우에는 이것을 예외상황이라 생각하지 않고 커밋해버림
+- TransactionInterceptor의 예외처리 기본 원칙을 따르지 않을때는 TransactionAttribute의 rollbackOn()이라는 속성을 둬서 기본 원칙과 다른 예외처리가 가능하게 해줌
+
 #### 메소드 이름 패턴을 이용한 트랜잭션 속성 지정
+
+- Properties 타입의 transactionAttributes 프로퍼티는 메서드 패턴과 트랜잭션 속성을 키와 값으로 갖는 컬렉션.
+- 트랜잭션 속성은 다음과 같은 문자열로 정의할 수 있음
+  - PROPAGATION_NAME : 트랜잭션 전파 방식
+  - ISOLATION_NAME : 격리수준
+  - readOnly : 읽기 전용 항목
+  - timeout_NNNN : 제한시간
+  - -Execption1 : 체크 예외 중에서 롤백 대상으로 추가할 것을 넣음, 한 개 이상 가능
+  - +Exception2 : 런타임 예외지만 롤백시키지 않을 예외, 한 개 이상 등록 가능
+- 트랜잭션 전파 방식만 필수이고 나머지는 전부 생략 가능
+- 속성을 하나의 문자열로 표현하게 만든 이유는 트랜잭션 속성을 메서드 패넡에 따라 여러개 지정하기 편하게 하기 위해서임
+- 메서드 이름 패턴을 사용하는 트랜잭션 속성을 활용하면 하나의 트랜잭션 어드바이스를 정의하는 것만으로도 다양한 트랜잭션 설정이 가능해짐
 
 #### tx 네임스페이스를 이용한 설정 방법
 
 ### 포인트컷과 트랜잭션 속성의 적용 전략
 
+- 트랜잭션 부가기능을 적용할 후보 메서드를 선정하는 작업은 포인트컷에 의해 진행됨. 고 어드바이스의 트랜잭션 전파 속성따라서 메서드별로 트랜잭션의 적용 방식이 결정됨 
+
 #### 트랜잭션 포인트컷 표현식은 타입 패턴이나 빈 이름을 이용한다
+
+- 쓰기 작업이 없는 단순한 조회 작업을 하더라도 모두 트랜잭션을 적용하는게 좋음. 조회의 경우에는 읽기전용으로 트랜잭션 속성을 설정해두면 그만큼 성능 향상을 가져올 수 있음. 제한시간도 지정 가능. 격리 수준에 따라 조회도 반드시 트랜잭션 안에서 진행해야할 경우도 있음
+
+
 
 #### 공통돤 메서드 이름 규칙을 통해 최소한의 트랜잭션 어드바이스와 속성을 정의한다
 
 #### 프록시 방식 AOP는 같은 타킷 오브젝트 내의 메서드를 호출할 때는 적용되지 않는다
 
+- 타깃 오브젝트가 자기 자신의 메서드를 호출할 때는 프록시를 통한 부가기능이 적용되지 않음
+- 클라이언트가 인터페이스 타입으로 주입된 빈을 사용해야 프록시를 통한 부가기능을 사용할 수 있기 때문
+- 타깃 안에서 프록시를 적용할 수 있는 방법은 AspectJ와 같은 타깃의 바이트코드를 직접 조작하는 방식으로 AOP를 적용하면 됨
+
 ### 트랜잭션 속성 적용
 
 #### 트랜잭션 경계설정의 일원화
+
+- 트랜잭션 경계설정의 부가기능을 여러 계층에서 중구난방으로 적용하는 건 좋지 않음
+- 서비스 계층을 트랜잭션이 시작되고 종료되는 경계로 지정했다면 다른 계층이나 모듈에서 DAO에 직접 접근하는 것은 차단해야 함
+- 모든 DAO요청은 서비스 계층을 지나도록 하는게 좋음
 
 #### 서비스 빈에 적용되는 포인트컷 표현식 등록
 
@@ -2310,6 +2343,43 @@ execution(* *(..))
 ### 트랜잭션 애너테이션
 
 #### @Transactional
+
+```java
+@Target({ElementType.TYPE, ElementType.METHOD})
+@Retention(RetentionPolicy.RUNTIME)
+@Inherited
+@Documented
+public @interface Transactional {
+    @AliasFor("transactionManager")
+    String value() default "";
+
+    @AliasFor("value")
+    String transactionManager() default "";
+
+    Propagation propagation() default Propagation.REQUIRED;
+
+    Isolation isolation() default Isolation.DEFAULT;
+
+    int timeout() default -1;
+
+    boolean readOnly() default false;
+
+    Class<? extends Throwable>[] rollbackFor() default {};
+
+    String[] rollbackForClassName() default {};
+
+    Class<? extends Throwable>[] noRollbackFor() default {};
+
+    String[] noRollbackForClassName() default {};
+}
+```
+
+- @Transactional 애너테이션은 메서드, 클래스, 인터페이스에 사용 가능
+- @Transactional 애너테이션을 트랜잭션 속성정보로 사용하도록 지정하면 스프링은 @Transactionl이 부여된 모든 오브젝트를 자동으로 타깃 오브젝트로 인식함
+- 사용되는 포인트컷은 TransactionAttributeSourcePointcut, TransactionAttributeSourcePointcut은 스스로 표현식과 같은 선정 기준을 갖지 않지만 @Transactional이 부여된 빈 오브젝트를 모두 찾아서 포인트컷의 선정 결과로 돌려줌
+- @Transactional은 기본적으로 트랜잭션 속성을 정의하는 것이지만, 동시에 포인트컷의 자동등록에도 사용됨
+
+
 
 #### 트랜잭션 속성을 이용하는 포인트컷
 
