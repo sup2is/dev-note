@@ -2383,11 +2383,55 @@ public @interface Transactional {
 
 #### 트랜잭션 속성을 이용하는 포인트컷
 
+- TransactionIterceptor는 메서드 이름 패턴을 통해 부여되는 일괄적인 트랜잭션 속성정보 대신 @Transactional 애너테이션의 엘리먼트에서 트랜잭션 속성을 가져오는 AnnotationTransactionAttributeSource를 사용함
+
 #### 대체 정책
+
+- 스프링은 @Transactional을 적용할 때 4단계의 대체 정책을 이용하게 해줌.
+- 메서드의 속성을 확인할 때 타깃 메서드, 타깃 클래스, 선언 메서드, 선언 타입의 순서에 따라서 @Transactional이 적용됐는지 차례로 확인하고 가장 먼저 발견되는 속성 정보를 사용함
+
+```java
+//1
+public interface Service {
+    //2
+    void method();
+}
+
+//3
+public class ServiceImpl impletes Service {
+   //4
+   public void method1()
+}
+
+```
+
+- @Transcational 이 적용될 수 있는 위치는 총 4곳, 번호의 역순으로 우선순위를 가짐
+- 인터페이스를 사용하는 프록시 방식의 AOP가 아니라면 @Transactional이 무시되기 때문에 안전하게 타깃 클래스에 @Transactional을 두는 방법을 권장함
+
+
 
 #### 트랜잭션 애너테이션 사용을 위한 설정
 
 ### 트랜잭션 애너테이션 적용
+
+```java
+@Transaction
+public interface UserService{
+    
+    void add(User user);
+    void deleteAll();
+    void update(User user);
+    void upgradeLevels();
+    
+    @Transactional(readOnly=true)
+    User get(String id);
+    
+    @Transactional(readOnly=true)
+    List<User> getAll();
+}
+```
+
+
 
 
 
