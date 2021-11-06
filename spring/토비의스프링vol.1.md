@@ -1902,28 +1902,46 @@ public class TransactionAdvice implements MethodInterceptor {
 
 #### 중복 문제의 접근 방법
 
-#### 빈 후처리기를 이용한 자동 프록시 생성기
+### 빈 후처리기를 이용한 자동 프록시 생성기
 
-- 스프링은 OCP의 가장 중요한 요소인 유연한 확장이라는 개념을 스프링 컨테이너 자신에게도 다양한 방법으로 적용하고 있음
 - 빈 후처리기는 이름 그대로 스프링 빈 오브젝트로 만들어지고 난 후에 빈 오브젝트를 다시 가공할 수 있게 해줌
-- DefaultAdvisorAutoProxyCreator를 사용해서 빈 후처리기 기능을 사용할 수 있음
-- DefaultAdvisorAutoProxyCreator는 어드바이저를 이용한 자동 프록시 생성기임
-- 빈 후처리기 자체를 빈으로 등록하면 빈 오브젝트가 생성될 때마다 빈 후처리기에 부내서 후처리 작업을 요청할 수 있음
+- 빈 후처리기는 BeanPostProcessor 인터페이스를 구현해서 만들 수 있음  (자세한 내용은 vol.2에서 ..)
+
+```java
+public interface BeanPostProcessor {
+
+   @Nullable
+   default Object postProcessBeforeInitialization(Object bean, String beanName) throws BeansException {
+      return bean;
+   }
+
+   @Nullable
+   default Object postProcessAfterInitialization(Object bean, String beanName) throws BeansException {
+      return bean;
+   }
+}
+```
+
+- 빈 후처리기 종류중 하나인 `DefaultAdvisorAutoProxyCreator`를 사용해서 빈 후처리기 기능을 사용할 수 있음
+- `DefaultAdvisorAutoProxyCreator`는 어드바이저를 이용한 자동 프록시 생성기임
+- 빈 후처리기 자체를 빈으로 등록하면 빈 오브젝트가 생성될 때마다 빈 후처리기에 보내서 후처리 작업을 요청할 수 있음
 - 빈 후처리기는 빈 오브젝트의 프로퍼티를 강제로 수정할 수도 있고 별도의 초기화 작업을 수행할 수도 있음
 - 따라서 스프링이 설정을 참고해서 만든 오브젝트가 아닌 다른 오브젝트를 빈으로 등록시키는 것이 가능함
-- DefaultAdvisorAutoProxyCreator는 빈으로 등록된 모든 어드바이저 내의 포인트컷을 이용해 전달받은 빈이 프록시 적용 대상인지 확인함
-- 프록시 적용 대상이면 그때는 내장된 프록시 생성기에게 현재 빈에 대한 프록시를 만들게 하고, 만들어진 프록시에 어드바이저를 연결해줌
-- 빈 후처리기는 프록시가 생성되면 원래 컨테이너가 전달해준 빈 오브젝트 대신 프록시 오브젝트를 컨테이너에게 돌려줌
 
+![10](./images/toby-spring-vol1/10.jpeg)
 
-
-사진
-
-- 적용할 빈을 선정하는 로직이 추가된 포인트컷이 담긴 어드바이저를 등록하고 빈 후처리기를 사용하면 일일이 ProxyFactoryBean 빈을 등록하지 않아도 타깃 오브젝트에 자동으로 프록시가 적용되게 할 수 있음
+- 동작 방식
+  - `DefaultAdvisorAutoProxyCreator` 빈 후처리기가 등록되어 있으면 스프링은 빈 오브젝트를 만들 때마다 빈 후처리기에 빈을 보내는 방식으로 동작함
+  - `DefaultAdvisorAutoProxyCreator`는 빈으로 등록된 모든 어드바이저 내의 포인트컷을 이용해 전달받은 빈이 프록시 적용 대상인지 확인함
+  - 프록시 적용 대상이면 그때는 내장된 프록시 생성기에게 현재 빈에 대한 프록시를 만들게 하고, 만들어진 프록시에 어드바이저를 연결해줌
+  - 빈 후처리기는 프록시가 생성되면 원래 컨테이너가 전달해준 빈 오브젝트 대신 프록시 오브젝트를 컨테이너에게 돌려줌
+  - 컨테이너는 최종적으로 빈 후처리기가 돌려준 오브젝트를 빈으로 등록하고 사용함
+- 적용할 빈을 선정하는 로직이 추가된 포인트컷이 담긴 어드바이저를 등록하고 빈 후처리기를 사용하면 일일이 `ProxyFactoryBean` 빈을 등록하지 않아도 타깃 오브젝트에 자동으로 프록시가 적용되게 할 수 있음
 
 #### 확장된 포인트컷
 
 - 포인트컷은 클래스필터와 메서드 매처 기능을 하는 두가지 메서드가 존재함
+- 위 예제에서 사용한 `NameMatchMethodPointcut` 은 메서드 선별 기능만 가진 특별한 포인트컷
 
 ```java
 public interface Pointcut {
@@ -1935,6 +1953,7 @@ public interface Pointcut {
 ```
 
 - 만약 포인트컷 선정 기능을 모두 적용한다면 먼저 프록시를 적용할 클래스인지 판단 후 적용 대상 클래스의 메서드를 확인하는 식으로 동작함
+- 모든 빈에 대해 프록시 자동적용 대상을 선별해야 하는 빈 후처리기인 `DefaultAdvisorAutoProxyCreator` 는 클래스와 메서드 선정 알고리즘을 모두 갖고 있는 포인트컷이 필요함
 - 결론적으로 이 두가지 조건이 모두 충족되는 타깃의 메서드에 어드바이스가 적용됨
 
 
@@ -2018,7 +2037,24 @@ public class NameMatchClassMethodPointcut extends NameMatchMethodPointcut {
 
 #### 어드바이저를 이용하는 자동 프록시 생성기 생성
 
+#### 
+
+```xml
+<bean class="org.springframework.aop.framework.autoproxy.DefaultAdvisorAutoProxyCreator"> </>
+```
+
+
+
 #### 포인트컷 등록
+
+```xml
+<bean id="transactionPointcut" class="springbook.proxy.NameMatchClassMethodPointcut">
+    <property name="mappedName" value="upgrade*"/>
+    <property name="mappedClassName" value="*ServiceImpl"/>
+</bean>
+```
+
+
 
 #### 어드바이스와 어드바이저
 
@@ -2131,10 +2167,13 @@ execution(* *(..))
 
 
 
-#### 타입 패턴과 클래스 이름 패턴
+
+
+### 타입 패턴과 클래스 이름 패턴
 
 - 포인트컷 표현식의 클래스 이름에 적용되는 패턴은 클래스 이름 패턴이 아니라 타입 패턴임
-- TestUserService 클래스의 슈퍼타입이 UserServiceImpl, 구현 인터페이스가 UserService라면 `execution(* *..ServiceImpl.upgrade*(..))` 로 된 포인트컷 표현식을 사용하더라도 TestUserService가 타입 패턴의 조건을 충족할 수 있음
+- `TestUserService` 클래스의 슈퍼타입이 `UserServiceImpl`, 구현 인터페이스가 `UserService`라면 `execution(* *..ServiceImpl.upgrade*(..))` 로 된 포인트컷 표현식을 사용하더라도 `TestUserService`가 타입 패턴의 조건을 충족할 수 있음.
+- `TestUserService` 가 `UserServiceImpl` 타입으로 일치하기 때문에
 
 
 
@@ -2142,16 +2181,22 @@ execution(* *(..))
 
 #### 트랜잭션 서비스 추상화
 
+- 트랜잭션코드와 비지니스코드가 섞이면 변경되는 포인트가 많아지고 관리가 힘들어지기 때문에 추상적인 작업 내용은 유지한 채로 구현 방법을 자유롭게 바꿀 수 있도록 서비스 추상화 기법을 적용해야함
 - 트랜잭션 추상화란 결국 인터페이스와 DI를 통해 무엇을 하는지는 남기고, 그것을 어떻게 하는지를 분리한 것.
-- 어떻게 할지는 더 이상 비지니스 로직 코드에는 영향을 주지 않고 독립적으로 변경할 수 있게 됨
+- 어떻게 할지(부가기능)는 더 이상 비지니스 로직 코드에는 영향을 주지 않고 독립적으로 변경할 수 있게 됨
 
 #### 프록시와 데코레이터 패턴
 
-- 프록시와 데코레이터를 적용함으로써 비지니스 로직 코드는 트랜잭션과 같은 성격의 다른 코드로부터 자유로워지고 독립적으로 로직을 검증하는 고립된 단위 테스트를 만들 수도 있게 됨
+- 트랜잭션을 어떻게 다룰 것인가는 추상화를 통해 코드에서 제거했지만 여전히 비즈니스 로직 코드에는 트랜잭션을 적용하는 사실이 드러나있음 (메서드 분리의 한계)
+- 데코레이터 패턴을 적용해서 비지니스 로직을 담은 클래스의 코드에는 전혀 영향을 주지 않으면서 트랜잭션이라는 부가기능을 자유롭게 부여할 수 있는 구조를 만들었음 
+- 트랜잭션을 처리하는 코드는 일종의 데코레이터에 담겨서, 클라이언트와 비즈니스 로직을 담은 타깃 클래스 사이에 존재하도록해서 프록시 역할을 하는 트랜잭션 데코레이터가 타깃에 접근하는 구조가 됨
+- 비즈니스 로직 코드는 트랜잭션과 같은 성격이 다른 코드로부터 자유로워졌고 독립적으로 로직을 검증하는 고립된 단위 테스트를 만들 수 있게 됨
 
 #### 다이내믹 프록시와 프록시 팩토리 빈
 
-- 프록시 클래스 없이도 프록시 오브젝트를 런타임 시에 만들어주는 jdk 다이내믹 프록시 기술을 적용해서 프록시 클래스 코드 작성의 부담도 덜고 기능 부여 코드가 여기저기 중복돼어 나타나는 문제점도 일부 해결할 수 있음
+- 프록시를 이용해서 비지니스 로직 코드에서 트랜잭션 코드는 모두 제거할 수 있었지만 비지니스 로직 인터페이스의 모든 메서드마다 트랜잭션 기능을 부여하는 코드를 넣어 프록시 클래스를 만드는 작업이 오히려 번거로웠음
+- 프록시 클래스 없이도 프록시 오브젝트를 런타임시에 만들어주는 jdk 다이내믹 프록시가 해결해줬음
+-  jdk 다이내믹 프록시 기술을 적용해서 프록시 클래스 코드 작성의 부담도 덜고 기능 부여 코드가 여기저기 중복돼어 나타나는 문제점도 일부 해결할 수 있음
 
 #### 자동 프록시 생성 방법과 포인트컷
 
