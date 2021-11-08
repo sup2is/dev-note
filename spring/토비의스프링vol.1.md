@@ -780,7 +780,7 @@ public class JUnitTest {
 
 # #6 AOP
 
-## 트랜잭션 코드의 분리
+## 트랜잭션 코드의 분리
 
 ### 메소드 분리
 
@@ -788,26 +788,24 @@ public class JUnitTest {
 - 하지만 논리적으로 트랜잭션의 경계는 비지니스 로직의 전후에 설정되어야 하는 것이 명확함
 
 ```java
+    public void upgradeLevels() {
 
-public void upgradeLevels() 
-  
-  TransactionStatus status = this.transactionManager.getTransaction(new DefaultTransactionDefinition());
+        TransactionStatus status = this.transactionManager.getTransaction(new DefaultTransactionDefinition());
 
-  try {
-    List<User> users = userDao.getAll();
-    for (User user : users) {
-      if (canUpgradeLevel(user)) {
-        upgradeLevel(user);
-      }
+        try {
+            List<User> users = userDao.getAll();
+            for (User user : users) {
+                if (canUpgradeLevel(user)) {
+                    upgradeLevel(user);
+                }
+            }
+            this.transcationManager.commit(status);
+        } catch (Exception e) {
+            this.transcationManager.rollback(status);
+            throw e;
+        }
+
     }
-
-    this.transcationManager.commit(status);
-  } catch (Exception e) {
-    this.transcationManager.rollback(status);
-    throw e;
-  } 
-
-}
 ```
 
 - 자세히 살펴보면 뚜렷하게 두가지 종류의 코드가 구분되어 있음을 알 수 있음
@@ -822,7 +820,7 @@ public void upgradeLevels() {
   TransactionStatus status = this.transactionManager.getTransaction(new DefaultTransactionDefinition());
 
   try {
-		upgradeLevelsInternal(); //메서드로 분리
+	upgradeLevelsInternal(); //메서드로 분리
     this.transcationManager.commit(status);
   } catch (Exception e) {
     this.transcationManager.rollback(status);
@@ -870,26 +868,28 @@ private void upgradeLevelsInternal() {
 
 ```java
 public interface UserService {
-	void add(User user);
-  void upgradeLevels();
+    void add(User user);
+    void upgradeLevels();
 }
 ```
 
 - 트랜잭션 코드를 제거한 UserService 구현 클래스
 
 ```java
+package me.sup2is;
+
 public class UserServiceImpl implements UserService {
-  UserDao userDao;
-  MailSender mailSender;
-  
-  private void upgradeLevelsInternal() {
-    List<User> users = userDao.getAll();
-    for (User user : users) {
-      if (canUpgradeLevel(user)) {
-        upgradeLevel(user);
-      }
+    UserDao userDao;
+    MailSender mailSender;
+
+    private void upgradeLevelsInternal() {
+        List<User> users = userDao.getAll();
+        for (User user : users) {
+            if (canUpgradeLevel(user)) {
+                upgradeLevel(user);
+            }
+        }
     }
-  }
 }
 ```
 
@@ -900,34 +900,36 @@ public class UserServiceImpl implements UserService {
 - 비지니스 트랜잭션 처리를 담은 UserService 구현 클래스 
 
 ```java
+package me.sup2is;
+
 public class UserServiceTx implements UserService {
-	UserService userService;
-  PlatformTranscationManager transcationManager;
- 
-  public void setTranscationManager(PlatformTranscationManager transcationManager) {
-    this.transcationManager = transcationManager;
-  }
-  
-  public void setUserService(UserService userService) {
-    this.userService = userService;
-  }
-  
-  public void add(User user) {
-    userService.add(user);
-  }
-  
-  public void upgradeLevels() {
-    TransactionStatus status = this.transactionManager.getTransaction(new DefaultTransactionDefinition());
+    UserService userService;
+    PlatformTranscationManager transcationManager;
 
-    try {
-			userService.upgradeLevel(user);
+    public void setTranscationManager(PlatformTranscationManager transcationManager) {
+        this.transcationManager = transcationManager;
+    }
 
-      this.transcationManager.commit(status);
-    } catch (Exception e) {
-      this.transcationManager.rollback(status);
-      throw e;
-    } 
-  }
+    public void setUserService(UserService userService) {
+        this.userService = userService;
+    }
+
+    public void add(User user) {
+        userService.add(user);
+    }
+
+    public void upgradeLevels() {
+        TransactionStatus status = this.transactionManager.getTransaction(new DefaultTransactionDefinition());
+
+        try {
+            userService.upgradeLevel(user);
+
+            this.transcationManager.commit(status);
+        } catch (Exception e) {
+            this.transcationManager.rollback(status);
+            throw e;
+        }
+    }
 }
 ```
 
@@ -2287,6 +2289,132 @@ execution(* *(..))
 - 트랜잭션 속성은 TransactionAttribute 인터페이스로 정의됨 이 인터페이스로 트랜잭션 부가기능의 동작 방식을 모두 제어할 수 있음
 - TransactionInterceptor에는 기본적으로 런타임 예외는 롤백시키고 체크 예외를 던지는 경우에는 이것을 예외상황이라 생각하지 않고 커밋해버림
 - TransactionInterceptor의 예외처리 기본 원칙을 따르지 않을때는 TransactionAttribute의 rollbackOn()이라는 속성을 둬서 기본 원칙과 다른 예외처리가 가능하게 해줌
+
+
+
+> 5.x 기준으로 PlatformTransactionManager와 Properties 는 Deprecated 되고
+>
+> ```java
+> 	public TransactionInterceptor(TransactionManager ptm, TransactionAttributeSource tas) {
+> 		setTransactionManager(ptm);
+> 		setTransactionAttributeSource(tas);
+> 	}
+> ```
+>
+> TransactionManager와 TransactionAttributeSource를 사용함
+>
+> TransactionInterceptor는 thread-safe
+>
+> TransactionInterceptor의 내부를 살펴보면 실제로 위에서 만들었던 예제과 비슷한 형태로 되어있음
+>
+> ```java
+> @Override
+> @Nullable
+> public Object invoke(MethodInvocation invocation) throws Throwable {
+>    // Work out the target class: may be {@code null}.
+>    // The TransactionAttributeSource should be passed the target class
+>    // as well as the method, which may be from an interface.
+>    Class<?> targetClass = (invocation.getThis() != null ? AopUtils.getTargetClass(invocation.getThis()) : null);
+> 
+>    // Adapt to TransactionAspectSupport's invokeWithinTransaction...
+>    return invokeWithinTransaction(invocation.getMethod(), targetClass, new CoroutinesInvocationCallback() {
+>       @Override
+>       @Nullable
+>       public Object proceedWithInvocation() throws Throwable {
+>          return invocation.proceed();
+>       }
+>       @Override
+>       public Object getTarget() {
+>          return invocation.getThis();
+>       }
+>       @Override
+>       public Object[] getArguments() {
+>          return invocation.getArguments();
+>       }
+>    });
+> }
+> ```
+>
+> 바로 실행하는 구조는 TransactionAspectSupport.invokeWithinTransaction() 메서드를 사용해서 콜백으로 던지는 구조임 TransactionAspectSupport를 통해 Spring 트랜잭션 인프라를 사용하여 모든 aspect 시스템에 대한 aspect를 쉽게 구현할 수 있음
+>
+> 코드를 확인해보면 주입된 TransactionManager 타입에 따라 각기 다른 로직을 수행하지만 어쨋든 트랜잭션을 가져오고, 타깃에 대한 메서드를 실행하고 커밋시키고, 예외가 발생하면 롤백시키는 코드는 모두 녹아있음
+>
+> ```java
+> ...
+> 
+> // Standard transaction demarcation with getTransaction and commit/rollback calls.
+> 			TransactionInfo txInfo = createTransactionIfNecessary(ptm, txAttr, joinpointIdentification);
+> 
+> 			Object retVal;
+> 			try {
+> 				// This is an around advice: Invoke the next interceptor in the chain.
+> 				// This will normally result in a target object being invoked.
+> 				retVal = invocation.proceedWithInvocation();
+> 			}
+> 			catch (Throwable ex) {
+> 				// target invocation exception
+> 				completeTransactionAfterThrowing(txInfo, ex);
+> 				throw ex;
+> 			}
+> 			finally {
+> 				cleanupTransactionInfo(txInfo);
+> 			}
+> 
+> 			if (retVal != null && vavrPresent && VavrDelegate.isVavrTry(retVal)) {
+> 				// Set rollback-only in case of Vavr failure matching our rollback rules...
+> 				TransactionStatus status = txInfo.getTransactionStatus();
+> 				if (status != null && txAttr != null) {
+> 					retVal = VavrDelegate.evaluateTryFailure(retVal, txAttr, status);
+> 				}
+> 			}
+> 
+> 			commitTransactionAfterReturning(txInfo);
+> 			return retVal;
+> 
+> ...
+> ```
+
+
+
+#### TransactionManager
+
+- Transaction이 근본이 되는 인터페이스
+- 크게 PlatformTransactionManager와 ReactiveTransactionManager로 구분 (ReactiveTransactionManager 는 생략 ..)
+- PlatformTransactionManager역시 고수준 인터페이스이고 실제 사용은 AbstractPlatformTransactionManager을 사용해서 확장시키는 것을 권장하고 있음
+- AbstractPlatformTransactionManager의 서브클래스는 시작, 일시중단, 재개, 커밋에 대한 템플릿 메서드를 구현해야함
+- AbstractPlatformTransactionManager의 대표적인 파생클래스
+  - [DataSourceTransactionManager](https://docs.spring.io/spring-framework/docs/current/javadoc-api/org/springframework/jdbc/datasource/DataSourceTransactionManager.html)
+  - [HibernateTransactionManager](https://docs.spring.io/spring-framework/docs/current/javadoc-api/org/springframework/orm/hibernate5/HibernateTransactionManager.html)
+  - [JpaTransactionManager](https://docs.spring.io/spring-framework/docs/current/javadoc-api/org/springframework/orm/jpa/JpaTransactionManager.html)
+- 각각 구현체들에서 템플릿 메서드 형태로 필요한 메서드들을 구성하면 AbstractPlatformTransactionManager의 doGetTransaction() 메서드, doCommit(), doRollback()을 각자 구현체에 맞게 실행하도록 되어있음
+
+
+
+#### TransactionDefinition
+
+- Spring 트랜잭션 속성을 정의하는 인터페이스.
+- 여기엔 전파속성, 격리수준, 타임아웃에 대한 설정값들이 상수로 정의되어있음
+- 가장 기본 구현체인 DefaultTransactionDefinition의 모습
+
+```java
+	private int propagationBehavior = PROPAGATION_REQUIRED;
+
+	private int isolationLevel = ISOLATION_DEFAULT;
+
+	private int timeout = TIMEOUT_DEFAULT;
+
+	private boolean readOnly = false;
+```
+
+
+
+### 
+
+
+
+
+
+
 
 #### 메소드 이름 패턴을 이용한 트랜잭션 속성 지정
 
