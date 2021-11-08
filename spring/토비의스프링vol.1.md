@@ -2,7 +2,7 @@
 
 
 
-# 토비의 스프링 vol.1
+# 토비의  스프링 vol.1
 
 
 
@@ -1168,7 +1168,7 @@ InputStream is = new BufferedInputStream(new FileInputStream("a.txt"));
 - 하지만 타깃 오브젝트에 대한 레퍼런스가 미리 필요할때 프록시 패턴을 적용하면 됨
 - 만약 레퍼런스만 갖고 있고 끝까지 사용하지 않거나, 많은 작업이 진행된 후에 사용되는 경우라면 프록시를 통해 생성을 최대한 늦춤으로써 얻는 장점이 많음
 - 또는 원격 오브젝트를 이용하는 경우에도 프록시를 사용하면 편리함
-- 특별한 상황에서 타깃에 대한 접근권한을 제어하기 위해 프록시 패턴을 사용할 수 도 있음 대표적으로 Collections 클래스의 unmodifiableCollection() 메서드
+- 특별한 상황에서 타깃에 대한 접근권한을 제어하기 위해 프록시 패턴을 사용할 수 도 있음 대표적으로 Collections 클래스의 `unmodifiableCollection()` 메서드
 
 ```java
     public static <T> Collection<T> unmodifiableCollection(Collection<? extends T> c) {
@@ -1512,6 +1512,7 @@ public void upgradeAllOrNothing() {
 ### 다이내믹 프록시를 위한 팩토리 빈
 
 - TransactionHandler와 다이내믹 프록시를 스프링 DI를 통해 사용할 수 있도록 만들어야하지만 문제가 있음
+  - DI의 대상이 되는 다이내믹 프록시 오브젝트는 일반적인 스프링 빈으로 등록할 방법이 없음
   - 스프링은 내부적으로 리플렉션  api를 이용해서 빈 정의에 나오는 클래스 이름을 가지고 빈 오브젝트를 생성하는데 다이내믹 프록시 오브젝트는 이런식으로 프록시 오브젝트가 생성되지 않는다는 점.
   - 클래스 자체도 내부적으로 다이내믹하게 새로 정의해서 사용하기 때문
   - 프록시 오브젝트의 클래스 정보를 미리 알아내서 스프링 빈에 정의할 방법이 없음
@@ -1524,15 +1525,15 @@ public void upgradeAllOrNothing() {
 
 ```java
 public interface FactoryBean<T> {
-  @Nullable
-	T getObject() throws Exception;
+    @Nullable
+    T getObject() throws Exception;
 
-	@Nullable
-	Class<?> getObjectType();
+    @Nullable
+    Class<?> getObjectType();
 
-	default boolean isSingleton() {
-		return true;
-	}
+    default boolean isSingleton() {
+        return true;
+    }
 }
 ```
 
@@ -1559,26 +1560,26 @@ public class Message {
 
 ```java
 public class MessageFactoryBean implements FactoryBean<Message> {
-  private String text;
+    private String text;
 
-  public void setText(String text) {
-    this.text = text;
-  }
-  
-  @Override
-  public Message getObject() throws Exception {
-    return Message.newMessage(text); // <- 실제 빈으로 사용될 오브젝트를 팩토리 메서드를 통해서 생성함
-  }
+    public void setText(String text) {
+        this.text = text;
+    }
 
-  @Override
-  public Class<?> getObjectType() {
-    return Message.class;
-  }
+    @Override
+    public Message getObject() throws Exception {
+        return Message.newMessage(text); // <- 실제 빈으로 사용될 오브젝트를 팩토리 메서드를 통해서 생성함
+    }
 
-  @Override
-  public boolean isSingleton() {
-    return false;
-  }
+    @Override
+    public Class<?> getObjectType() {
+        return Message.class;
+    }
+
+    @Override
+    public boolean isSingleton() {
+        return false;
+    }
 }
 ```
 
@@ -1638,23 +1639,23 @@ public class TxProxyFactoryBean implements FactoryBean<Object> {
     PlatformTransactionManager transactionManager;
     String pattern;
     Class<?> serviceInterface;
-    
+
     public void setTarget(Object targer) {
         this.target = targer;
     }
-    
+
     public void setTransactionManager(PlatformTransactionManager transactionManager) {
         this.transactionManager = transactionManager;
     }
-    
+
     public void setPattern(String pattern) {
         this.pattern = pattern;
     }
-    
+
     public void setServiceInterface(Class<?> serviceInterface) {
         this.serviceInterface = serviceInterface;
     }
-    
+
     //FactoryBean 인터페이스 구현 메소드
     public Object getObject() throws Exception {
         TransactionHandler txHandler = new TransactionHandler();
@@ -1662,18 +1663,18 @@ public class TxProxyFactoryBean implements FactoryBean<Object> {
         txHandler.setTransactionManager(transactionManager);
         txHandler.setPattern(pattern);
         return Proxy.newProxyInstance(
-                getClass().getCalssLoader(), new Class[] { serviceInterface },
+                getClass().getCalssLoader(), new Class[]{serviceInterface},
                 txHandler);
     }
-    
+
     /*
-	 * DI 받은 인터페이스 타입에 따라 팩토리 빈이 생성하는 오브젝트 타입이 달라진다.
-	 * 다양한 프록시 오브젝트 생성을 위한 재사용 코드
-	 */
+     * DI 받은 인터페이스 타입에 따라 팩토리 빈이 생성하는 오브젝트 타입이 달라진다.
+     * 다양한 프록시 오브젝트 생성을 위한 재사용 코드
+     */
     public Class<?> getObjectType() {
         return serviceInterface;
     }
-    
+
     /*
      * 싱글톤 빈이 아니라는 뜻이 아니라
      * getObject()가 매번 같은 오브젝트를 리턴하지 않는다는 의미
@@ -1720,7 +1721,7 @@ public void upgradeAllOrNothing() throws Exception {
 
 #### 프록시 팩토리 빈의 한계
 
-- 하나의 클래스를 대상으로 하는것은 문제가 없지만 여러 클래스를 대상으로 하는것은 불가능함
+- 단점은 하나의 클래스를 대상으로 하는것은 문제가 없지만 여러 클래스를 대상으로 하는것은 불가능함 또 하나의 타깃에 여러 부가기능을을 적용하려고할때도 제한적임
 - 따라서 설정에서의 중복을 피할 수 없음
 
 
@@ -1729,14 +1730,12 @@ public void upgradeAllOrNothing() throws Exception {
 
 ### ProxyFactoryBean
 
-- 스프링은 일관된 방법으로 프록시를 프록시를 만들 수 있게 도와주는 추상 레이어가 있음
-- 스프링의 ProxyFactoryBean은 프록시를 생성해서 빈 오브젝트로 등록하게 해주는 팩토리 빈
-- ProxyFactoryBean은 순수하게 프록시를 생성하는 작업만을 담당하고 프록시를 통해 제공해줄 부가 기능은 별도의 빈에 둘 수 있음
-- ProxyFactoryBean이 생성하는 프록시에사 사용할 부가기능은 MethodInterceptor 인터페이스를 구현해서 만듦
-  - InvocationHandler: invoke() 메서드에 타깃 오브젝트에 대한 정보를 제공받지 않음
-  - MethodInterceptor: invoke() 메서드에 타깃 오브젝트에 대한 정보까지도 함께 제공받음
-
-
+- 스프링은 일관된 방법으로 프록시를 만들 수 있게 도와주는 추상 레이어가 있음
+- 스프링의 `ProxyFactoryBean`은 프록시를 생성해서 빈 오브젝트로 등록하게 해주는 팩토리 빈
+- `ProxyFactoryBean`은 순수하게 프록시를 생성하는 작업만을 담당하고 프록시를 통해 제공해줄 부가 기능은 별도의 빈에 둘 수 있음
+- `ProxyFactoryBean`이 생성하는 프록시에서 사용할 부가기능은 `MethodInterceptor` 인터페이스를 구현해서 만듦
+  - `InvocationHandler`: `invoke()` 메서드에 타깃 오브젝트에 대한 정보를 제공받지 않음
+  - `MethodInterceptor`: `invoke()` 메서드에 타깃 오브젝트에 대한 정보까지도 함께 제공받음
 
 ```java
 public class DynamicProxyTest {
@@ -1823,7 +1822,14 @@ public class DynamicProxyTest {
 - 스프링의 ProxyFactoryBean 방식은 두가지 확장 기능인 부가기능과 메서드 선정 알고리즘을 활용하는 유연한 구조를 제공함
 - 스프링은 부가기능을 제공하는 오브젝트를 어드바이스라고 부르고, 메서드 선정 알고리즘을 담은 오브젝트를 포인트컷 이라고 부름
 - 어드바이스와 포인트컷은 모두 프록시에 DI로 주입되어 사용되기 때문에 스프링의 싱글톤 빈으로 등록이 가능함
-- 프록시는 포인트컷으로부터 부각기능을 적용할 대상 메서드인지 확인받으면 MethodInvocation 타입의 어드바이스를 호출함
+
+![9](./images/toby-spring-vol1/9.jpeg)
+
+- 동작 방식
+  - 프록시는 클라이언트로부터 요청을 받으면 먼저 포인트컷에게 구가기능을 부여할 메서드인지 확인해달라고 요청함
+  - 확인 받으면 MethodInterceptor 타입의 어드바이스를 호출
+  - Invocation 콜백을 수행하고 타깃 오브젝트의 메서드를 수행
+
 - 재사용 가능한 기능을 만들어두고 바뀌는 부분만 외부에서 주입해서 이를 작업흐름중에 사용하도록 하는 전형적인 템플릿/콜백 구조
 - 어드바이스가 일종의 템플릿이 되고 타깃을 호출하는 기능을 갖고 있는 MethodInvocation 오브젝트가 콜백
 - 프록시로부터 어드바이스와 포인트컷을 독립시키고 DI를 사용하게 한 것은 전형적인 전략 패턴 구조
@@ -1898,27 +1904,46 @@ public class TransactionAdvice implements MethodInterceptor {
 
 #### 중복 문제의 접근 방법
 
-#### 빈 후처리기를 이용한 자동 프록시 생성기
+### 빈 후처리기를 이용한 자동 프록시 생성기
 
-- 스프링은 OCP의 가장 중요한 요소인 유연한 확장이라는 개념을 스프링 컨테이너 자신에게도 다양한 방법으로 적용하고 있음
-- DefaultAdvisorAutoProxyCreator를 사용해서 빈 후처리기 기능을 사용할 수 있음
-- DefaultAdvisorAutoProxyCreator는 어드바이저를 이용한 자동 프록시 생성기임
-- 빈 후처리기 자체를 빈으로 등록하면 빈 오브젝트가 생성될 때마다 빈 후처리기에 부내서 후처리 작업을 요청할 수 있음
+- 빈 후처리기는 이름 그대로 스프링 빈 오브젝트로 만들어지고 난 후에 빈 오브젝트를 다시 가공할 수 있게 해줌
+- 빈 후처리기는 BeanPostProcessor 인터페이스를 구현해서 만들 수 있음  (자세한 내용은 vol.2에서 ..)
+
+```java
+public interface BeanPostProcessor {
+
+   @Nullable
+   default Object postProcessBeforeInitialization(Object bean, String beanName) throws BeansException {
+      return bean;
+   }
+
+   @Nullable
+   default Object postProcessAfterInitialization(Object bean, String beanName) throws BeansException {
+      return bean;
+   }
+}
+```
+
+- 빈 후처리기 종류중 하나인 `DefaultAdvisorAutoProxyCreator`를 사용해서 빈 후처리기 기능을 사용할 수 있음
+- `DefaultAdvisorAutoProxyCreator`는 어드바이저를 이용한 자동 프록시 생성기임
+- 빈 후처리기 자체를 빈으로 등록하면 빈 오브젝트가 생성될 때마다 빈 후처리기에 보내서 후처리 작업을 요청할 수 있음
 - 빈 후처리기는 빈 오브젝트의 프로퍼티를 강제로 수정할 수도 있고 별도의 초기화 작업을 수행할 수도 있음
 - 따라서 스프링이 설정을 참고해서 만든 오브젝트가 아닌 다른 오브젝트를 빈으로 등록시키는 것이 가능함
-- DefaultAdvisorAutoProxyCreator는 빈으로 등록된 모든 어드바이저 내의 포인트컷을 이용해 전달받은 빈이 프록시 적용 대상인지 확인함
-- 프록시 적용 대상이면 그때는 내장된 프록시 생성기에게 현재 빈에 대한 프록시를 만들게 하고, 만들어진 프록시에 어드바이저를 연결해줌
-- 빈 후처리기는 프록시가 생성되면 원래 컨테이너가 전달해준 빈 오브젝트 대신 프록시 오브젝트를 컨테이너에게 돌려줌
 
+![10](./images/toby-spring-vol1/10.jpeg)
 
-
-사진
-
-- 적용할 빈을 선정하는 로직이 추가된 포인트컷이 담긴 어드바이저를 등록하고 빈 후처리기를 사용하면 일일이 빈을 등록하지 않아도 타깃 오브젝트에 자동으로 프록시가 적용되게 할 수 있음
+- 동작 방식
+  - `DefaultAdvisorAutoProxyCreator` 빈 후처리기가 등록되어 있으면 스프링은 빈 오브젝트를 만들 때마다 빈 후처리기에 빈을 보내는 방식으로 동작함
+  - `DefaultAdvisorAutoProxyCreator`는 빈으로 등록된 모든 어드바이저 내의 포인트컷을 이용해 전달받은 빈이 프록시 적용 대상인지 확인함
+  - 프록시 적용 대상이면 그때는 내장된 프록시 생성기에게 현재 빈에 대한 프록시를 만들게 하고, 만들어진 프록시에 어드바이저를 연결해줌
+  - 빈 후처리기는 프록시가 생성되면 원래 컨테이너가 전달해준 빈 오브젝트 대신 프록시 오브젝트를 컨테이너에게 돌려줌
+  - 컨테이너는 최종적으로 빈 후처리기가 돌려준 오브젝트를 빈으로 등록하고 사용함
+- 적용할 빈을 선정하는 로직이 추가된 포인트컷이 담긴 어드바이저를 등록하고 빈 후처리기를 사용하면 일일이 `ProxyFactoryBean` 빈을 등록하지 않아도 타깃 오브젝트에 자동으로 프록시가 적용되게 할 수 있음
 
 #### 확장된 포인트컷
 
 - 포인트컷은 클래스필터와 메서드 매처 기능을 하는 두가지 메서드가 존재함
+- 위 예제에서 사용한 `NameMatchMethodPointcut` 은 메서드 선별 기능만 가진 특별한 포인트컷
 
 ```java
 public interface Pointcut {
@@ -1930,6 +1955,7 @@ public interface Pointcut {
 ```
 
 - 만약 포인트컷 선정 기능을 모두 적용한다면 먼저 프록시를 적용할 클래스인지 판단 후 적용 대상 클래스의 메서드를 확인하는 식으로 동작함
+- 모든 빈에 대해 프록시 자동적용 대상을 선별해야 하는 빈 후처리기인 `DefaultAdvisorAutoProxyCreator` 는 클래스와 메서드 선정 알고리즘을 모두 갖고 있는 포인트컷이 필요함
 - 결론적으로 이 두가지 조건이 모두 충족되는 타깃의 메서드에 어드바이스가 적용됨
 
 
@@ -2013,7 +2039,24 @@ public class NameMatchClassMethodPointcut extends NameMatchMethodPointcut {
 
 #### 어드바이저를 이용하는 자동 프록시 생성기 생성
 
+#### 
+
+```xml
+<bean class="org.springframework.aop.framework.autoproxy.DefaultAdvisorAutoProxyCreator"> </>
+```
+
+
+
 #### 포인트컷 등록
+
+```xml
+<bean id="transactionPointcut" class="springbook.proxy.NameMatchClassMethodPointcut">
+    <property name="mappedName" value="upgrade*"/>
+    <property name="mappedClassName" value="*ServiceImpl"/>
+</bean>
+```
+
+
 
 #### 어드바이스와 어드바이저
 
@@ -2126,10 +2169,13 @@ execution(* *(..))
 
 
 
-#### 타입 패턴과 클래스 이름 패턴
+
+
+### 타입 패턴과 클래스 이름 패턴
 
 - 포인트컷 표현식의 클래스 이름에 적용되는 패턴은 클래스 이름 패턴이 아니라 타입 패턴임
-- TestUserService 클래스의 슈퍼타입이 UserServiceImpl, 구현 인터페이스가 UserService라면 `execution(* *..ServiceImpl.upgrade*(..))` 로 된 포인트컷 표현식을 사용하더라도 TestUserService가 타입 패턴의 조건을 충족할 수 있음
+- `TestUserService` 클래스의 슈퍼타입이 `UserServiceImpl`, 구현 인터페이스가 `UserService`라면 `execution(* *..ServiceImpl.upgrade*(..))` 로 된 포인트컷 표현식을 사용하더라도 `TestUserService`가 타입 패턴의 조건을 충족할 수 있음.
+- `TestUserService` 가 `UserServiceImpl` 타입으로 일치하기 때문에
 
 
 
@@ -2137,16 +2183,22 @@ execution(* *(..))
 
 #### 트랜잭션 서비스 추상화
 
+- 트랜잭션코드와 비지니스코드가 섞이면 변경되는 포인트가 많아지고 관리가 힘들어지기 때문에 추상적인 작업 내용은 유지한 채로 구현 방법을 자유롭게 바꿀 수 있도록 서비스 추상화 기법을 적용해야함
 - 트랜잭션 추상화란 결국 인터페이스와 DI를 통해 무엇을 하는지는 남기고, 그것을 어떻게 하는지를 분리한 것.
-- 어떻게 할지는 더 이상 비지니스 로직 코드에는 영향을 주지 않고 독립적으로 변경할 수 있게 됨
+- 어떻게 할지(부가기능)는 더 이상 비지니스 로직 코드에는 영향을 주지 않고 독립적으로 변경할 수 있게 됨
 
 #### 프록시와 데코레이터 패턴
 
-- 프록시와 데코레이터를 적용함으로써 비지니스 로직 코드는 트랜잭션과 같은 성격의 다른 코드로부터 자유로워지고 독립적으로 로직을 검증하는 고립된 단위 테스트를 만들 수도 있게 됨
+- 트랜잭션을 어떻게 다룰 것인가는 추상화를 통해 코드에서 제거했지만 여전히 비즈니스 로직 코드에는 트랜잭션을 적용하는 사실이 드러나있음 (메서드 분리의 한계)
+- 데코레이터 패턴을 적용해서 비지니스 로직을 담은 클래스의 코드에는 전혀 영향을 주지 않으면서 트랜잭션이라는 부가기능을 자유롭게 부여할 수 있는 구조를 만들었음 
+- 트랜잭션을 처리하는 코드는 일종의 데코레이터에 담겨서, 클라이언트와 비즈니스 로직을 담은 타깃 클래스 사이에 존재하도록해서 프록시 역할을 하는 트랜잭션 데코레이터가 타깃에 접근하는 구조가 됨
+- 비즈니스 로직 코드는 트랜잭션과 같은 성격이 다른 코드로부터 자유로워졌고 독립적으로 로직을 검증하는 고립된 단위 테스트를 만들 수 있게 됨
 
 #### 다이내믹 프록시와 프록시 팩토리 빈
 
-- 프록시 클래스 없이도 프록시 오브젝트를 런타임 시에 만들어주는 jdk 다이내믹 프록시 기술을 적용해서 프록시 클래스 코드 작성의 부담도 덜고 기능 부여 코드가 여기저기 중복돼어 나타나는 문제점도 일부 해결할 수 있음
+- 프록시를 이용해서 비지니스 로직 코드에서 트랜잭션 코드는 모두 제거할 수 있었지만 비지니스 로직 인터페이스의 모든 메서드마다 트랜잭션 기능을 부여하는 코드를 넣어 프록시 클래스를 만드는 작업이 오히려 번거로웠음
+- 프록시 클래스 없이도 프록시 오브젝트를 런타임시에 만들어주는 jdk 다이내믹 프록시가 해결해줬음
+-  jdk 다이내믹 프록시 기술을 적용해서 프록시 클래스 코드 작성의 부담도 덜고 기능 부여 코드가 여기저기 중복돼어 나타나는 문제점도 일부 해결할 수 있음
 
 #### 자동 프록시 생성 방법과 포인트컷
 
