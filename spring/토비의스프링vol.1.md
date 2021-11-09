@@ -2387,7 +2387,7 @@ execution(* *(..))
 > }
 > ```
 >
-> 바로 실행하는 구조는 TransactionAspectSupport.invokeWithinTransaction() 메서드를 사용해서 콜백으로 던지는 구조임 TransactionAspectSupport를 통해 Spring 트랜잭션 인프라를 사용하여 모든 aspect 시스템에 대한 aspect를 쉽게 구현할 수 있음
+> 바로 실행하는 구조는 아니고 TransactionAspectSupport.invokeWithinTransaction() 메서드를 사용해서 콜백으로 던지는 구조임 TransactionAspectSupport를 통해 Spring 트랜잭션 인프라를 사용하여 aspect를 쉽게 구현할 수 있음
 >
 > 코드를 확인해보면 주입된 TransactionManager 타입에 따라 각기 다른 로직을 수행하지만 어쨋든 트랜잭션을 가져오고, 타깃에 대한 메서드를 실행하고 커밋시키고, 예외가 발생하면 롤백시키는 코드는 모두 녹아있음
 >
@@ -2430,9 +2430,24 @@ execution(* *(..))
 
 #### TransactionManager
 
-- Transaction이 근본이 되는 인터페이스
+- Transaction이 근본이 되는 인터페이스 (TransactionManager는 마커 인터페이스)
 - 크게 PlatformTransactionManager와 ReactiveTransactionManager로 구분 (ReactiveTransactionManager 는 생략 ..)
 - PlatformTransactionManager역시 고수준 인터페이스이고 실제 사용은 AbstractPlatformTransactionManager을 사용해서 확장시키는 것을 권장하고 있음
+
+```java
+public interface PlatformTransactionManager {
+
+    TransactionStatus getTransaction(
+            TransactionDefinition definition) throws TransactionException;
+
+    void commit(TransactionStatus status) throws TransactionException;
+
+    void rollback(TransactionStatus status) throws TransactionException;
+}
+```
+
+- getTransaction() 메서드는 TransactionDefinition 변수에 따라 TransactionStatus 객체를 반환함
+-  반환된 TransactionStatus는 새 트랜잭션을 나타내거나 현재 호출 스택에 일치하는 트랜잭션이 있는 경우 기존 트랜잭션을 나타낼 수 있음
 - AbstractPlatformTransactionManager의 서브클래스는 시작, 일시중단, 재개, 커밋에 대한 템플릿 메서드를 구현해야함
 - AbstractPlatformTransactionManager의 대표적인 파생클래스
   - [DataSourceTransactionManager](https://docs.spring.io/spring-framework/docs/current/javadoc-api/org/springframework/jdbc/datasource/DataSourceTransactionManager.html)
@@ -2440,12 +2455,30 @@ execution(* *(..))
   - [JpaTransactionManager](https://docs.spring.io/spring-framework/docs/current/javadoc-api/org/springframework/orm/jpa/JpaTransactionManager.html)
 - 각각 구현체들에서 템플릿 메서드 형태로 필요한 메서드들을 구성하면 AbstractPlatformTransactionManager의 doGetTransaction() 메서드, doCommit(), doRollback()을 각자 구현체에 맞게 실행하도록 되어있음
 
+```java
+	@Override
+	public final TransactionStatus getTransaction(@Nullable TransactionDefinition definition)
+			throws TransactionException {
+
+		// Use defaults if no transaction definition given.
+		TransactionDefinition def = (definition != null ? definition : TransactionDefinition.withDefaults());
+
+		Object transaction = doGetTransaction();
+
+        ...
+	}
+```
+
+
+
+
+
 
 
 #### TransactionDefinition
 
 - Spring 트랜잭션 속성을 정의하는 인터페이스.
-- 여기엔 전파속성, 격리수준, 타임아웃에 대한 설정값들이 상수로 정의되어있음
+- 여기엔 전파속성, 격리수준, 타임아웃, 읽기전용에 대한 설정값들이 상수로 정의되어있음
 - 가장 기본 구현체인 DefaultTransactionDefinition의 모습
 
 ```java
@@ -2460,7 +2493,27 @@ execution(* *(..))
 
 
 
-### 
+### TransactionStatus 
+
+- TransactionStatus 인터페이스는 트랜잭션 코드가 트랜잭션 실행을 제어하고 트랜잭션 상태를 쿼리하는 간단한 방법을 제공
+
+```java
+public interface TransactionStatus extends SavepointManager {
+
+    boolean isNewTransaction();
+
+    boolean hasSavepoint();
+
+    void setRollbackOnly();
+
+    boolean isRollbackOnly();
+
+    void flush();
+
+    boolean isCompleted();
+
+}
+```
 
 
 
@@ -2564,6 +2617,9 @@ public @interface Transactional {
 #### 트랜잭션 속성을 이용하는 포인트컷
 
 - TransactionIterceptor는 메서드 이름 패턴을 통해 부여되는 일괄적인 트랜잭션 속성정보 대신 @Transactional 애너테이션의 엘리먼트에서 트랜잭션 속성을 가져오는 AnnotationTransactionAttributeSource를 사용함
+- 이 방식을 통해 포인트컷과 트랜잭션 속성을 애너테이션 하나로 지정할 수 있음
+- 트랜잭션 속성은 타입 레벨에 일괄적으로 부여할 수도 있지만, 메서드 단위로 세분화해서 트랜잭션 속성을 다르게 지정할 수 있기 때문에 매우 세밀한 트랜잭션 속성 제어가 가능해짐
+- 메소드 마다 @Transactional을 붙일 수 있지만 코드는 지저분해지기 때문에 바람직한 모습은 아님
 
 #### 대체 정책
 
@@ -2611,7 +2667,15 @@ public interface UserService{
 }
 ```
 
+- 인터페이스 방식의 프록시를 사용하는 경우에는 인터페이스에 @Transactional을 적용해도 문제가 되지 않음
+- 하지만 타깃 오브젝트에 아래와같이 사용할 경우 트랜잭션 우선순위에 따라 @Transactional(readOnly=true) 같은 설정이 무시될 수 있음을 주의해야함
 
+```java
+@Transactional
+public class UserServiceImpl implements UserService {
+    
+}
+```
 
 
 
@@ -2619,9 +2683,10 @@ public interface UserService{
 
 ### 선언적 트랜잭션과 트랜잭션 전파 속성
 
+- 트랜잭션 전파 속성을 사용해서 크고 작은 다양한 모습의 트랜잭션 작업을 만들 수 있음
 - AOP를 이용해서 코드 외부에서 트랜잭션의 기능을 부여해주고 속성을 지정할 수 있게 하는 방법을 선언적 트랜잭션 이라고 함
 - 반대로 TransactionTemplate이나 개별 데이터 기술의 트랜잭션 API를 사용해 직접 코드 안에서 사용하는 방법은 프로그램에 의한 트랜잭션 이라고 함
-- 특별한 경우가 아니라면 선언적 트랜잭션을 사용하는것이 바람직함
+- 스프링은 두가지 방법 모두 지원하고 특별한 경우가 아니라면 선언적 트랜잭션을 사용하는것이 바람직함
 
 ### 트랜잭션 동기화와 테스트
 
