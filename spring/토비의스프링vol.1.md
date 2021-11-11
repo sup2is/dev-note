@@ -2197,15 +2197,15 @@ execution(* *(..))
 #### 다이내믹 프록시와 프록시 팩토리 빈
 
 - 프록시를 이용해서 비지니스 로직 코드에서 트랜잭션 코드는 모두 제거할 수 있었지만 비지니스 로직 인터페이스의 모든 메서드마다 트랜잭션 기능을 부여하는 코드를 넣어 프록시 클래스를 만드는 작업이 오히려 번거로웠음
-- 프록시 클래스 없이도 프록시 오브젝트를 런타임시에 만들어주는 jdk 다이내믹 프록시가 해결해줬음
--  jdk 다이내믹 프록시 기술을 적용해서 프록시 클래스 코드 작성의 부담도 덜고 기능 부여 코드가 여기저기 중복돼어 나타나는 문제점도 일부 해결할 수 있음
+- 프록시 클래스 없이도 프록시 오브젝트를 런타임 시에 만들어주는 jdk 다이내믹 프록시 기술을 적용해서 프록시 클래스 코드 작성의 부담도 덜고 기능 부여 코드가 여기저기 중복돼어 나타나는 문제점도 일부 해결할 수 있음
 
 #### 자동 프록시 생성 방법과 포인트컷
 
+- 트랜잭션 적용 대상이 되는 빈마다 일일이 프록시 팩토리 빈을 설정해줘야한다는 부담감이 남아있었음
+- 위 문제를 해결하기 위해 스프링 컨테이너의 빈 생성 후처리 기법을 활용해 컨테이너 초기화 시점에서 자동으로 프록시를 만들어주는 방법을 도입했음
 - 프록시를 적용할 대상을 일일이 지정하지 않고 패턴을 이용해 자동으로 선정할 수 있도록, 클래스를 선정하는 기능을 담은 확장된 포인트컷을 사용
 - 트랜잭션 부가기능을 어디에 적용하는지에 대해 정보를 포인트컷이라는 독립적인 정보로 완전히 분리할 수 있음
-
-#### 부가기능의 모듈화
+- 최종적으로 포인트컷 표현식이라는 좀 더 편리하고 깔끔한 방법을 사용해서 간단한 설정으로 적용대상을 선택하도록 구성부가기능의 모듈화
 
 - 관심사가 같은 코드를 분리해 한데 모으는 것은 소프트웨어 개발의 가장 기본이 되는 원칙
 - 트랜잭션 같은 부가기능은 핵심 기능과 같은 방식으로 모듈화하기개 매우 힘듦
@@ -2226,7 +2226,35 @@ execution(* *(..))
 #### 프록시를 이용한 AOP
 
 - 독립적으로 개발한 부가기능 모듈을 다양한 타깃 오브젝트의 메서드에 다이내믹하게 적용해주기 위해 가장 중요한 역할을 맡고 있는게 바로 프록시
-- 스프링 AOP는 프록시 방식의 AOP
+- 스프링 AOP는 기본적으로 다이내믹 프록시 방식을 사용함. 하지만 이 방식은 interface 타입을 확장한 구현체에만 적용이 가능하기 때문에 슈퍼타입이 없는 경우에는 CGLib 방식을 사용함
+
+`EnableAspectJAutoProxy`
+
+```java
+@Target(ElementType.TYPE)
+@Retention(RetentionPolicy.RUNTIME)
+@Documented
+@Import(AspectJAutoProxyRegistrar.class)
+public @interface EnableAspectJAutoProxy {
+
+	/**
+	 * Indicate whether subclass-based (CGLIB) proxies are to be created as opposed
+	 * to standard Java interface-based proxies. The default is {@code false}.
+	 */
+	boolean proxyTargetClass() default false;
+
+	/**
+	 * Indicate that the proxy should be exposed by the AOP framework as a {@code ThreadLocal}
+	 * for retrieval via the {@link org.springframework.aop.framework.AopContext} class.
+	 * Off by default, i.e. no guarantees that {@code AopContext} access will work.
+	 * @since 4.3.1
+	 */
+	boolean exposeProxy() default false;
+
+}
+```
+
+
 
 #### 바이트코드 생성과 조작을 통한 AOP
 
@@ -2268,7 +2296,6 @@ execution(* *(..))
 ### AOP 네임스페이스
 
 - 스프링의 프록시 방식 AOP를 적용하려면 최소한 네가지 빈을 등록해야함
-
   - 자동 프록시 생성기
     - 스프링의 DefaultAdvisorAutoProxyCreator 클래스를 빈으로 등록
     - 애플리케이션 컨텍스트가 빈 오브젝트를 생성하는 과정에 빈 후처리기로 참여함
@@ -2276,11 +2303,11 @@ execution(* *(..))
   - 어드바이스
     - 부가기능을 구현한 클래스를 빈으로 등록
   - 포인트컷
-    - 스프링의 AspectExpressionPointCut을 빈으로 등록하고 expression 프로퍼티에 포인트컷 표현식을 넣어줘야함
+    - 스프링의 `AspectExpressionPointCut`을 빈으로 등록하고 expression 프로퍼티에 포인트컷 표현식을 넣어줘야함
   - 어드바이저
-    - 스프링의 DefaultPointcutAdvisor 클래스를 빈으로 등록해서 사용
+    - 스프링의 `DefaultPointcutAdvisor` 클래스를 빈으로 등록해서 사용
 
-  
+
 
 #### AOP 네임스페이스
 
@@ -2298,16 +2325,18 @@ execution(* *(..))
 #### 트랜잭션 전파
 
 - 트랜잭션 전파란 트랜잭션의 경계에서 이미 진행중인 트랜잭션이 있을 때 또는 없을 때 어떻게 동작할 것인가를 결정하는 방식
-- PROPAGATION_REQUIRED
+- `PROPAGATION_REQUIRED`
   - 진행중인 트랜잭션이 없으면 새로 시작하고 이미 시작된 트랜잭션이 있으면 이에 참여함
   - 가장 많이 사용되는 트랜잭션 전파 속성
   - DefaultTransactionDefinition의 트랜잭션 전파 속성은 PROPAGATION_REQUIRED
-- PROPAGATION_REQUIREDS_NEW
+- `PROPAGATION_REQUIREDS_NEW`
   - 항상 새로운 트랜잭션을 실행함
   - 독립적인 트랜잭션이 보장되어야 하는 코드에 적용 가능
-- PROPAGATION_NOT_SUPPORTED
+- `PROPAGATION_NOT_SUPPORTED`
   - 트랜잭션 없이 동작하도록 만듦. 진행중인 트랜잭션이 있더라도 무시함
   - 특정 메서드가 AOP 대상이 되지 않도록 하기 위해 사용될 수 있음
+- 그 외 모든 트랜잭션 전파 옵션
+  - [https://docs.spring.io/spring-framework/docs/current/javadoc-api/org/springframework/transaction/annotation/Propagation.html](https://docs.spring.io/spring-framework/docs/current/javadoc-api/org/springframework/transaction/annotation/Propagation.html)
 
 #### 격리수준
 
@@ -2335,187 +2364,26 @@ execution(* *(..))
 
 #### TransactionInterceptor
 
-- 스프링에는 편리하게 트랜잭션 경계 설정을 위해 TransactionInterceptor 가 존재함
-- TransactionInterceptor에는 PlatformTransactionManager와 Properties 타입의 두가지 프로퍼티를 가짐
-- Properties는 트랜잭션 속성을 정의한 프로퍼티
-- 트랜잭션 속성은 TransactionAttribute 인터페이스로 정의됨 이 인터페이스로 트랜잭션 부가기능의 동작 방식을 모두 제어할 수 있음
-- TransactionInterceptor에는 기본적으로 런타임 예외는 롤백시키고 체크 예외를 던지는 경우에는 이것을 예외상황이라 생각하지 않고 커밋해버림
-- TransactionInterceptor의 예외처리 기본 원칙을 따르지 않을때는 TransactionAttribute의 rollbackOn()이라는 속성을 둬서 기본 원칙과 다른 예외처리가 가능하게 해줌
+- 스프링에는 편리하게 트랜잭션 경계 설정을 위해 `TransactionInterceptor` 가 존재함
+- `TransactionInterceptor`에는 `TransactionManager`와 `Properties` 타입의 두가지 프로퍼티를 가짐 (spring 3.x 기준)
+- `Properties`는 트랜잭션 속성을 정의한 프로퍼티
+- 트랜잭션 속성은 `TransactionAttribute` 인터페이스로 정의됨 이 인터페이스로 트랜잭션 부가기능의 동작 방식을 모두 제어할 수 있음
+- `TransactionAttribute` 의 기본 구현체인 `DefaultTransactionAttribute` 는 런타임 예외는 롤백시키고 체크 예외를 던지는 경우에는 이것을 예외상황이라 생각하지 않고 커밋해버림
 
-
-
-> 5.x 기준으로 PlatformTransactionManager와 Properties 는 Deprecated 되고
->
-> ```java
-> 	public TransactionInterceptor(TransactionManager ptm, TransactionAttributeSource tas) {
-> 		setTransactionManager(ptm);
-> 		setTransactionAttributeSource(tas);
-> 	}
-> ```
->
-> TransactionManager와 TransactionAttributeSource를 사용함
->
-> TransactionInterceptor는 thread-safe
->
-> TransactionInterceptor의 내부를 살펴보면 실제로 위에서 만들었던 예제과 비슷한 형태로 되어있음
->
-> ```java
-> @Override
-> @Nullable
-> public Object invoke(MethodInvocation invocation) throws Throwable {
->    // Work out the target class: may be {@code null}.
->    // The TransactionAttributeSource should be passed the target class
->    // as well as the method, which may be from an interface.
->    Class<?> targetClass = (invocation.getThis() != null ? AopUtils.getTargetClass(invocation.getThis()) : null);
-> 
->    // Adapt to TransactionAspectSupport's invokeWithinTransaction...
->    return invokeWithinTransaction(invocation.getMethod(), targetClass, new CoroutinesInvocationCallback() {
->       @Override
->       @Nullable
->       public Object proceedWithInvocation() throws Throwable {
->          return invocation.proceed();
->       }
->       @Override
->       public Object getTarget() {
->          return invocation.getThis();
->       }
->       @Override
->       public Object[] getArguments() {
->          return invocation.getArguments();
->       }
->    });
-> }
-> ```
->
-> 바로 실행하는 구조는 아니고 TransactionAspectSupport.invokeWithinTransaction() 메서드를 사용해서 콜백으로 던지는 구조임 TransactionAspectSupport를 통해 Spring 트랜잭션 인프라를 사용하여 aspect를 쉽게 구현할 수 있음
->
-> 코드를 확인해보면 주입된 TransactionManager 타입에 따라 각기 다른 로직을 수행하지만 어쨋든 트랜잭션을 가져오고, 타깃에 대한 메서드를 실행하고 커밋시키고, 예외가 발생하면 롤백시키는 코드는 모두 녹아있음
->
-> ```java
-> ...
-> 
-> // Standard transaction demarcation with getTransaction and commit/rollback calls.
-> 			TransactionInfo txInfo = createTransactionIfNecessary(ptm, txAttr, joinpointIdentification);
-> 
-> 			Object retVal;
-> 			try {
-> 				// This is an around advice: Invoke the next interceptor in the chain.
-> 				// This will normally result in a target object being invoked.
-> 				retVal = invocation.proceedWithInvocation();
-> 			}
-> 			catch (Throwable ex) {
-> 				// target invocation exception
-> 				completeTransactionAfterThrowing(txInfo, ex);
-> 				throw ex;
-> 			}
-> 			finally {
-> 				cleanupTransactionInfo(txInfo);
-> 			}
-> 
-> 			if (retVal != null && vavrPresent && VavrDelegate.isVavrTry(retVal)) {
-> 				// Set rollback-only in case of Vavr failure matching our rollback rules...
-> 				TransactionStatus status = txInfo.getTransactionStatus();
-> 				if (status != null && txAttr != null) {
-> 					retVal = VavrDelegate.evaluateTryFailure(retVal, txAttr, status);
-> 				}
-> 			}
-> 
-> 			commitTransactionAfterReturning(txInfo);
-> 			return retVal;
-> 
-> ...
-> ```
-
-
-
-#### TransactionManager
-
-- Transaction이 근본이 되는 인터페이스 (TransactionManager는 마커 인터페이스)
-- 크게 PlatformTransactionManager와 ReactiveTransactionManager로 구분 (ReactiveTransactionManager 는 생략 ..)
-- PlatformTransactionManager역시 고수준 인터페이스이고 실제 사용은 AbstractPlatformTransactionManager을 사용해서 확장시키는 것을 권장하고 있음
+`DefaultTransactionAttribute.rollbackOn() 메서드`
 
 ```java
-public interface PlatformTransactionManager {
 
-    TransactionStatus getTransaction(
-            TransactionDefinition definition) throws TransactionException;
-
-    void commit(TransactionStatus status) throws TransactionException;
-
-    void rollback(TransactionStatus status) throws TransactionException;
-}
-```
-
-- getTransaction() 메서드는 TransactionDefinition 변수에 따라 TransactionStatus 객체를 반환함
--  반환된 TransactionStatus는 새 트랜잭션을 나타내거나 현재 호출 스택에 일치하는 트랜잭션이 있는 경우 기존 트랜잭션을 나타낼 수 있음
-- AbstractPlatformTransactionManager의 서브클래스는 시작, 일시중단, 재개, 커밋에 대한 템플릿 메서드를 구현해야함
-- AbstractPlatformTransactionManager의 대표적인 파생클래스
-  - [DataSourceTransactionManager](https://docs.spring.io/spring-framework/docs/current/javadoc-api/org/springframework/jdbc/datasource/DataSourceTransactionManager.html)
-  - [HibernateTransactionManager](https://docs.spring.io/spring-framework/docs/current/javadoc-api/org/springframework/orm/hibernate5/HibernateTransactionManager.html)
-  - [JpaTransactionManager](https://docs.spring.io/spring-framework/docs/current/javadoc-api/org/springframework/orm/jpa/JpaTransactionManager.html)
-- 각각 구현체들에서 템플릿 메서드 형태로 필요한 메서드들을 구성하면 AbstractPlatformTransactionManager의 doGetTransaction() 메서드, doCommit(), doRollback()을 각자 구현체에 맞게 실행하도록 되어있음
-
-```java
-	@Override
-	public final TransactionStatus getTransaction(@Nullable TransactionDefinition definition)
-			throws TransactionException {
-
-		// Use defaults if no transaction definition given.
-		TransactionDefinition def = (definition != null ? definition : TransactionDefinition.withDefaults());
-
-		Object transaction = doGetTransaction();
-
-        ...
-	}
+    public boolean rollbackOn(Throwable ex) {
+        return ex instanceof RuntimeException || ex instanceof Error;
+    }
 ```
 
 
 
 
 
-
-
-#### TransactionDefinition
-
-- Spring 트랜잭션 속성을 정의하는 인터페이스.
-- 여기엔 전파속성, 격리수준, 타임아웃, 읽기전용에 대한 설정값들이 상수로 정의되어있음
-- 가장 기본 구현체인 DefaultTransactionDefinition의 모습
-
-```java
-	private int propagationBehavior = PROPAGATION_REQUIRED;
-
-	private int isolationLevel = ISOLATION_DEFAULT;
-
-	private int timeout = TIMEOUT_DEFAULT;
-
-	private boolean readOnly = false;
-```
-
-
-
-### TransactionStatus 
-
-- TransactionStatus 인터페이스는 트랜잭션 코드가 트랜잭션 실행을 제어하고 트랜잭션 상태를 쿼리하는 간단한 방법을 제공
-
-```java
-public interface TransactionStatus extends SavepointManager {
-
-    boolean isNewTransaction();
-
-    boolean hasSavepoint();
-
-    void setRollbackOnly();
-
-    boolean isRollbackOnly();
-
-    void flush();
-
-    boolean isCompleted();
-
-}
-```
-
-
+Spring 트랜잭션 인프라 (TransactionInterceptor, PlatformTranscationManager 등등)에 대한 내용을 블로그로 따로 정리했음 [https://sup2is.github.io/2021/11/11/about-spring-transaction.html](https://sup2is.github.io/2021/11/11/about-spring-transaction.html)
 
 
 
@@ -2539,7 +2407,7 @@ public interface TransactionStatus extends SavepointManager {
 
 ### 포인트컷과 트랜잭션 속성의 적용 전략
 
-- 트랜잭션 부가기능을 적용할 후보 메서드를 선정하는 작업은 포인트컷에 의해 진행됨. 고 어드바이스의 트랜잭션 전파 속성따라서 메서드별로 트랜잭션의 적용 방식이 결정됨 
+- 트랜잭션 부가기능을 적용할 후보 메서드를 선정하는 작업은 포인트컷에 의해 진행됨. 그리고 어드바이스의 트랜잭션 전파 속성따라서 메서드별로 트랜잭션의 적용 방식이 결정됨 
 
 #### 트랜잭션 포인트컷 표현식은 타입 패턴이나 빈 이름을 이용한다
 
@@ -2549,7 +2417,7 @@ public interface TransactionStatus extends SavepointManager {
 
 #### 공통된 메서드 이름 규칙을 통해 최소한의 트랜잭션 어드바이스와 속성을 정의한다
 
-#### 프록시 방식 AOP는 같은 타킷 오브젝트 내의 메서드를 호출할 때는 적용되지 않는다
+#### 프록시 방식 AOP는 같은 타깃 오브젝트 내의 메서드를 호출할 때는 적용되지 않는다
 
 - 타깃 오브젝트가 자기 자신의 메서드를 호출할 때는 프록시를 통한 부가기능이 적용되지 않음
 - 클라이언트가 인터페이스 타입으로 주입된 빈을 사용해야 프록시를 통한 부가기능을 사용할 수 있기 때문
@@ -2676,6 +2544,8 @@ public class UserServiceImpl implements UserService {
     
 }
 ```
+
+- get()과 getAll() 메서드는 readOnly=true가 무시됨 주의!
 
 
 
