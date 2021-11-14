@@ -534,22 +534,160 @@ public interface ApplicationContextFactory {
 
 ```
 
-- Spring Boot가 아닌 일반 Spring에서는 main() 메서드를 호출할 방법이 없었기 때문에 웹 환경에서 main() 메서드 대신 서블릿 컨테이너가 브로우저로 오는 HTTP 요청을 받아서 해당 요청에 매핑되어 있는 서블릿을 실행해주는 방법으로 동작했음. 서블릿이 일종의 main() 메서드 역할을 했다.
-- 
+- 독립적인 자바 프로그램으로 만들어진 웹애플리케이션에서는 main()메서드를 호출할 방법이 없었기 때문에 웹 환경에서 main() 메서드 대신 서블릿 컨테이너가 브라우저로 오는 HTTP 요청을 받아서 해당 요청에 매핑되어 있는 서블릿을 실행해주는 방법으로 동작했한다. 서블릿이 일종의 main() 메서드와 같은 역할을 하는 셈
+
+  
+
+![3](/Users/a10300/Choi/Git/dev-note/spring/images/toby-spring-vol2/3.png)
+
+- `WebApplicationContext` 는 설정 메타정보를 읽어들여서 초기화한다.
+- 서블릿 컨테이너는 클라이언트의 요청을 받아서 서블릿을 동작시키는 일을 맡는다.
+- 서블릿은 웹 애플리케이션이 시작될 때 미리 만들어 둔 웹 애플리케이션 컨텍스트에게 빈 오브젝트로 구성된 애플리케이션의 기동 역할을 해줄 빈을 요청해서 받아둔다. 
+- 스프링은 웹 환경에서  클라이언트로부터 들어오는 요청마다 적절한 빈을 찾아서 이를 실행해주는 기능을 가진 `DispatcherServlet`이라는 이름의 서블릿을 제공한다. 
+- 스프링이 제공해주는 `DispatcherServlet` 을 web.xml에 등록하는 것 만으로도 웹 애플리케이션을 실행하는데 필요한 대부분 준비가 끝난다.
+- Spring Boot에서는 web.xml을 더이상 사용하지 않고 `DispatcherServletAutoConfiguration`에서 자동으로 `DispatcherServlet` 을 등록시켜준다.
 
 
 
+```java
+@AutoConfigureOrder(Ordered.HIGHEST_PRECEDENCE)
+@Configuration(proxyBeanMethods = false)
+@ConditionalOnWebApplication(type = Type.SERVLET)
+@ConditionalOnClass(DispatcherServlet.class)
+@AutoConfigureAfter(ServletWebServerFactoryAutoConfiguration.class)
+public class DispatcherServletAutoConfiguration {
 
+  
+  
+  ...
+    
+	@Configuration(proxyBeanMethods = false)
+	@Conditional(DefaultDispatcherServletCondition.class)
+	@ConditionalOnClass(ServletRegistration.class)
+	@EnableConfigurationProperties(WebMvcProperties.class)
+	protected static class DispatcherServletConfiguration {
+
+		@Bean(name = DEFAULT_DISPATCHER_SERVLET_BEAN_NAME)
+		public DispatcherServlet dispatcherServlet(WebMvcProperties webMvcProperties) {
+			DispatcherServlet dispatcherServlet = new DispatcherServlet();
+			dispatcherServlet.setDispatchOptionsRequest(webMvcProperties.isDispatchOptionsRequest());
+			dispatcherServlet.setDispatchTraceRequest(webMvcProperties.isDispatchTraceRequest());
+			dispatcherServlet.setThrowExceptionIfNoHandlerFound(webMvcProperties.isThrowExceptionIfNoHandlerFound());
+			dispatcherServlet.setPublishEvents(webMvcProperties.isPublishRequestHandledEvents());
+			dispatcherServlet.setEnableLoggingRequestDetails(webMvcProperties.isLogRequestDetails());
+			return dispatcherServlet;
+		}
+
+		@Bean
+		@ConditionalOnBean(MultipartResolver.class)
+		@ConditionalOnMissingBean(name = DispatcherServlet.MULTIPART_RESOLVER_BEAN_NAME)
+		public MultipartResolver multipartResolver(MultipartResolver resolver) {
+			// Detect if the user has created a MultipartResolver but named it incorrectly
+			return resolver;
+		}
+
+	}
+
+  ...
+  
+}
+
+```
 
 
 
 ### IoC 컨테이너 계층구조
 
+- 일반적인 경우라면 IoC 컨테이너는 애플리케이션마다 한개만 있으면 충분하다.
+- 하지만 트리 모양의 계층구조를 만들어야한다면 한 개 이상의  IoC 컨테이너를 만들어야한다.
+
 #### 부모컨텍스트를 이용한 계층구조 효과
+
+![4](/Users/a10300/Choi/Git/dev-note/spring/images/toby-spring-vol2/4.png)
+
+- 계층 구조 안의 모든 컨텍스트는 각자 독립적인 설정정보를 이용해 빈 오브젝트를 만들고 관리한다.
+
+- 자신이 관리하는 빈 중에서 필요한 빈을 찾아보고 없으면 부모 컨텍스트에서 검색, 최종적으로 루트 컨텍스트까지 검색하는 방식으로 동작한다.
+
+- 형제 레벨이나 자식 레벨의 컨텍스트는 검사하지 않는것이 특징
+
+- 검색순서는 자신부터 시작해서 순서대로 올라가기때문에 현재 컨텍스트와 부모 컨텍스트에 동일한 빈이 정의되어있어도 현재 컨텍스트에서 필요한 빈을 찾았다면 부모 컨텍스트에서 정의된 빈은 무시된다.
+
+- 이런식으로 기존 설정을 수정하지 않고 사용하지만 일부 빈 구성을 바꾸고 싶은 경우, 애플리케이션 컨텍스트의 계층구조를 만드는 방법이 편리한 방법. 추가로 여러 애플리케이션 컨텍스트가 공유하는 설정을 만들기 위해서 계층구조를 사용한다.
+
+- 이런 컨텍스트 계층구조를 사용한다면 반드시 컨텍스트 계층 구조에 대해서 자세하게 알아야한다. 컨텍스트 계층구조의 특성이나 설정을 완벽하게 이해하지 못한 채로 사용하면 뜻하지 않은 에러를 만나거나 원하는 대로 동작하지 않는 문제가 발생할 수 있다.
+
+  
 
 #### 컨텍스트 계층구조 테스트
 
-### 웹 애플리케이션의 컨테이너 구성
+`parentContext.xml`
+
+```xml
+
+<bean id="printer" class="springbook.leaningtest.spring.ioc.bean.StringPrinter"/>
+
+<bean id="hello" 
+class="springbook.leaningtest.spring.ioc.bean.Hello">
+	<property name="name" value="parent"/>
+	<property name="printer" value="printer"/>
+</bean>
+```
+
+`childContext.xml`
+
+```xml
+<bean id="hello" 
+class="springbook.leaningtest.spring.ioc.bean.Hello">
+	<property name="name" value="child"/>
+	<property name="printer" value="printer"/>
+</bean>
+```
+
+- 자식 컨텍스트에는 `printer` 라는 id를 갖는 빈이 없기 때문에 부모 컨텍스트에서 검색해서 사용한다.
+
+
+
+`계층구조 컨텍스트`
+
+```java
+
+ApplicationContext parent = GenericApplicationContext("parentContexst.xml");
+
+ApplicationContext child = GenericApplicationContext(parent);
+
+XmlBeanDefinitionReader reader = new XmlBeanDefinitionReader(child);
+reader.loadBeanDefinitions("childContext.xml");
+child.refresh();
+
+
+//printer 빈은 부모 컨텍스트에서 가져온다.
+Printer printer = child.getBean("printer", Printer.class);
+
+//hello 빈은 자식 컨텍스트에서 가져온다.
+Hello hello = child.getBean("hello", Hello.class)
+
+```
+
+- 이런 계층구조 컨텍스트의 특징으로 같은 타입의 빈 정의를 허용한다고 하더라도 가능하다면 중복된 빈이 정의되는것을 피해야한다. 이러한 복잡한 계층구조와 혼란스러운 빈 정의는 발견하기 매우 힘든 버그를 만들어낼 가능성이 높다.
+
+
+
+### 웹 애플리케이션의 IoC 컨테이너 구성
+
+- 스프링은 프론트 컨트롤러 패턴을 사용한다.
+- 프론트 컨트롤러 패턴이란 대표 서블릿이 중앙집중식으로 모든 요청을 다 받아서 처리하는 방식을 말한다.
+- 웹 애플리케이션 안에서 동작하는 IoC 컨테이너는 두가지 방식으로 만들어진다.
+  - 스프링 애플리케이션의 요청을 처리하는 서블릿 안에서 생성
+  - 웹 애플리케이션 레벨에서 생성
+- 스프링 웹 애플리케이션에는 두 개의 컨테이너가 만들어진다. <= 이부분 이해가 안됨
+
+#### 웹 애플리케이션의 컨텍스트 계층구조
+
+- 웹 애플리케이션 레벨에서 등록되는 컨테이너는 보통 루트 웹 애플리케이션 컨텍스트라고 한다.
+- 이 컨텍스트는 전체 계층구조에서 가장 최상단에 위치한다.
+
+
 
 #### 웹 애플리케이션의 컨텍스트 구성 방법
 
