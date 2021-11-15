@@ -686,24 +686,245 @@ Hello hello = child.getBean("hello", Hello.class)
 
 - 웹 애플리케이션 레벨에서 등록되는 컨테이너는 보통 루트 웹 애플리케이션 컨텍스트라고 한다.
 - 이 컨텍스트는 전체 계층구조에서 가장 최상단에 위치한다.
+- 스프링 애플리케이션에는 하나 이상의 프론트 컨트롤러 역할을 하는 서블릿이 등록될 수 있고 서블릿에는 각각 독립적으로 애플리케이션 컨텍스트가 만들어진다.
+- 루트 애플리케이션 컨텍스트에 공통적인 빈들을 설정해둔다면 서블릿별로 중복돼서 생성되는걸 방지할 수 있다.
+
+![5](/Users/a10300/Choi/Git/dev-note/spring/images/toby-spring-vol2/5.png)
+
+- 위 그림은 이론상으로는 가능하나 실제로 N개의 프론트 컨트롤러를 등록할 이유가 없기 때문에 일반적인 경우라면 1:1로 매칭한다.
+- 그럼에도 컨텍스트를 계층구조로 분리하는 이유는 웹 기술에 의존적인 부분과 그렇지 않은 부분을 구분하기 위해서 나눈다.
+- 스프링 서블릿을 사용하는 스프링의 웹 기술 외의 웹 기술을 고려하고 있다면 계층형태로 컨텍스트를 구분해두는것이 바람직하다.
+
+![6](/Users/a10300/Choi/Git/dev-note/spring/images/toby-spring-vol2/6.png)
 
 
 
 #### 웹 애플리케이션의 컨텍스트 구성 방법
 
+`서블릿 컨텍스트와 루트 애플리케이션 컨텍스트 계층 구조`
+
+- 웹 관련 빈들은 서블릿의 컨텍스트에 두고 나머지는 루트 애플리케이션 컨텍스트에 등록하는 방법
+
+`루트 애플리케이션 컨텍스트 단일구조`
+
+- 스프링 웹 기술을 사용하지 않고 서드파티 웹 프레임워크나 서비스 엔진만을 사용해서 프레젠테이션계층을 만든다면 스프링 서블릿을 둘 이유가 없다.
+- 루트 애플리케이션 컨텍스트만 등록하는 방법
+
+`서블릿 컨텍스트 단일구조`
+
+- 스프링 웹 기술을 사요하면서 스프링 외의 프레임워크나 서비스엔진에서 스프링의 빈을 이용할 생각이 아니라면 루트 애플리케이션 컨텍스트를 생략할 수 있다.
+- 서블릿 안에 만들어지는 애플리케이션 컨텍스트가 스스로 루트 컨텍스트가 된다.
+- 스프링 부트에서는 이 방법을 사용하는 것 같다.
+
+`ServletWebServerApplicationContext.prepareWebApplicationContext() 메서드`
+
+```java
+protected void prepareWebApplicationContext(ServletContext servletContext) {
+   Object rootContext = servletContext.getAttribute(WebApplicationContext.ROOT_WEB_APPLICATION_CONTEXT_ATTRIBUTE);
+   if (rootContext != null) {
+      if (rootContext == this) {
+         throw new IllegalStateException(
+               "Cannot initialize context because there is already a root application context present - "
+                     + "check whether you have multiple ServletContextInitializers!");
+      }
+      return;
+   }
+   servletContext.log("Initializing Spring embedded WebApplicationContext");
+   try {
+      servletContext.setAttribute(WebApplicationContext.ROOT_WEB_APPLICATION_CONTEXT_ATTRIBUTE, this);
+      if (logger.isDebugEnabled()) {
+         logger.debug("Published root WebApplicationContext as ServletContext attribute with name ["
+               + WebApplicationContext.ROOT_WEB_APPLICATION_CONTEXT_ATTRIBUTE + "]");
+      }
+      setServletContext(servletContext);
+      if (logger.isInfoEnabled()) {
+         long elapsedTime = System.currentTimeMillis() - getStartupDate();
+         logger.info("Root WebApplicationContext: initialization completed in " + elapsedTime + " ms");
+      }
+   }
+   catch (RuntimeException | Error ex) {
+      logger.error("Context initialization failed", ex);
+      servletContext.setAttribute(WebApplicationContext.ROOT_WEB_APPLICATION_CONTEXT_ATTRIBUTE, ex);
+      throw ex;
+   }
+}
+```
+
+
+
 #### 루트 애플리케이션 컨텍스트 등록
 
+- 루트 웹 애플리케이션 컨텍스트를 등록하는 가장 간단한 방법은 서블릿의 이벤트 리스너를 이용하는. 것
+- `ServiceContextListener`를 구현한 리스너는 웹 애플리케이션 전체에 적용 가능한 DB 연결 기능이나 로깅 같은 서비스를 만드는데 유용하게 쓰인다.
+- 아래와 같이 ContextLoaderListener 를 사용해서 웹 애플리케이션이 시작될때 자동으로 루터 애플리케이션 컨텍스트를 만들어주고 초기화시킬 수 있다. 
+
+```xml
+<listener>
+  <listener-class>
+  	org.springframework.web.context.ContextLoaderListener
+  </listener-class>
+</listener>
+```
+
+- 아무런 설정도 하지 않으면 아래 설정이 기본 설정이 된다.
+  - 애플리케이션 컨텍스트 클래스 : `XmlWebApplicationContext`
+  - XML 설정파일 위치: `/WEB-INF/applicationContext.xml`
+- `contextConfigLocation`으로 설정해서 직접 위치를 지정할 수 있다
+
+```xml
+<context-param>
+	<param-name>contextConfigLocation</param-name>
+	<param-value>
+    /WEB-INF/daoContext.xml
+    /WEB-INF/applicationContext.xml
+	</param-value>
+</context-param>
+```
+
+- 애너테이션 기반으로 설정하기
+
+```xml
+<context-param>
+	<param-name>contextClass</param-name>
+	<param-value>
+		org.springframework.web.context.support.AnnotationConfigWebApplicationContext
+	</param-value>
+</context-param>
+```
+
+- `AnnotationConfigWebApplicationContext` 을 사용할 경우에는 반드시 `contextConfigLocation` 파라미터를 선언해줘야한다. 이때는 xml 파일의 위치가 아니라 설정 메타정보를 담고 있는 클래스 또는 패키지를 지정할 수 있다.
+
 #### 서블릿 애플리케이션 컨텍스트 등록
+
+- 서블릿의 이름을 다르게 지정해준다면 `DispatcherServlet` 을 여러개 등록할 수 있다.
+- 각 `DispatcherServlet` 은 서블릿이 초기화 될 때 자신만의 컨텍스트를 생성하고 초기화한다. 동시에 웹 애플리케이션 레벨에 등록된 루트 애플리케이션 컨텍스트를 찾아서 이를 자신의 부모 컨텍스트로 사용한다.
+
+```xml
+<servlet>
+	<servlet-name>spring</servlet-name>
+	<servlet-class>org.springframework.web.servlet.DispatcherServlet</servlet-class>
+  <load-on-startup>1</load-on-startup>
+</serlvet>
+```
+
+`servlet-name`
+
+- `DispatcherServlet` 에 의해 만들어지는 애플리케이션 컨텍스트는 모두 독립적인 네임스페이스를 갖는데 이때 `$servlet-name` + `-servlet` -> `spring-servlet`  이라는 이름으로 생성한다. 
+- 이 네임스페이스는 컨텍스트 파일 위치를 나타내기 때문에 중요하다. 위와 같이 설정했다면 디폴트 설정이 `WEB-INF/spring-servlet.xml` 이 된다.
+
+`load-on-startup`
+
+- 서블릿 컨테이너가 등록된 서블릿을 언제 만들고 초기화할지 순서를 정하는 정수값
 
 
 
 ## IoC/DI를 위한 빈 설정 메타정보 작성
 
+- IoC 컨테이너의 가장 기본적인 역할은 코드를 대신해서 애플리케이션을 구성하는 오브젝트를 생성하고 관리하는 것
+- 컨테이너는 빈 설정 메타정보를 통해 빈의 클래스와 이름을 제공받고 파일이나 애너테이션같은 리소스로부터 전용 리더를 통해 `BeanDefinition` 타입의 오브젝트로 변환된다.
+- 적절한 리더나 `BeanDefinition` 생성기를 사용할 수만 있다면 빈 설정 메타정보를 담은 소스는 어떤 식으로 만들어도 상관 없다.
+
+![7](/Users/a10300/Choi/Git/dev-note/spring/images/toby-spring-vol2/7.png)
+
+- Spring boot 2.x 기준으로 `@ComponetScan` 으로 애너테이션을 scan하면 결론적으로 `ScannedGenericBeanDefinition` 으로 생성해서 메타정보를 활용하는 모습을 확인할 수 있다.
+
+`ClassPathScanningCandidateComponentProvider.scanCandidateComponents() 메서드`
+
+```java
+
+	private Set<BeanDefinition> scanCandidateComponents(String basePackage) {
+		Set<BeanDefinition> candidates = new LinkedHashSet<>();
+		try {
+			String packageSearchPath = ResourcePatternResolver.CLASSPATH_ALL_URL_PREFIX +
+					resolveBasePackage(basePackage) + '/' + this.resourcePattern;
+			Resource[] resources = getResourcePatternResolver().getResources(packageSearchPath);
+			boolean traceEnabled = logger.isTraceEnabled();
+			boolean debugEnabled = logger.isDebugEnabled();
+			for (Resource resource : resources) {
+				if (traceEnabled) {
+					logger.trace("Scanning " + resource);
+				}
+				if (resource.isReadable()) {
+					try {
+						MetadataReader metadataReader = getMetadataReaderFactory().getMetadataReader(resource);
+						if (isCandidateComponent(metadataReader)) {
+							ScannedGenericBeanDefinition sbd = new ScannedGenericBeanDefinition(metadataReader); // <- 요기
+							sbd.setSource(resource);
+							if (isCandidateComponent(sbd)) {
+								if (debugEnabled) {
+									logger.debug("Identified candidate component class: " + resource);
+								}
+								candidates.add(sbd);
+							}
+							else {
+								if (debugEnabled) {
+									logger.debug("Ignored because not a concrete top-level class: " + resource);
+								}
+							}
+						}
+						else {
+							if (traceEnabled) {
+								logger.trace("Ignored because not matching any filter: " + resource);
+							}
+						}
+					}
+					catch (Throwable ex) {
+						throw new BeanDefinitionStoreException(
+								"Failed to read candidate component class: " + resource, ex);
+					}
+				}
+				else {
+					if (traceEnabled) {
+						logger.trace("Ignored because not readable: " + resource);
+					}
+				}
+			}
+		}
+		catch (IOException ex) {
+			throw new BeanDefinitionStoreException("I/O failure during classpath scanning", ex);
+		}
+		return candidates;
+	}
+```
+
+
+
 ### 빈 설정 메타정보
+
+- `BeanDefinition`에는 IoC 컨테이너가 빈을 만들 때 필요한 핵심 정보가 담겨 있다.
+- 설정 메타정보가 같지만 이름이 다른 여러 개의 빈 오브젝트를 만들 수 있기 때문에 `BeanDefinition` 은 여러 개의 빈을 만드는 데 재사용될 수 있다.
 
 #### 빈 설정 메타정보 항목
 
+| 이름                       | 내용                                                         | 디폴트 값      |
+| -------------------------- | ------------------------------------------------------------ | -------------- |
+| beanClassName              | 빈 오브젝트의 클래스 이름. 빈 오브젝트는 이 클래스의 인스턴스가 된다. | 없음. 필수항목 |
+| parentName                 | 빈 메타정보를 상속받을 부모 BeanDefinition의 이름. 빈의 메타정보는 계층구조로 상속할 수 있다. | 없음           |
+| factoryBeanName            | 팩토리 역할을 하는 빈을 이용해 빈 오브젝트를 생성하는 경우에 팩토리 빈의 이름을 지정한다. | 없음           |
+| factoryMethodName          | 다른 빈 또는 클래스의 메서드를 통해 빈 오브젝트를 생성하는 경우 그 메서드 이름을 지정한다. | 없음           |
+| scope                      | 빈 오베즉트의 생명주기를 결정하는 스코프를 지정한다. 크게 싱글톤과 프로토타입 스코프로 구분할 수 있다. | 싱글톤         |
+| lazyInit                   | 빈 오브젝트의 생성을 최대한 지연할 것인지를 지정한다. 이 값이 true이면 컨테이너는 빈 오브젝트의 생성을 꼭 필요한 시점까지 미룬다. | false          |
+| dependsOn                  | 먼저 만들어져야 하는 빈을 지정할 수 있다. 빈 오브젝트의 생성 순서가 보장돼야 하는 경우 이용한다. 하나 이상의 빈 이름을 지정할 수 있다. | 없음           |
+| autowireCandidate          | 명시적인 설정이 없어도 미리 정해진 규칙을 가지고 자동으로 DI 후보를 결정하는 자동와이어링의 대상으로 포함시킬지의 여부 | true           |
+| primary                    | 자동와이어링 작업 중에 DI 대상 후보가 여러 개가 발생하는 경우가 있다. 이때 최종 선택의 우선권을 부여할지 여부, primary가 지정된 빈이 없이 여러 개의 후보가 존재하면 자동와이어링 예외가 발생한다. | false          |
+| abstract                   | 메타정보 상속에만 사용할 추상 빈으로 만들지의 여부, 추상 빈이 되면 그 자체는 오브젝트가 생성되지 않고 다른 빈의 부모 빈으로만 사용된다. | false          |
+| autowireMode               | 오토와이어링 전략. 이름, 타입, 생성자, 자동인식 등의 방법이 있다. | 없음           |
+| dependencyCheck            | 프로퍼티 값 또는 레퍼런스가 모두 설정되어 있는지를 검증하는 작업의 종류 | 체크하지 않음  |
+| initMethod                 | 빈이 생성되고 DI를 마친 뒤에 실행할 초기화 메서드의 이름     | 없음           |
+| destroyMethod              | 빈의 생명주기가 다 돼서 제거하기 전에 호출할 메서드의 이름   | 없음           |
+| propertyValues             | 프로퍼티 이름과 설정 값 또는 레퍼런스. 수정자 메서드를 통한 DI 작업에서 사용한다. | 없음           |
+| constructorArgumentsValues | 생성자의 이름과 설정 값 또는 레퍼런스. 생성자를 통한 DI 작업에서 사용한다. | 없음           |
+| annotationMetadata         | 빈 클래스에 담긴 애너테이션과 그 애트리뷰트 값. 애너테이션을 이용하는 설정에서 활용한다. | 없음           |
+
+- 빈 설정 메타정보 항목 중에서 가장 중요한 것은 클래스의 이름
+- 추상 빈의로 정의하지 않는 한 클래스 정보는 반드시 필요하다.
+- 컨테이너 빈의 메타정보가 등록될 때 꼭 필요한 것은 클래스 이름과 함께 빈의 아이디 또는 이름이다.
+
+
+
 ### 빈 등록 방법
+
+- 빈 등록은 빈 메타정보를 작성해서 컨테이너에게 건네주는 방법으로 등록이 가능하다.
 
 #### XML: \<bean\> 태그
 
