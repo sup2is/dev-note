@@ -1011,21 +1011,151 @@ public class AnnotatedHello {
 }
 ```
 
+- Spring Boot에서는 `@ComponentScan` 와 위에서 확인한 `AnnotationConfigServletWebServerApplicationContext` 를 사용해서 스테레오 타입 애너테이션을 빈으로 등록한다.
 
 
 
+`스테레오타입 애너테이션 종류`
+
+| 스테레오타입 애너테이션 | 적용 대상                                                    |
+| ----------------------- | ------------------------------------------------------------ |
+| `@Repository`           | 데이터 액세스 계층의 DAO 또는 리포지토리 클래스에 사용된다.  |
+| `@Service`              | 서비스 계층의 클래스에 사용된다.                             |
+| `@Controller`           | 프레젠테이션 계층의 MVC 컨트롤러에 사용된다. <br />스프링 웹 서블릿에 의해 웹 요청을 처리하는 컨트롤러 빈으로 선정된다. |
+
+- 특정계층으로 분류하기 힘든 경우에는 `@Component`를 사용하는 것이 바람직하다.
 
 #### 자바 코드에 의한 빈 등록: @Configuration 클래스의 @Bean 메서드
 
+- `@Configuration` 이 붙은 클래스 안에 `@Bean` 이 붙은 메서드를 사용해서 빈으로 정의할 수 있다.
+
+```java
+@Configuration
+public class AnnotationHelloConfig {
+    @Bean
+    public AnnotatedHello annotatedHello() {
+        return new AnnotatedHello();
+    }
+}
+```
+
+- 선언된 메서드의 이름으로 빈의 이름이 된다.
+- 애너테이션을 제거하고 보면 단순한 오브젝트 팩토리 기능의 메서드를 가진 클래스로 보이지만 `@Configuration` 과 `@Bean` 이 붙으면 스프링 컨테이너가 인식 할 수 있는 빈 메타정보 겸 오브젝트 팩토리가 된다.
+-  `@Configuration` 이 붙은 클래스도 빈의 대상이 되는것이 특징이다.
+- `AnnotationHelloConfig` 클래스를 컨테이너에서 직접 가져와서 아래와 같이 직접 `annotatedHello()` 메서드를 사용한다고 하더라도 `@Bean` 설정은 기본적으로 싱글톤이기 때문에 모든 `annotatedHello()` 메서드의 호출은 같은 인스턴스를 반환하는것도 특징이다.
+
+```java
+
+
+@Configuration
+public class AnnotationHelloConfig {
+    @Bean
+    public AnnotatedHello annotatedHello() {
+        return new AnnotatedHello();
+    }
+    
+    @Bean
+    public Foo foo() {
+        Foo foo = new Foo();
+        foo.setAnnotatedHello(annotatedHello()); //매번 같은 인스턴스
+        return foo;
+    }
+    
+    @Bean
+    public Bar bar() {
+        Bar bar = new Bar();
+        bar.setAnnotatedHello(annotatedHello()); //매번 같은 인스턴스
+        return bar;
+    }
+}
+
+```
+
+- 자바 코드를 이용한 빈 등록은 단순한 빈 스캐닝을 통한 자동인식으로는 등록하기 힘든 기술 서비스의 빈의 등록이나 컨테이너 설정용 빈을 xml 없이 등록하려고 할 때 유용하게 쓸 수 있다.
+- 자바코드에 의한 설정이 xml과 같은 외부 설정파일을 이용하는 것보다 유용한 이유
+  - 컴파일러나 IDE를 통한 타입 검증이 가능하다
+  - 자동완성과 같은 IDE 지원 기능을 최대한 이용할 수 있다
+  - 이해하기 쉽다
+  - 복잡한 빈 설정이나 초기화 작업을 손쉽게 적용할 수 있다
+
+
+
 #### 자바 코드에 의한 빈 등록: 일반 빈 클래스의 @Bean 메서드
+
+- `@Configuration` 이 없더라도 일반 클래스가 빈으로 등록된다면 `@Bean` 애너테이션을 통해 리턴 오브젝트를 빈으로 등록하게 할 수 있다.
+- 하지만 이런 경우 `@Configuration` 을 사용했을 때와 달리  `@Bean` 가 리턴하는 오브젝트의 인스턴스가 매번 다르기때문에 주의해야한다.
 
 #### 빈 등록 메타정보 구성 전략
 
+- 여러가지 방법으로 빈을 설정할 수 있고 애플리케이션의 특성과 개발팀의 문화, 기업의 정책에 맞는 적절한 조합을 찾아내고 일관성 있게 사용하는것이 중요하다.
+
 ### 빈 의존관계 설정 방법
+
+- DI할 대상을 선정하는 방법으로 분류해보면 명시적으로 빈을 지정하는 방법과 일정한 규칙에 따라 자동으로 선정하는 방법으로 나눌 수 있다.
+- 전자는 DI할 빈의 아이디를 직접 지정하는 것이고, 후자는 주로 타입 비교를 통해서 호환되는 타입의 빈을 DI 후보로 삼는 방법이다. 후자의 방법은 autowiring 이라고 한다.
 
 #### XML: \<property\>, \<constructor-arg\>
 
+- `<bean>` 을 이용해 빈을 등록했다면 프로퍼티와 생성자 두가지 방식으로 DI를 지정할 수 있다.
+- 프로퍼티는 자바빈 규약을 따르는 수정자 메서드를 사용하고, 생성자는 클래스의 생성자를 이용하는 방법이다.
+
+`<property>: 수정자 주입`
+
+- 수정자를 통해 의존관계 빈을 주입하려면 `<property>` 태그를 사용하면 된다.
+- 다음과 같이 ref 애트리뷰트를 사용하면 빈 이름을 이용해 주입할 빈을 찾는다.
+
+```xml
+<bean>
+    <property name="printer" ref="defaultPrinter" />
+</bean>
+
+<bean id="defaultPrinter" class="..."></bean>
+```
+
+`<constructor-arg>: 생성자 주입`
+
+- `<constructor-arg>`는 생성자를 통한 빈 또는 값의 주입에 사용된다.
+
+```xml
+<bean>
+    <constructor-arg index="0" ref="defaultPrinter" />
+    <constructor-arg index="1" value="30" />
+</bean>
+
+```
+
+- value 프로퍼티는 값 또는 빈이 아닌 오브젝트를 주입할때 사용한다.
+- 파라미터에 중복되는 타입이 없으면 index 프로퍼티가 아닌 타입을 지정해줘서 주입해줄 수 있고 name 프로퍼티를 사용해서 파라미터 이름을 사용할 수 있다
+
+```xml
+<constructor-arg type="java.lang.String" value="Hello" />
+<constructor-arg type="com.example.Printer" ref="printer" />
+    
+<constructor-arg name="hello" value="Hello" />
+<constructor-arg name="printer" ref="printer" />
+```
+
+
+
 #### XML: 자동 와이어링
+
+- 자동 와이어링은 명시적으로 프로퍼티나 생성자 파라미터를 지정하지 않고 미리 정해진 규칙을 이용해 자동으로 DI 설정을 컨테이너가 추가하도록 만드는 것이다.
+
+`byName: 빈 이름 자동 와이어링`
+
+- 일반적으로 주입이 필요한 필드의 이름과 주입의 대상이되는 빈의 이름이 같은 관례를 사용해서 아래와 같이 `<property>` 태그를 생략하는 방법으로 자동와이어링을 구성할 수 있다.
+
+```xml
+<bean class="..." autowired="byName">
+    <property name="myPrinter" ref="defaultPrinter" /> <!-- id와 name이 동일하기 때문에 이 부분을 생략 가능-->
+</bean>
+
+<bean id="myPrinter" class="com.example.Printer"></bean>
+```
+
+
+
+
 
 #### XML: 네임스페이스와 전용 태그
 
