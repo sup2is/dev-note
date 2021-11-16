@@ -826,69 +826,6 @@ protected void prepareWebApplicationContext(ServletContext servletContext) {
 
 ![7](/Users/a10300/Choi/Git/dev-note/spring/images/toby-spring-vol2/7.png)
 
-- Spring boot 2.x 기준으로 `@ComponetScan` 으로 애너테이션을 scan하면 결론적으로 `ScannedGenericBeanDefinition` 으로 생성해서 메타정보를 활용하는 모습을 확인할 수 있다.
-
-`ClassPathScanningCandidateComponentProvider.scanCandidateComponents() 메서드`
-
-```java
-
-	private Set<BeanDefinition> scanCandidateComponents(String basePackage) {
-		Set<BeanDefinition> candidates = new LinkedHashSet<>();
-		try {
-			String packageSearchPath = ResourcePatternResolver.CLASSPATH_ALL_URL_PREFIX +
-					resolveBasePackage(basePackage) + '/' + this.resourcePattern;
-			Resource[] resources = getResourcePatternResolver().getResources(packageSearchPath);
-			boolean traceEnabled = logger.isTraceEnabled();
-			boolean debugEnabled = logger.isDebugEnabled();
-			for (Resource resource : resources) {
-				if (traceEnabled) {
-					logger.trace("Scanning " + resource);
-				}
-				if (resource.isReadable()) {
-					try {
-						MetadataReader metadataReader = getMetadataReaderFactory().getMetadataReader(resource);
-						if (isCandidateComponent(metadataReader)) {
-							ScannedGenericBeanDefinition sbd = new ScannedGenericBeanDefinition(metadataReader); // <- 요기
-							sbd.setSource(resource);
-							if (isCandidateComponent(sbd)) {
-								if (debugEnabled) {
-									logger.debug("Identified candidate component class: " + resource);
-								}
-								candidates.add(sbd);
-							}
-							else {
-								if (debugEnabled) {
-									logger.debug("Ignored because not a concrete top-level class: " + resource);
-								}
-							}
-						}
-						else {
-							if (traceEnabled) {
-								logger.trace("Ignored because not matching any filter: " + resource);
-							}
-						}
-					}
-					catch (Throwable ex) {
-						throw new BeanDefinitionStoreException(
-								"Failed to read candidate component class: " + resource, ex);
-					}
-				}
-				else {
-					if (traceEnabled) {
-						logger.trace("Ignored because not readable: " + resource);
-					}
-				}
-			}
-		}
-		catch (IOException ex) {
-			throw new BeanDefinitionStoreException("I/O failure during classpath scanning", ex);
-		}
-		return candidates;
-	}
-```
-
-
-
 ### 빈 설정 메타정보
 
 - `BeanDefinition`에는 IoC 컨테이너가 빈을 만들 때 필요한 핵심 정보가 담겨 있다.
@@ -925,12 +862,158 @@ protected void prepareWebApplicationContext(ServletContext servletContext) {
 ### 빈 등록 방법
 
 - 빈 등록은 빈 메타정보를 작성해서 컨테이너에게 건네주는 방법으로 등록이 가능하다.
+- Spring boot 에서는 여러 `BeanDefinition` 타입을 미리 `DefaultListableBeanFactory` 에 등록시켜서 꺼내오는 방식으로 빈들 을 등록한다.
+
+`DefaultListableBeanFactory.registerBeanDefinition() 메서드`
+
+```java
+public class DefaultListableBeanFactory extends AbstractAutowireCapableBeanFactory
+		implements ConfigurableListableBeanFactory, BeanDefinitionRegistry, Serializable {
+  
+
+  ...
+
+  private final Map<String, BeanDefinition> beanDefinitionMap = new ConcurrentHashMap<>(256);
+  
+  
+	@Override
+	public void registerBeanDefinition(String beanName, BeanDefinition beanDefinition)
+			throws BeanDefinitionStoreException {
+
+		Assert.hasText(beanName, "Bean name must not be empty");
+		Assert.notNull(beanDefinition, "BeanDefinition must not be null");
+
+		if (beanDefinition instanceof AbstractBeanDefinition) {
+			try {
+				((AbstractBeanDefinition) beanDefinition).validate();
+			}
+			catch (BeanDefinitionValidationException ex) {
+				throw new BeanDefinitionStoreException(beanDefinition.getResourceDescription(), beanName,
+						"Validation of bean definition failed", ex);
+			}
+		}
+
+		BeanDefinition existingDefinition = this.beanDefinitionMap.get(beanName);
+		if (existingDefinition != null) {
+			if (!isAllowBeanDefinitionOverriding()) {
+				throw new BeanDefinitionOverrideException(beanName, beanDefinition, existingDefinition);
+			}
+			else if (existingDefinition.getRole() < beanDefinition.getRole()) {
+				// e.g. was ROLE_APPLICATION, now overriding with ROLE_SUPPORT or ROLE_INFRASTRUCTURE
+				if (logger.isInfoEnabled()) {
+					logger.info("Overriding user-defined bean definition for bean '" + beanName +
+							"' with a framework-generated bean definition: replacing [" +
+							existingDefinition + "] with [" + beanDefinition + "]");
+				}
+			}
+			else if (!beanDefinition.equals(existingDefinition)) {
+				if (logger.isDebugEnabled()) {
+					logger.debug("Overriding bean definition for bean '" + beanName +
+							"' with a different definition: replacing [" + existingDefinition +
+							"] with [" + beanDefinition + "]");
+				}
+			}
+			else {
+				if (logger.isTraceEnabled()) {
+					logger.trace("Overriding bean definition for bean '" + beanName +
+							"' with an equivalent definition: replacing [" + existingDefinition +
+							"] with [" + beanDefinition + "]");
+				}
+			}
+			this.beanDefinitionMap.put(beanName, beanDefinition);
+		}
+		else {
+			if (hasBeanCreationStarted()) {
+				// Cannot modify startup-time collection elements anymore (for stable iteration)
+				synchronized (this.beanDefinitionMap) {
+					this.beanDefinitionMap.put(beanName, beanDefinition);
+					List<String> updatedDefinitions = new ArrayList<>(this.beanDefinitionNames.size() + 1);
+					updatedDefinitions.addAll(this.beanDefinitionNames);
+					updatedDefinitions.add(beanName);
+					this.beanDefinitionNames = updatedDefinitions;
+					removeManualSingletonName(beanName);
+				}
+			}
+			else {
+				// Still in startup registration phase
+				this.beanDefinitionMap.put(beanName, beanDefinition);
+				this.beanDefinitionNames.add(beanName);
+				removeManualSingletonName(beanName);
+			}
+			this.frozenBeanDefinitionNames = null;
+		}
+
+		if (existingDefinition != null || containsSingleton(beanName)) {
+			resetBeanDefinition(beanName);
+		}
+		else if (isConfigurationFrozen()) {
+			clearByTypeCache();
+		}
+	}
+
+  
+  ...
+    
+}
+```
+
+- 스프링을 사용하는 입장에서 자주 사용되는 빈의 등록 방법은 크게 다섯가지가 있다.
 
 #### XML: \<bean\> 태그
 
+- 기본적으로 `<bean>` 태그를 사용해서 빈을 생성할 수 있다. 아래와 같이 id와 class 라는 두 개의 애트리뷰트가 필요하고 id는 생략할 수 있다.
+
+```xml
+<bean id="hello" class="com.example.Hello">
+	...
+</bean>
+```
+
+
+
 #### XML: 네임스페이스와 전용 태그
 
+- `<bean>` 태그 외에도 다양한 스키마에 정의된 전용 태그를 사용해 빈을 등록하는 방법이 있다.
+- 스프링의 빈을 분류하면 크게 애플리케이션의 핵심 코드를 담은 컴포넌트와 서비스 또는 컨테이너 설정을 위한 반으로 구분할 수 있는데 이 두개의 성격이 다르기때문에 설정을 위한 전용 네임스페이스와 태그를 통해 설정할 수 있게 해준다.
+
+```xml
+<bean id="mypointcut" class="org.springframework.aop.aspectj.AspectJExpressionPintcut"> 
+	<property name="expression" value="execution(* * ..*ServiceImple.upgrade*(..))"></property>
+</bean>
+
+<aop:pointcut id="mypointcut" expression="execution(* * ..*ServiceImple.upgrade*(..))"> </aop:pointcut>
+```
+
+- 전용 네임스페이스 태그를 활용했기때문에 같은 설정이라도 `<aop:pintcut>` 태그를 사용한 포인트컷이 의미가 더 명확해졌다.
+- 스프링이 제공해주는것 외에도 개발자가 스스로 커스텀 태그를 만들어서 적용할 수도 있다.
+
 #### 자동인식을 이용한 빈 등록: 스테레오타입 애너테이션과 빈 스캐너
+
+- 빈으로 사용될 클래스에 특별한 애너테이션을 부여해주면 이런 클래스를 자동으로 찾아서 빈으로 등록하게 할 수 있다.
+- 특정 애너테이션이 붙은 클래스를 자동으로 찾아서 빈으로 등록해주는 방식을 빈 스캐닝을 통한 자동인식 빈 등록 기능이라고 하고 이런 스캐닝 작업을 담당하는 오브젝트를 빈 스캐너라고 한다.
+- 스프링의 빈 스캐너는 지정된 클래스패스 아래에 있는 모든 패키지의 클래스를 대상으로 필터를 적용해서 빈 등록을 위한 클래스들을 선별해낸다.
+- 빈 스캐너에 내장된 디폴트 필터는 `@Component` , `@Service` 나 `@Repository`도 모두 `@Component`를 사용하고 있다.
+- 스프링에서는 빈 스캐너에 적용되는 애너테이션을 스테레오타입 애너테이션이라 부른다.
+
+```java
+@Component
+public class AnnotatedHello {
+  ...
+}
+```
+
+- 빈 스캐너는 기본적으로 클래스 이름을 빈의 아이디로 사용하고 아래와 같이 이름을 지정해줄 수 있다.
+
+```java
+@Component("myHello")
+public class AnnotatedHello {
+  ...
+}
+```
+
+
+
+
 
 #### 자바 코드에 의한 빈 등록: @Configuration 클래스의 @Bean 메서드
 
