@@ -1153,15 +1153,165 @@ public class AnnotationHelloConfig {
 <bean id="myPrinter" class="com.example.Printer"></bean>
 ```
 
+- 이름을 이용한 자동와이어링은 빈의 모든 프로퍼티에 대해 이름이 동일한 빈을 찾아서 연결해준다.
+- 프로퍼티와 이름이 같은 빈이 없는 경우는 무시한다.
 
+`byType: 타입에 의한 자동 와이어링`
 
+- 이름을 이용하는 자동와이어링 방식은 명명 규칙을 엄하게 지켜야만 한다는 부담이 있다.
+- 타입에 의한 자동와이어링은 프로퍼티의 타입과 각 빈의 타입을 비교해서 자동으로 연결해주는 방법이다.
 
+```xml
+<bean class="..." autowired="byType">
+	...
+</bean>
 
-#### XML: 네임스페이스와 전용 태그
+<bean id="myPrinter" class="com.example.Printer"></bean>
+```
+
+- 타입에 의한 자동 와이어링의 단점은 같은 타입의 빈이 두개 있을때 스프링이 어떤 빈을 사용해야할지 모르기때문에 적용되지 못한다.
+- 모든 타입들을 비교하기때문에 byName보다 성능이 떨어진다.
+
+----
+
+- xml 안에서 자동 와이어링을 사용하는 방식의 단점
+  - xml만 봐서 빈 의존관계를 알기 힘들다.
+  - 하나의 빈에 여러방식의 자동와이어링 방식을 적용할 수 없다.
 
 #### 애너테이션: @Resource
 
+- `@Resource`는 주입할 빈을 아이디로 지정하는 방법이다.
+- `@Resource`는 수정자 메서드, 필드 타입에 붙일 수 있다.
+
+`수정자 메서드`
+
+```java
+public class Hello {
+    private Printer printer;
+    
+    @Resource(name="printer")
+    public void setPrinter(Printer printer) {
+        this.printer = printer;
+    }
+}
+```
+
+- 자바빈의 수정자 메서드의 관례에 따라서 메서드 이름으로부터 프로퍼티 이름을 가져온다.
+- `Hello` 클래스는 빈 스캐닝의 대상이 되도록 `@Component` 를 붙여주거나 xml을 통해 빈으로 등록되어야 의존관계가 주입된다.
+
+`필드`
+
+```java
+@Component
+public class Hello {
+    @Resource(name="printer") //필드의 이름과 프로퍼티의 이름이 같다면 name="printer" 부분도 생략 가능
+    private Printer printer;
+}
+```
+
+- 필드 주입은 수정자 메서드가 없어도 리플렉션 api를 사용해서 의존관계를 설정한다.
+- 코드는 간결해졌지만 컨테이너 밖에서 수동으로 DI가 불편하기 때문에 단위테스트에서 사용하기엔 바람직하지 못하다.
+
+----
+
+- xml의 자동 와이어링은 각 프로퍼티에 주입할 후보 빈이 없을경우에 무시하고 넘어가지만 `@Resource`방식은 참조할 빈이 반드시 있어야하고 만약 DI 할 빈을 찾을 수 없다면 예외가 발생한다.
+- `@Resource`는 기본적으로 이름을 사용해서 빈을 찾지만 이름으로 참조가 실패했다면 타입을 이용해서 다시 한번 빈을 찾기도 한다.
+- 타입 주입을 위해 `@Resource`를 사용하는것은 권장되지 않는다.
+
+
+
 #### 애너테이션: @Autowired/ @Inject
+
+- `@Autowired`와 `@Inject` 모두 타입에 의한 자동와이어링 방식으로 동작한다.
+- `@Autowired`는 스프링 2.5부터 적용된 스프링 전용 애너테이션이고  `@Inject` 는 JavaEE6의 표준 스펙 JSR-330에 정의되어 있어 JavaEE6스펙을 따르는 다른 프레임워크에서도 동일한 의미로 사용되는 DI를 위한 애너테이션이다.
+- 스프링을 사용한다면 어떤것을 사용해도 좋지만 일관성을 지키는게 좋다
+
+`수정자 메서드와 필드`
+
+```java
+
+//필드주입
+public class Hello {
+	@Autowired
+    private Printer printer;
+}
+
+//수정자 주입
+public class Hello {
+    private Printer printer;
+    
+    @Autowired
+    public void setPrinter(Printer printer) {
+        this.printer = printer;
+    }
+}
+```
+
+- `@Resource`와 비슷하지만 `@Autowired`는 타입을 통해서 찾는다
+
+
+
+`생성자`
+
+```java
+public class BasSqlService implements SqlService {
+    protected SqlReader sqlReader;
+    protected SqlRegistry sqlRegistry;
+    
+    @Autowired
+    public BasSqlService(SqlReader sqlReader, SqlRegistry sqlRegistry) {
+        this.sqlReader = sqlReader;
+        this.sqlRegistry = sqlRegistry;
+    }
+}
+```
+
+- 한개의 생성자에만 `@Autowired` 를 적용할 수 있는 제약이 있다.
+
+`일반 메서드`
+
+- 수정자방식, 생성자방식에 대한 각기 장단점을 보완하기위해 `@Autowired`에는 일반 메서드에도 적용할 수 있다.
+- 파라미터를 가진 메서드에 `@Autowired` 를 붙여주면 각 파라미터 타입을 기준으로 자동와이어링을 해서 DI 해줄 수 있다.
+
+```java
+public class BasSqlService implements SqlService {
+    protected SqlReader sqlReader;
+    protected SqlRegistry sqlRegistry;
+    
+    @Autowired
+    public config(SqlReader sqlReader, SqlRegistry sqlRegistry) {
+        this.sqlReader = sqlReader;
+        this.sqlRegistry = sqlRegistry;
+    }
+}
+```
+
+
+
+`컬렉션과 배열`
+
+- 타입에 의한 자동와이어링은 같은 타입이 두 개 이상 있을때 문제가될 수 있다.
+-  `@Autowired` 의 대상이 되는 필드나 프로퍼티, 메서드의 파라미터를 컬렉션이나 배열로 선언하면 같은타입의 빈을 모두 주입받을 수 있다.
+
+```java
+@Autowired
+Collection<Printer> printers;
+
+@Autowired
+Printer[] printers;
+
+@Autowired
+Map<String, Printer> printerMap; //빈 아이디가 키가 된다.
+```
+
+- 컬렉션이나 배열로 `@Autowired`를 받는 방식은 충돌을 피하는 목적으로 사용하면 안되고 의도적으로 여러 개의 빈을 모두 참조하거나 그중에서 선별적으로 필요한 빈을 찾을 때 사용하는 것이 좋다.
+
+`@Qaulifier`
+
+- `@Qaulifier`는 타입 외의 정보를 추가해서 자동와이어링을 세밀하게 제어할 수 있는 보조적인 방법이다.
+- 
+
+
 
 #### @Autowired와 getBean(), 스프링 테스트
 
