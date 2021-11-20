@@ -1309,15 +1309,92 @@ Map<String, Printer> printerMap; //빈 아이디가 키가 된다.
 `@Qaulifier`
 
 - `@Qaulifier`는 타입 외의 정보를 추가해서 자동와이어링을 세밀하게 제어할 수 있는 보조적인 방법이다.
-- 
+- `@Autowired` 와 함께 사용해서 같은 타입이 두 개 이상 있을때 사용할 수 있다.
+
+```java
+@Autowired
+@Qualifier("mainDB")
+DataSource dataSource;
+```
+
+- `@javax.inject.Inject` ,`@javax.inject.Qualifier` 를 사용하는 방법도 있지만 제한적인 부분이 있기 때문에 특별한 이유가 없다면 스프링에서 제공하는  `@Autowired` 와 `@Qaulifier`  를 사용하는 것이 좋다.
 
 
 
-#### @Autowired와 getBean(), 스프링 테스트
+#### 자바코드에 의한 의존관계 설정
 
-#### 자바 코드에 의한 의존관계 설정
+`애너테이션에 의한 설정 @Autowired, @Resource`
+
+```java
+public class Hello {
+  @Autowired Printer printer;
+}
+
+...
+
+@Configuration
+public class Config {
+  @Bean
+  public Hello hello() {
+    return new Hello();
+  }
+  
+  @Bean
+  public Printer printer() {
+    return new Printer();
+  }
+}
+
+```
+
+- 다음과 같이 빈의 오브젝트만 생성해서 등록해주면 의존관계는 애너테이션 의존관계 설정용 후처리기에 의해 별도로 설정된다.
+
+`@Bean 메서드 호출`
+
+```java
+@Configuration
+public class Config {
+  @Bean
+  public Hello hello() {
+    Hello hello = new Hello();
+    hello.setPrinter(printer());
+    return hello;
+  }
+  
+  @Bean
+  public Printer printer() {
+    return new Printer();
+  }
+}
+```
+
+- `printer()` 메서드를 직접 사용해서 의존관계를 설정해준다.
+- `@Configuration` 이 등록된 클래스에서만 사용해야 `printer()` 가 항상 싱글톤 인스턴스를 반환하므로 주의해서 사용해야한다.
+
+`@Bean과 메서드 자동와이어링`
+
+```java
+@Configuration
+public class Config {
+  @Bean
+  public Hello hello(Printer printer) {
+    Hello hello = new Hello();
+    hello.setPrinter(printer);
+    return hello;
+  }
+  
+  @Bean
+  public Printer printer() {
+    return new Printer();
+  }
+}
+```
+
+- `@Bean` 이 붙은 메서드는 기본적으로 `@Autowired`가 붙은 메서드처럼 동작한다. 따라서 `hello()` 메서드가 실행될 때 printer 파라미터에는 Printer 타입의 빈이 자동으로 주입돼서 DI할 수 있다.
 
 #### 빈 의존관계 설정 전략
+
+- 빈 등록 방법과 마찬가지로 빈 의존관계 설정도 여러가지이기 때문에 반드시 팀 컨벤션에 따라서 미리 가이드라인을 정해두는게 중요하다!
 
 ### 프로퍼티 값 설정 방법
 
