@@ -1400,31 +1400,375 @@ public class Config {
 
 #### 메타정보 종류에 따른 값 설정 방법
 
+`XML: <property>와 전용 태그`
+
+```xml
+<bean id="hello" ...>
+  <property name="name" value="Everyone"/>
+</bean>
+```
+
+`애너테이션: @Value`
+
+- 빈 의존관계는 아니지만 어떤 값을 외부에서 받아야할 경우 `@Value` 애너테이션을 사용해서 코드와 분리할 수 있다. 이런 방법을 통해 환경별로 유연하게 동작하게 만들 수 있다.
+
+```java
+@Configuration
+public class Config {
+  
+  @Value("${database.username")
+  private String name;
+  
+  @Bean
+  public Hello hello() {
+    Hello hello = new Hello();
+    hello.setName(this.name);
+    return hello;
+  }
+
+}
+```
+
+- 아래와 같이 메서드 파라미터에도 사용이 가능하다.
+
+```java
+  @Bean
+  public Hello hello(@Value("${database.username") String name) {
+    Hello hello = new Hello();
+    hello.setName(this.name);
+    return hello;
+  }
+```
+
+
+
 #### PropertyEditor와 ConversionService
+
+- xml의 value 애트리뷰트나 `@Value` 앨리먼트는 모두 String 타입으로 취급이된다. 그 외의 타입인 경우라면 타입을 변경하는 과정이 필요하다.
+- 이를 위해 스프링은 두가지 종류의 타입 변환 서비스를 제공하는데 디폴트로 사용되는 타입 변환기는 PropertyEditor라는 java.beans의 인터페이스를 구현한 것이다.
+- 프로퍼티 에디터라고 불리는 오브젝트는 원래 GUI 개발환경에서 자바빈 오브젝트의 프로퍼티 값을 직접 넣어주기 위해 만들어졌는데 스프링은 프로퍼티 에디터의 개념을 xml 또는 `@Value` 애너테이션에 적용했다.
+- SpringBoot 2.x 기준으로 `@Value` 애너테이션은 `AutowiredAnnotationBeanPostProcessor` 에 의해 자동으로 주입된다. PropertyEditor는 안쓰는것 같다.. (뇌피셜)
+
+- 스프링이 기본적으로 제공해주는 타입변환목록
+
+`기본 타입`
+
+- boolean, Boolean, byte, Byte, short, Short, int, Integer, long, Long, float, Float, double, Double, BigDecimal, BigInteger, char, Character, String
+
+```java
+boolean flag;
+public void setFlag(boolean flag) {this.flag = flag;}
+```
+
+```xml
+<property name="flag" value="true" />
+```
+
+
+
+`배열`
+
+- 기본 타입의 배열로 선언된 프로퍼티에는 한 번에 배열 값을 주입할 수 있다.
+
+```java
+@Value("1,2,3,4") int[] intArr;
+```
+
+
+
+`기타`
+
+- Charset, Class, Currency 등등 ...
+
+----
+
+- 스프링 3.0 부터는 `PropertyEditor`대신 사용할 `ConversionService`를 지원했다.
+- Spring Boot 2.x 기준으로 `ConversionService` 타입의 `DefaultConversionService` 을 사용한다
+
+```java
+public class DefaultConversionService extends GenericConversionService {
+
+	@Nullable
+	private static volatile DefaultConversionService sharedInstance;
+
+
+	/**
+	 * Create a new {@code DefaultConversionService} with the set of
+	 * {@linkplain DefaultConversionService#addDefaultConverters(ConverterRegistry) default converters}.
+	 */
+	public DefaultConversionService() {
+		addDefaultConverters(this);
+	}
+
+
+	/**
+	 * Return a shared default {@code ConversionService} instance,
+	 * lazily building it once needed.
+	 * <p><b>NOTE:</b> We highly recommend constructing individual
+	 * {@code ConversionService} instances for customization purposes.
+	 * This accessor is only meant as a fallback for code paths which
+	 * need simple type coercion but cannot access a longer-lived
+	 * {@code ConversionService} instance any other way.
+	 * @return the shared {@code ConversionService} instance (never {@code null})
+	 * @since 4.3.5
+	 */
+	public static ConversionService getSharedInstance() {
+		DefaultConversionService cs = sharedInstance;
+		if (cs == null) {
+			synchronized (DefaultConversionService.class) {
+				cs = sharedInstance;
+				if (cs == null) {
+					cs = new DefaultConversionService();
+					sharedInstance = cs;
+				}
+			}
+		}
+		return cs;
+	}
+
+	/**
+	 * Add converters appropriate for most environments.
+	 * @param converterRegistry the registry of converters to add to
+	 * (must also be castable to ConversionService, e.g. being a {@link ConfigurableConversionService})
+	 * @throws ClassCastException if the given ConverterRegistry could not be cast to a ConversionService
+	 */
+	public static void addDefaultConverters(ConverterRegistry converterRegistry) {
+		addScalarConverters(converterRegistry);
+		addCollectionConverters(converterRegistry);
+
+		converterRegistry.addConverter(new ByteBufferConverter((ConversionService) converterRegistry));
+		converterRegistry.addConverter(new StringToTimeZoneConverter());
+		converterRegistry.addConverter(new ZoneIdToTimeZoneConverter());
+		converterRegistry.addConverter(new ZonedDateTimeToCalendarConverter());
+
+		converterRegistry.addConverter(new ObjectToObjectConverter());
+		converterRegistry.addConverter(new IdToEntityConverter((ConversionService) converterRegistry));
+		converterRegistry.addConverter(new FallbackObjectToStringConverter());
+		converterRegistry.addConverter(new ObjectToOptionalConverter((ConversionService) converterRegistry));
+	}
+
+	/**
+	 * Add common collection converters.
+	 * @param converterRegistry the registry of converters to add to
+	 * (must also be castable to ConversionService, e.g. being a {@link ConfigurableConversionService})
+	 * @throws ClassCastException if the given ConverterRegistry could not be cast to a ConversionService
+	 * @since 4.2.3
+	 */
+	public static void addCollectionConverters(ConverterRegistry converterRegistry) {
+		ConversionService conversionService = (ConversionService) converterRegistry;
+
+		converterRegistry.addConverter(new ArrayToCollectionConverter(conversionService));
+		converterRegistry.addConverter(new CollectionToArrayConverter(conversionService));
+
+		converterRegistry.addConverter(new ArrayToArrayConverter(conversionService));
+		converterRegistry.addConverter(new CollectionToCollectionConverter(conversionService));
+		converterRegistry.addConverter(new MapToMapConverter(conversionService));
+
+		converterRegistry.addConverter(new ArrayToStringConverter(conversionService));
+		converterRegistry.addConverter(new StringToArrayConverter(conversionService));
+
+		converterRegistry.addConverter(new ArrayToObjectConverter(conversionService));
+		converterRegistry.addConverter(new ObjectToArrayConverter(conversionService));
+
+		converterRegistry.addConverter(new CollectionToStringConverter(conversionService));
+		converterRegistry.addConverter(new StringToCollectionConverter(conversionService));
+
+		converterRegistry.addConverter(new CollectionToObjectConverter(conversionService));
+		converterRegistry.addConverter(new ObjectToCollectionConverter(conversionService));
+
+		converterRegistry.addConverter(new StreamConverter(conversionService));
+	}
+
+	private static void addScalarConverters(ConverterRegistry converterRegistry) {
+		converterRegistry.addConverterFactory(new NumberToNumberConverterFactory());
+
+		converterRegistry.addConverterFactory(new StringToNumberConverterFactory());
+		converterRegistry.addConverter(Number.class, String.class, new ObjectToStringConverter());
+
+		converterRegistry.addConverter(new StringToCharacterConverter());
+		converterRegistry.addConverter(Character.class, String.class, new ObjectToStringConverter());
+
+		converterRegistry.addConverter(new NumberToCharacterConverter());
+		converterRegistry.addConverterFactory(new CharacterToNumberFactory());
+
+		converterRegistry.addConverter(new StringToBooleanConverter());
+		converterRegistry.addConverter(Boolean.class, String.class, new ObjectToStringConverter());
+
+		converterRegistry.addConverterFactory(new StringToEnumConverterFactory());
+		converterRegistry.addConverter(new EnumToStringConverter((ConversionService) converterRegistry));
+
+		converterRegistry.addConverterFactory(new IntegerToEnumConverterFactory());
+		converterRegistry.addConverter(new EnumToIntegerConverter((ConversionService) converterRegistry));
+
+		converterRegistry.addConverter(new StringToLocaleConverter());
+		converterRegistry.addConverter(Locale.class, String.class, new ObjectToStringConverter());
+
+		converterRegistry.addConverter(new StringToCharsetConverter());
+		converterRegistry.addConverter(Charset.class, String.class, new ObjectToStringConverter());
+
+		converterRegistry.addConverter(new StringToCurrencyConverter());
+		converterRegistry.addConverter(Currency.class, String.class, new ObjectToStringConverter());
+
+		converterRegistry.addConverter(new StringToPropertiesConverter());
+		converterRegistry.addConverter(new PropertiesToStringConverter());
+
+		converterRegistry.addConverter(new StringToUUIDConverter());
+		converterRegistry.addConverter(UUID.class, String.class, new ObjectToStringConverter());
+	}
+
+}
+
+```
+
+- 직접 `ConversionService`를 구현해서 타입 변환기를 등록할 수 있다.
 
 #### 컬렉션
 
-#### Null과 빈 문자열
+- yml 파일 기준
 
-#### 프로퍼티 파일을 이용한 값 설정
+`List`
+
+```yaml
+fruit:
+  list:
+    - name : banana
+      color : yellow
+    - name : apple
+      color : red
+    - name : water melon
+      color : green
+```
+
+```java
+@Data
+@Component
+@ConfigurationProperties("fruit")
+public class FruitProperty {
+    private List<Fruit> list;
+}
+```
+
+
+
+`Map`
+
+```yaml
+// application.yml
+
+network:
+  environment: 
+    TEST1: 
+      logicalName: TEST1 
+      port: 8888 
+
+    TEST2: 
+      logicalName: TEST2 
+      port: 8889 
+
+
+```
+
+```java
+
+@Configuration 
+@ConfigurationProperties("network") 
+public class NetworkPropertiesManager { 
+  Map<String, NetworkConfig> environment = new HashMap<>(); 
+  public Map<String, NetworkConfig> getEnvironment() { 
+    return environment; 
+  } 
+  public void setEnvironment(Map<String, NetworkConfig> environment) {
+    this.environment = environment; 
+  } 
+}
+
+```
+
+```java
+public class NetworkConfig {
+  private String logicalName;
+  private int port;
+  
+  public String getLogicalName() {
+    return logicalName; 
+  }
+  
+  ...
+
+}
+```
+
+
 
 ### 컨테이너가 자동 등록하는 빈
 
 #### ApplicationContext, BeanFactory
 
+- 스프링에서는 컨테이너 자신을 빈으로 등록해두고 필요하면 일반 빈에서 DI받아 사용할 수 있다
+- 스프링 컨테이너인 애플리케이션 컨텍스트는 ApplicationContext 인터페이스를 구현한 것이다.
+- SpringBoot 2.x 기준으로 `AnnotationConfigServletWebServerApplicationContext`가 기본 구현체로 등록된다.
+- 모든 `ApplicationContext`는 `BeanFactory`의 하위 타입이므로 `BeanFactory`에서 제공하는 메서드를 사용할 수 있다.
+- 스프링의 내부 구조를 자세히 알고 특별한 기능을 이용해야 하는 경우엔  `BeanFactory`를 직접 DI 받아야하지만 일반적인 경우엔 `ApplicationContext`만 사용해도 충분하다.
+
 #### ResourceLoader, ApplicationEventPublisher
 
+- 스프링 컨테이너는 `ResourceLoader`이기도 하다. (`AnnotationConfigServletWebServerApplicationContext` 역시 `ResourceLoader`의 하위타입이다.)
+- 코드에서 서블릿 컨텍스트의 리소스를 읽어오려면 `ResourceLoader` 타입으로 DI 받아서 활용하면 된다.
+- `ApplicationEventPublisher`는 `ApplicationListener` 인터페이스를 구현한 빈에게 이벤트를 발생시킬 수 있는 `publishEvent()` 메서드를 가진 인터페이스이고 `ApplicationContext` 역시 `ApplicationEventPublisher`를 구현하고 있다. 
+
 #### systemProperties, systemEnvironment
+
+- systemProperties 빈은 `System.getProperties()` 메서드가 돌려주는 `Properties` 타입의 오브젝트를 읽기전용으로 접근할 수 있게 만든 빈 오브젝트다.
+- systemProperties을 통해 JVM이 생성해주는 시스템 프로퍼티값을 읽을 수 있게 해준다.
+- 아래와 같이 직접 `Properties` 타입으로 받아도되고 SpEL을 사용해서 받아도 된다.
+
+```java
+@Resource
+Properties systemProperties;
+
+
+...
+
+@Value("#{systemProperties['os.name']}") String osName;
+
+```
 
 
 
 ## 프로토타입과 스코프
 
+- 기본적으로 스프링의 빈은 싱글톤으로 만들어진다.
+- 사용자의 요청이 있을 때마다 매번 오브젝트를 새로 만드는건 비효율적이기 때문이다.
+- 때로는 빈을 싱글톤이 아닌 방식으로 사용해야할 때가 있는데 이때 프로토타입을 사용하면 된다.
+- 여기서 스코프란 빈 오브젝트가 만들어져 존재할 수 있는 범위를 의미한다.
+
 ### 프로토타입 스코프
+
+- 싱글톤 스코프는 컨텍스트당 한 개의 빈 오브젝트만 만들어 여러번 DI하더라도 매번 같은 인스턴스가 주입된다.
+- 프로토타입 스코프는 컨테이너에 빈을 요청할 때마다 새로운 오브젝트를 만든다.
 
 #### 프로토타입 빈의 생명주기와 종속성
 
+- IoC 컨테이너의 기본 개념은 애플리케이션을 구성하는 핵심 오브젝트를 컨테이너에서 관리해서 오브젝트의 모든 생명주기를 담당한다.
+- 하지만 프로토타입빈은 생성해주고 DI까지는 해주지만 이후에는 컨테이너가 관리하지 않는 특징이 있다.
+- 때문에 빈 오브젝트 관리는 DI 받은 오브젝트에 달려있다.
+
 #### 프로토타입 빈의 용도
+
+- 대부분의 애플리케이션 로직은 싱글톤 빈으로 만들어두고 사용자별로 상태를 따로 갖지 않게해도 충분하다. 상태를 저장해야할 경우엔 DTO 등과 같은 오브젝트를 생성하고 전달해서 사용하면된다.
+- 프로토타입이 사용이 필요한 경우는 사용자의 요청에 따라 매번 독립적인 오브젝트를 만들어야하는데 매번 새롭게 만들어지는 오브젝트가 컨테이너 내의 빈을 사용해야하는 경우에 사용한다. (DI가 필요한 경우)
+
+```java
+@Component
+@Scope("prototype")
+public class ServiceRequest {
+
+  ...
+
+}
+```
+
+
 
 #### DI와 DL
 
