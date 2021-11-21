@@ -1770,19 +1770,168 @@ public class ServiceRequest {
 
 
 
-#### DI와 DL
-
 #### 프로토타입 빈의 DL 전략
+
+- DL(Dependency Lookup) : 의존대상을 검색을 통해 반환받는 방식
+- 프로토타입 빈은 DL 방식을 사용해 매번 컨테이너에 빈을 요청해서 새로운 오브젝트를 받아서 사용해야 한다.
+- DL 방식을 사용하기위해 아래와같은 전략이 있다.
+
+`ApplicationContext, BeanFactory`
+
+- 코드내에서 `ApplicationContext`를 사용해서 매번 `getBean()` 메서드를 호출하는 방법
+- 이 방법은 코드에 스프링 API가 직접 등장한다는 단점이 있다.
+
+`ObjectFactory, ObjectFactoryCreatingFactoryBean`
+
+- 직접 애플리케이션 컨텍스트를 사용하지 않으려면 중간에 `ApplicationContext` 의 `getBean()`을 호출해주는 팩토리를 두면 된다.
+- 직접 구현할 수 있지만 스프링이 제공해주는 `ObjectFactory` 인터페이스를 사용하면 더 편리하게 팩토리를 사용할 수 있다.
+
+```java
+ObjectFactory<ServiceRequest> factory = ...;
+ServiceRequest request = factory.getObject();
+```
+
+- `ObjectFactory`의 구현체로 `ObjectFactoryCreatingFactoryBean` 을 사용하면 된다.  `getObject()` 를 호출할 때마다 제네릭에 선언된 타입을 얻어올 수 있다.
+- 중간에 팩토리를 두는 방식이기 때문에 이런 방식은 테스트에도 유용하다.
+
+`ServiceLocatorFactoryBean`
+
+- `ObjectFactoryCreatingFactoryBean` 사용 대신 `ServiceLocatorFactoryBean`을 사용할 수 있다.
+- `ServiceLocatorFactoryBean`는 DL방식으로 가져올 빈을 리턴하는 임의의 이름을 가진 메서드가 정의된 인터페이스가 있으면 된다.
+
+```java
+public interface ServiceRequestFactory {
+  ServiceRequest getServiceFactory();
+}
+```
+
+- 이렇게 정의한 인터페이스를 이용해 스프링의 `ServiceLocatorFactoryBean`으로 등록해주면 된다.
+
+```java
+    
+    @Bean
+    public ServiceLocatorFactoryBean serviceLocatorFactoryBean() {
+        ServiceLocatorFactoryBean serviceLocatorFactoryBean = new ServiceLocatorFactoryBean();
+        serviceLocatorFactoryBean.setServiceLocatorInterface(ServiceRequestFactory.class);
+        return serviceLocatorFactoryBean;
+    }
+```
+
+- 아래와 같이 사용할 수 있다.
+
+```java
+@Autowired
+ServiceRequestFactory serviceRequestFactory;
+
+public void serviceRequestFormSubmit(HttpServletRequest request) {
+  ServiceRequest serviceRequest = this.serviceRequestFactory.getServiceFactory();
+  ...
+}
+```
+
+`Provider<T>`
+
+- `javax.inject.Provider`는 `ObjectFactory`와 거의 유사하지만 구현체를 따로 등록하지 않고 사용해도된다. 스프링이 자동으로 구현체를 등록해준다.
+
+```java
+
+@Autowired
+Provider<ServiceRequest> serviceRequestProvider;
+
+public void serviceRequestFormSubmit(HttpServletRequest request) {
+  ServiceRequest serviceRequest = this.serviceRequestFactory.getServiceFactory();
+  ...
+}
+
+```
+
+
 
 ### 스코프
 
 #### 스코프의 종류
 
+- 스프링은 싱글톤, 프로토타입외에도 요청(request), 세션(session), 글로벌 세션(global session), 애플리케이션(application)이라는 네가지 스코프를 기본적으로 제공한다. 이 스코프는 웹 환경에만 의미가 있다.
+
+`요청(request) 스코프`
+
+- 요청 스코프 빈은 하나의 웹 요청 안에서 만들어지고 해당 요청이 끝날 때 제거된다.
+- 각 요청별로 독립적인 빈이 만들어지기 때문에 스레드 세이프하다.
+- 요청 스코프빈의 주요 용도는 애플리케이션 코드에서 생성한 정보를 프레임워크 레벨의 서비스나 인터셉터 등에 전달하는 것. ex 보안 프레임워크에서 현재 요청에 관련된 권한 정보를 요청 스코프 빈에 저장해뒀다가 필요한 빈에서 참조하는 것
+- 과용으로 사용하면 전역변수를 사용하는 것처럼 코드를 이해하기 힘들 수 있다.
+
+`세션(session) 스코프, 글로벌 세션(global session) 스코프`
+
+- HTTP 세션과 같은 존재 범위를 갖는 빈으로 만들어주는 스코프
+- 서비스 계층이나 데이터 액세스 계층에서 HTTP 세션에 직접 접근하지 않고 세션 스코프 빈을 사용해서 접근하는 방법으로 사용된다.
+- 웹 페이지가 바뀌고 여러 요청을 거치는 동안에도 세션 스코프빈은 계속 유지된다. 사용자별로 만들어지기 때문에 중복의 위험도 없다.
+- 글로벌 세션은 포틀릿에만 존재하는 글로벌 세션에 저장되는 빈이다.
+
+`애플리케이션(application) 스코프`
+
+- 애플리케이션 스코프는 서블릿 컨텍스트에 저장되는 빈 오브젝트
+- 애플리케이션 스코프는 싱글톤 스코프와 비슷한 존재범위를 갖는다.
+- 드물게 애플리케이션 컨텍스트의 존재 범위와 웹 애플리케이션 존재범위가 달라야할 때 사용한다.
+- 싱글톤과 유사하기 때문에 읽기 전용으로 만들거나, 상태가 없도록, 스레드세이프하도록 만들어야한다.
+
 #### 스코프 빈의 사용 방법
+
+- 스코프빈도 프로토타입 빈과 마찬가지로 `Provider`, `ObjectFactory` 같은 DL 방식으로 사용해야한다.
+
+```java
+@Scope("session")
+public class LoginUser {
+  String loginId;
+  String name;
+  Date loginTime;
+}
+```
+
+```java
+public class LoginService {
+  @Autowired
+  Provider<LoginUser> logiUserProvider;
+  
+  public void login(Login login) {
+    LoginUser loginUser = logiUserProvider.get();
+    loginUser.setLoginId(...);
+    ...
+  }
+
+}
+```
+
+- 다른 방법으로 `@Scope` 애너테이션의 proxyMode 앨리먼트를 사용해서 프록시를 이용한 DI가 되도록 지정할 수 있다.
+- 스코프 프록시는 각 요청에 연결된 HTTP 세션 정보를 참고해서 사용자마다 다른 `LoginUser` 오브젝트를 사용하게 해준다.
+- `LoginService` 입장에서는 모두 같은 오브젝트를 사용하는것처럼 보이지만 실제로는 그 뒤에 사용자별로 만들어진 여러개의 `LoginUser`가 존재하고, 스코프 프록시는 실제 `LoginUser` 오브젝트로 클라이언트의 호출을 위임해주는 역할을 하는 방식이다.
+
+```java
+@Scope("session", proxyMode= ScopedProxyMode.TARGET_CLASS)
+public class LoginUser {
+  String loginId;
+  String name;
+  Date loginTime;
+}
+```
+
+```java
+public class LoginService {
+  @Autowired
+  LoginUser loginUser;
+  
+  public void login(Login login) {
+    loginUser.setLoginId(...);
+    ...
+  }
+
+}
+```
+
+- 프록시 방식의 DI를 적용하면 스코프 빈이지만 마치 싱글톤을 사용하는 것처럼 편하게 쓸 수 있지만 주입되는 빈의 스코프를 모르면 코드를 이해하기가 어려울 수 있다.
 
 #### 커스텀 스코프와 상태를 저장하는 빈 사용하기
 
-
+- 스프링이 기본적으로 제공하는 스코프 외에도 임의의 스코프를 만들어 사용할 수 있다. (참고)
 
 ## 기타 빈 설정 메타정보
 
