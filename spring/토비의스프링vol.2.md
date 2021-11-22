@@ -1937,17 +1937,137 @@ public class LoginService {
 
 ### 빈 이름
 
-#### XML 설정에서의 빈 식별자와 별칭
+- 일반적으로 클래스이름을 소문자로 바꿔서 빈의 이름으로 사용하는것이 관례이다.
+- `@Configuration` 애너테이션이 달린 클래스의 `@Bean` 메서드를 이용해 빈을 정의하는 경우에는 메서드 이름이 그대로 빈의 이름이 된다.
 
-#### 애너테이션에서의 빈 이름
+```java
+@Configuration
+public class Config {
+	@Bean
+    public UserDao userDao() {
+        ...
+    }
+}
+```
+
+- 아래와 같이 이름을 직접 지정해줄 수 있다
+
+```java
+@Component("myUserService")
+public class UserService {
+
+}
+
+
+@Named("myUserService") // JSR-330
+@Component
+public class UserService {
+
+}
+
+
+@Configuration
+public class Config {
+	@Bean(name="myUserDao")
+    public UserDao userDao() {
+        ...
+    }
+}
+```
+
+
 
 ### 빈 생명주기 메서드
 
 #### 초기화 메서드
 
+- 초기화 메서드는 빈 오브젝트가 생성되고 DI 작업까지 마친 다음에 실행되는 메서드를 말한다.
+
+`초기화 콜백 인터페이스`
+
+- `InitializingBean`의 `afterPropertiesSet()` 를 구현해서 빈을 작성하는 방법
+
+```java
+@Service
+public class LifeCycleTest implements InitializingBean {
+
+  @Override
+  public void afterPropertiesSet() throws Exception {
+    System.out.println("afterPropertiesSet");
+  }
+}
+```
+
+
+
+`@PostConstruct`
+
+- 직관적이기 때문에 가장 권장되는 방법. 
+
+```java
+@Service
+public class LifeCycleTest {
+
+  @PostConstruct
+  public void postConstruct() {
+    System.out.println("postConstruct");
+  }
+}
+```
+
+
+
+`Bean(init-method)`
+
+- `@Bean` 의 initMethod 프로퍼티를 이요하는 방법
+
+```java
+@Bean(initMethod = "init")
+public LifeCycleTest lifeCycleTest() {
+  return new LifeCycleTest();
+}
+
+public class LifeCycleTest {
+  public void init() {
+    System.out.println("init");
+  }
+}
+
+```
+
+
+
 #### 제거 메서드
 
+- 제거 메서드는 컨테이너가 종료될 때 호출돼서 빈이 사용한 리소스를 반환하거나 종료 전에 처리할 작업을 수행한다.
+
+`제거 콜백 인터페이스`
+
+- `DisposableBean` 인터페이스를 구현해서 `destory()`를 구현하는 방법
+
+`@Bean(destroyMethod)`
+
+- @Bean 애너테이션의 destroyMethod 프로퍼티를 사용하는 방법
+
+`@PreDestroy`
+
+- 컨테이너가 종료될 때 실행될 메서드에 `@PreDestroy`를 붙여주는 방법
+
 ### 팩토리 빈과 팩토리 메서드
+
+- 생성자 대신 오브젝트를 생성해주는 코드의 도움을 받아서 빈 오브젝트를 생성하는 것을 팩토리빈이라 한다.
+
+`FactoryBean 인터페이스`
+
+- new 키워드나 리플렉션 API를 이용해 생성자를 호출하는 방식으로 만들 수 없는 JDK 다이내믹 프록시를 빈으로 등록하기 위해 FactoryBean 인터페이스를 구현해서 다이내믹 프록시를 생성하는 getObject() 를 구현하는 방법으로 사용할 수 있다.
+
+`스태틱 팩토리 메서드`
+
+- 스태틱 팩토리 메서드는 클래스의 스태틱 메서드를 호출해서 인스턴스를 생성하는 방식
+
+`@Bean 메서드`
+
+- `@Bean` 메서드를 활용해 빈을 등록하는 방법도 일종의 팩토리 형태다. 
 
 
 
