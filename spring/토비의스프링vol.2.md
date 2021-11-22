@@ -2073,19 +2073,157 @@ public class LifeCycleTest {
 
 ## 스프링 3.1의 IoC 컨테이너와 DI
 
+- 3.1이 도입되면서 xml을 이용한 빈 설정보다 자바 코드를 활용한 빈 설정 기능이 대폭 확장되었다.
+
 ### 빈의 역할과 구분
+
+- 3.1 기능을 알기 전에 빈의 종류부터 간단하게 알아보기
 
 #### 빈의 종류
 
+`애플리케이션 로직 빈`
+
+- 애플리케이션 로직을 담고 있는 주요 클래스의 오브젝트 빈
+
+`애플리케이션 인프라 빈`
+
+- PlatformTransactionManager와 같은 애플리케이션 로직을 담당하진 않지만 기능을 제공해줘서 애플리케이션 로직 빈을 지원하는 빈
+
+`컨테이너 인프라 빈`
+
+- 스프링 컨테이너의 기능을 확장해서 빈의 등록과 생성, 관계설정, 초기화 등의 작업에 직접 참여하는 빈
+
+
+
+`BeanDefinition 인터페이스에 정의된 세가지 빈 타입`
+
+```java
+/**
+ * Role hint indicating that a {@code BeanDefinition} is a major part
+ * of the application. Typically corresponds to a user-defined bean.
+ */
+int ROLE_APPLICATION = 0;
+
+/**
+ * Role hint indicating that a {@code BeanDefinition} is a supporting
+ * part of some larger configuration, typically an outer
+ * {@link org.springframework.beans.factory.parsing.ComponentDefinition}.
+ * {@code SUPPORT} beans are considered important enough to be aware
+ * of when looking more closely at a particular
+ * {@link org.springframework.beans.factory.parsing.ComponentDefinition},
+ * but not when looking at the overall configuration of an application.
+ */
+int ROLE_SUPPORT = 1;
+
+/**
+ * Role hint indicating that a {@code BeanDefinition} is providing an
+ * entirely background role and has no relevance to the end-user. This hint is
+ * used when registering beans that are completely part of the internal workings
+ * of a {@link org.springframework.beans.factory.parsing.ComponentDefinition}.
+ */
+int ROLE_INFRASTRUCTURE = 2;
+```
+
+- `ROLE_APPLICATION` 은 애플리케이션 로직 빈, 애플리케이션 인프라 빈을 의미하고 `ROLE_INFRASTRUCTURE` 은 컨테이너 인프라 빈을 의미한다.
+
+
+
 #### 컨테이너 인프라 빈과 전용 태그
 
-#### 빈의 역할
+- 컨테이너 인프라빈은 스프링 컨테이너의 기본 기능을 확장하는 데 사용되고 주로 전용 태그를 통해 간접적으로 등록된다. `<bean>` 태그를 사용해도되지만 구별짓는게 좋다.
+- xml을 사용한다면 `<context:component-scan>` 을 통해 @Autowired, @PostConstruct뿐만아니라 모든 스테레오 타입들을 빈으로 등록해준다.
 
 ### 컨테이너 인프라 빈을 위한 자바 코드 메타정보
 
 #### IoC/DI 설정 방법의 발전
 
+`스프링1.x`
+
+- xml을 이용한 빈 등록 방법을 주로 사용했다.
+- `<bean>` 태그만 사용할 수 있었기 때문에 위에서 언급한 세가지 타입 빈이 모두 `<bean>` 태그로 등록됐다.
+- 애플리케이션의 구조가 커지면서 빈의 개수가 증가할수록 애플리케이션 구성을 파악하기 어려웠다.
+
+`스프링2.0`
+
+- 사용하기 까다로운 컨테이너 인프라 빈을 손쉽게 사용할 수 있도록 의미있는 스키마와 네임스페이스를 가진 전용 태그를 제공했다.
+  - `<aop:config>`, `<tx:advice>`
+
+`스프링2.5`
+
+- 빈 스캐너와 스테레오타입 애너테이션을 이용한 빈 자동등록 방식과 애너테이션 기반의 의존관계 설정 방법이 등장했다.
+- 애플리케이션 로직 빈은 `@Component` 를 사용하는 방식으로 빈으로 등록됐지만 컨테이너 인프라빈, 애플리케이션 인프라 빈은 아직 xml의 전용태그를 사용해서 등록됐다.
+
+`스프링 3.0`
+
+- 스프링 3.0부터 자바 코드를 이용해 빈 설정정보 또는 빈 설정 코드를 만드는 일이 가능해졌다.
+- 코드를 통해 애플리케이션 인프라 빈도 코드로 등록할 수 있게 됐다.
+- 하지만 여전히 컨테이너 인프라빈은 xml 전용 태그를 통해 등록하는 방식을 사용했는데 빈의 개수가 많고 어떤 빈 클래스를 설정해야하는지 정확히 알고 있어야 했기 때문이다.
+
+`스프링 3.1`
+
+- 3.1에서는 컨테이너 인프라 빈도 자바 코드로 등록할 수 있게 됐다. 
+
+
+
 #### 자바 코드를 이용한 컨테이너 인프라 빈 등록
+
+`@ComponentScan`
+
+- `@Configuration`이 붙은 클래스에 `@ComponentScan`을 추가하면 xml에서  `<context:component-scan>` 을 사용하는 것과 같은 스테레오타입 애너테이션이 붙은 빈들을 자동으로 등록해준다
+
+```java
+@Configuration
+@ComponentScan("com.example")
+public class AppConfig {
+
+}
+```
+
+-  `@ComponentScan`의 basePackageClasses 프로퍼티를 사용해서 특정 마커클래스나 인터페이스의 패키지가 빈 스캐닝의 기준 패키지가 되도록 지정할 수 있다.
+
+```java
+public interface ServiceMarker {
+
+}
+
+
+@Configuration
+@ComponentScan(basePackageClasses= ServiceMarker.class)
+public class AppConfig {
+
+}
+
+```
+
+- 스캔을 제외하고싶다면 excludes 앨리먼트를 사용하면 된다.
+- 더욱더 자세한 내용은 [docs](https://docs.spring.io/spring-framework/docs/current/javadoc-api/org/springframework/context/annotation/ComponentScan.html) 를 참고하자
+
+`@Import`
+
+- `@Import`는 다른 `@Configuration` 클래스를 빈 메타정보에 추가할 때 사용한다.
+
+```java
+@Configuration
+@Import(DataConfig.class)
+public class AppConfig {
+
+}
+
+@Configuration // 해당 클래스가 ComponentScan 대상이 아니라면..
+public class DataConfig {
+
+}
+```
+
+- 
+
+`@ImportResource`
+
+
+
+
+
+
 
 ### 웹 애플리케이션의 새로운 IoC 컨테이너 구성
 
