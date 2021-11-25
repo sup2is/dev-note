@@ -13,7 +13,7 @@
 ## IoC 컨테이너: 빈 팩토리와 애플리케이션 컨텍스트
 
 - 스프링에서는 오브젝트의 생성과 관계설정, 사용, 제거 등의 작업을 애플리케이션 코드 대신 독립된 컨테이너가 담당하는데 이 컨테이너를 IoC 컨테이너라고 한다.
-- 이 IoC 컨테이너는 애플리케이션 컨텍스트라고도 불리고 애플리케이션 컨텍스는 IoC와 DI를 위한 빈 팩토리 또는 그 이상의 기능을 가졌다고 보면 된다.
+- 이 IoC 컨테이너는 애플리케이션 컨텍스트라고도 불리고 애플리케이션 컨텍스트는 IoC와 DI를 위한 빈 팩토리 또는 그 이상의 기능을 가졌다고 보면 된다.
 - 스프링의 빈 팩토리와 애플리케이션 컨텍스트는 각각 기능을 대표하는 `BeanFactory`, `ApplicationContext` 로 정의되어 있다.
 
 
@@ -91,7 +91,7 @@ public interface ApplicationContext extends EnvironmentCapable, ListableBeanFact
 
 ### IoC 컨테이너를 이용해 애플리케이션 만들기
 
-- 가장 간단하게 IoC 컨테이너를 만드는 방법은 다음 과같이 ApplicationContext 구현 클래스의 인스턴스를 만들면 된다.
+- 가장 간단하게 IoC 컨테이너를 만드는 방법은 다음 과같이 `ApplicationContext` 구현 클래스의 인스턴스를 만들면 된다.
 
 ```java
 StaticApplicationContext ac = new StaticApplicationContext();
@@ -102,11 +102,11 @@ StaticApplicationContext ac = new StaticApplicationContext();
 #### POJO 클래스
 
 - 먼저 애플리케이션의 핵심 코드를 담고 있는 POJO 클래스를 준비해야한다.
-- 아래 Hello 클래스와 Printer 인터페이스, 그리고 Printer 인터페이스를 구현한 StringPrinter, ConsolePrinter 를 준비한다.
+- 아래 `Hello` 클래스와 `Printer` 인터페이스, 그리고 `Printer` 인터페이스를 구현한 `StringPrinter`, `ConsolePrinter` 를 준비한다.
 
 ![1](./images/toby-spring-vol2/1.png)
 
-- Hello 클래스는 Printer 인터페이스를 참조로 두고 있는 약결합상태
+- `Hello` 클래스는 `Printer` 인터페이스를 참조로 두고 있는 약결합상태
 - 각자 기능에 충실하게 독립적으로 설계된 POJO 클래스를 만들고, 결합도가 낮은 유연한 관계를 가질 수 있도록 인터페이스를 이용해 연결해주는 것 까지가 IoC 컨테이너가 사용할 POJO를 준비하는 첫 단계
 
 
@@ -325,7 +325,7 @@ Hello hello = ac.getBean("Hello", Hello.class);
 
 ```
 
-- `refresh()` 는 `AbstractApplicationContext` 에서 정의되어있고 일종의 퍼사드형태로 구현되어있다.
+- `refresh()` 는 `AbstractApplicationContext` 에서 정의되어있고 일종의 퍼사드 + 팩토리 메서드 형태로 구현되어있다.
 
 `AbstractApplicationContext.refresh()`
 
@@ -425,7 +425,7 @@ public class UserServiceTest {
 
 #### GenericXmlApplicationContext
 
-- `GenericXmlApplicationContext` 는 `XmlBeanDefinitionReader` 를 내장하고 있기 때문에 xml 파일을 읽어들이고 refresh() 를 통해 초기화해주는 역할을 한다.
+- `GenericXmlApplicationContext` 는 `XmlBeanDefinitionReader` 를 내장하고 있기 때문에 xml 파일을 읽어들이고 `refresh()` 를 통해 초기화해주는 역할을 한다.
 
 ```java
 //애플리케이션 컨텍스트 생성과 동시에 xml 파일을 읽어오고 초기화까지 수행한다.
@@ -534,7 +534,7 @@ public interface ApplicationContextFactory {
 
 ```
 
-- 독립적인 자바 프로그램으로 만들어진 웹애플리케이션에서는 main()메서드를 호출할 방법이 없었기 때문에 웹 환경에서 main() 메서드 대신 서블릿 컨테이너가 브라우저로 오는 HTTP 요청을 받아서 해당 요청에 매핑되어 있는 서블릿을 실행해주는 방법으로 동작했한다. 서블릿이 일종의 main() 메서드와 같은 역할을 하는 셈
+- 독립적인 자바 프로그램으로 만들어진 웹애플리케이션에서는 `main()`메서드를 호출할 방법이 없었기 때문에 웹 환경에서 `main()` 메서드 대신 서블릿 컨테이너가 브라우저로 오는 HTTP 요청을 받아서 해당 요청에 매핑되어 있는 서블릿을 실행해주는 방법으로 동작했한다. 서블릿이 일종의 `main()` 메서드와 같은 역할을 하는 셈
 
   
 
@@ -599,9 +599,9 @@ public class DispatcherServletAutoConfiguration {
 ### IoC 컨테이너 계층구조
 
 - 일반적인 경우라면 IoC 컨테이너는 애플리케이션마다 한개만 있으면 충분하다.
-- 하지만 트리 모양의 계층구조를 만들어야한다면 한 개 이상의  IoC 컨테이너를 만들어야한다.
+- 하지만 트리 모양의 계층구조를 만들어야한다면 한 개 이상의 IoC 컨테이너를 만들어야한다.
 
-#### 부모컨텍스트를 이용한 계층구조 효과
+#### 부모 컨텍스트를 이용한 계층구조 효과
 
 ![4](/Users/a10300/Choi/Git/dev-note/spring/images/toby-spring-vol2/4.png)
 
@@ -809,7 +809,7 @@ protected void prepareWebApplicationContext(ServletContext servletContext) {
 
 `servlet-name`
 
-- `DispatcherServlet` 에 의해 만들어지는 애플리케이션 컨텍스트는 모두 독립적인 네임스페이스를 갖는데 이때 `$servlet-name` + `-servlet` -> `spring-servlet`  이라는 이름으로 생성한다. 
+- `DispatcherServlet` 에 의해 만들어지는 애플리케이션 컨텍스트는 모두 독립적인 네임스페이스를 갖는데 이때 `servlet-name` + `-servlet` -> `spring-servlet`  이라는 이름으로 생성한다. 
 - 이 네임스페이스는 컨텍스트 파일 위치를 나타내기 때문에 중요하다. 위와 같이 설정했다면 디폴트 설정이 `WEB-INF/spring-servlet.xml` 이 된다.
 
 `load-on-startup`
@@ -854,7 +854,7 @@ protected void prepareWebApplicationContext(ServletContext servletContext) {
 | annotationMetadata         | 빈 클래스에 담긴 애너테이션과 그 애트리뷰트 값. 애너테이션을 이용하는 설정에서 활용한다. | 없음           |
 
 - 빈 설정 메타정보 항목 중에서 가장 중요한 것은 클래스의 이름
-- 추상 빈의로 정의하지 않는 한 클래스 정보는 반드시 필요하다.
+- 추상 빈으로 정의하지 않는 한 클래스 정보는 반드시 필요하다.
 - 컨테이너 빈의 메타정보가 등록될 때 꼭 필요한 것은 클래스 이름과 함께 빈의 아이디 또는 이름이다.
 
 
@@ -1347,7 +1347,7 @@ public class Config {
 
 ```
 
-- 다음과 같이 빈의 오브젝트만 생성해서 등록해주면 의존관계는 애너테이션 의존관계 설정용 후처리기에 의해 별도로 설정된다.
+- 다음과 같이 빈의 오브젝트만 생성해서 등록해주면 의존관계는 애너테이션 의존관계 설정용 후처리기 `AutowiredAnnotationBeanPostProcessor`에 의해 별도로 설정된다.
 
 `@Bean 메서드 호출`
 
@@ -1390,7 +1390,7 @@ public class Config {
 }
 ```
 
-- `@Bean` 이 붙은 메서드는 기본적으로 `@Autowired`가 붙은 메서드처럼 동작한다. 따라서 `hello()` 메서드가 실행될 때 printer 파라미터에는 Printer 타입의 빈이 자동으로 주입돼서 DI할 수 있다.
+- `@Bean` 이 붙은 메서드는 기본적으로 `@Autowired`가 붙은 메서드처럼 동작한다. 따라서 `hello()` 메서드가 실행될 때 printer 파라미터에는 `Printer` 타입의 빈이 자동으로 주입돼서 DI할 수 있다.
 
 #### 빈 의존관계 설정 전략
 
@@ -1445,7 +1445,7 @@ public class Config {
 #### PropertyEditor와 ConversionService
 
 - xml의 value 애트리뷰트나 `@Value` 앨리먼트는 모두 String 타입으로 취급이된다. 그 외의 타입인 경우라면 타입을 변경하는 과정이 필요하다.
-- 이를 위해 스프링은 두가지 종류의 타입 변환 서비스를 제공하는데 디폴트로 사용되는 타입 변환기는 PropertyEditor라는 java.beans의 인터페이스를 구현한 것이다.
+- 이를 위해 스프링은 두가지 종류의 타입 변환 서비스를 제공하는데 디폴트로 사용되는 타입 변환기는 `PropertyEditor`라는 java.beans의 인터페이스를 구현한 것이다.
 - 프로퍼티 에디터라고 불리는 오브젝트는 원래 GUI 개발환경에서 자바빈 오브젝트의 프로퍼티 값을 직접 넣어주기 위해 만들어졌는데 스프링은 프로퍼티 에디터의 개념을 xml 또는 `@Value` 애너테이션에 적용했다.
 - SpringBoot 2.x 기준으로 `@Value` 애너테이션은 `AutowiredAnnotationBeanPostProcessor` 에 의해 자동으로 주입된다. PropertyEditor는 안쓰는것 같다.. (뇌피셜)
 
@@ -1705,7 +1705,7 @@ public class NetworkConfig {
 #### ApplicationContext, BeanFactory
 
 - 스프링에서는 컨테이너 자신을 빈으로 등록해두고 필요하면 일반 빈에서 DI받아 사용할 수 있다
-- 스프링 컨테이너인 애플리케이션 컨텍스트는 ApplicationContext 인터페이스를 구현한 것이다.
+- 스프링 컨테이너인 애플리케이션 컨텍스트는 `ApplicationContext` 인터페이스를 구현한 것이다.
 - SpringBoot 2.x 기준으로 `AnnotationConfigServletWebServerApplicationContext`가 기본 구현체로 등록된다.
 - 모든 `ApplicationContext`는 `BeanFactory`의 하위 타입이므로 `BeanFactory`에서 제공하는 메서드를 사용할 수 있다.
 - 스프링의 내부 구조를 자세히 알고 특별한 기능을 이용해야 하는 경우엔  `BeanFactory`를 직접 DI 받아야하지만 일반적인 경우엔 `ApplicationContext`만 사용해도 충분하다.
