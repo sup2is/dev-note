@@ -1943,7 +1943,7 @@ public class LoginService {
 ```java
 @Configuration
 public class Config {
-	@Bean
+	  @Bean
     public UserDao userDao() {
         ...
     }
@@ -2019,7 +2019,7 @@ public class LifeCycleTest {
 
 `Bean(init-method)`
 
-- `@Bean` 의 initMethod 프로퍼티를 이요하는 방법
+- `@Bean` 의 initMethod 프로퍼티를 이용하는 방법
 
 ```java
 @Bean(initMethod = "init")
@@ -2047,7 +2047,7 @@ public class LifeCycleTest {
 
 `@Bean(destroyMethod)`
 
-- @Bean 애너테이션의 destroyMethod 프로퍼티를 사용하는 방법
+- `@Bean` 애너테이션의 destroyMethod 프로퍼티를 사용하는 방법
 
 `@PreDestroy`
 
@@ -2059,7 +2059,7 @@ public class LifeCycleTest {
 
 `FactoryBean 인터페이스`
 
-- new 키워드나 리플렉션 API를 이용해 생성자를 호출하는 방식으로 만들 수 없는 JDK 다이내믹 프록시를 빈으로 등록하기 위해 FactoryBean 인터페이스를 구현해서 다이내믹 프록시를 생성하는 getObject() 를 구현하는 방법으로 사용할 수 있다.
+- new 키워드나 리플렉션 API를 이용해 생성자를 호출하는 방식으로 만들 수 없는 JDK 다이내믹 프록시를 빈으로 등록하기 위해 `FactoryBean` 인터페이스를 구현해서 다이내믹 프록시를 생성하는 `getObject()` 를 구현하는 방법으로 사용할 수 있다.
 
 `스태틱 팩토리 메서드`
 
@@ -2087,7 +2087,7 @@ public class LifeCycleTest {
 
 `애플리케이션 인프라 빈`
 
-- PlatformTransactionManager와 같은 애플리케이션 로직을 담당하진 않지만 기능을 제공해줘서 애플리케이션 로직 빈을 지원하는 빈
+- `PlatformTransactionManager`와 같은 애플리케이션 로직을 담당하진 않지만 기능을 제공해줘서 애플리케이션 로직 빈을 지원하는 빈
 
 `컨테이너 인프라 빈`
 
@@ -2131,7 +2131,7 @@ int ROLE_INFRASTRUCTURE = 2;
 #### 컨테이너 인프라 빈과 전용 태그
 
 - 컨테이너 인프라빈은 스프링 컨테이너의 기본 기능을 확장하는 데 사용되고 주로 전용 태그를 통해 간접적으로 등록된다. `<bean>` 태그를 사용해도되지만 구별짓는게 좋다.
-- xml을 사용한다면 `<context:component-scan>` 을 통해 @Autowired, @PostConstruct뿐만아니라 모든 스테레오 타입들을 빈으로 등록해준다.
+- xml을 사용한다면 `<context:component-scan>` 을 통해 `@Autowired`, `@PostConstruct`뿐만아니라 모든 스테레오 타입들을 빈으로 등록해준다.
 
 ### 컨테이너 인프라 빈을 위한 자바 코드 메타정보
 
@@ -2215,7 +2215,7 @@ public class DataConfig {
 }
 ```
 
-- 
+
 
 `@ImportResource`
 
