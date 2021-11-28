@@ -538,7 +538,7 @@ public interface ApplicationContextFactory {
 
   
 
-![3](/Users/a10300/Choi/Git/dev-note/spring/images/toby-spring-vol2/3.png)
+![3](./images/toby-spring-vol2/3.png)
 
 - `WebApplicationContext` 는 설정 메타정보를 읽어들여서 초기화한다.
 - 서블릿 컨테이너는 클라이언트의 요청을 받아서 서블릿을 동작시키는 일을 맡는다.
@@ -603,7 +603,7 @@ public class DispatcherServletAutoConfiguration {
 
 #### 부모 컨텍스트를 이용한 계층구조 효과
 
-![4](/Users/a10300/Choi/Git/dev-note/spring/images/toby-spring-vol2/4.png)
+![4](./images/toby-spring-vol2/4.png)
 
 - 계층 구조 안의 모든 컨텍스트는 각자 독립적인 설정정보를 이용해 빈 오브젝트를 만들고 관리한다.
 
@@ -689,13 +689,13 @@ Hello hello = child.getBean("hello", Hello.class)
 - 스프링 애플리케이션에는 하나 이상의 프론트 컨트롤러 역할을 하는 서블릿이 등록될 수 있고 서블릿에는 각각 독립적으로 애플리케이션 컨텍스트가 만들어진다.
 - 루트 애플리케이션 컨텍스트에 공통적인 빈들을 설정해둔다면 서블릿별로 중복돼서 생성되는걸 방지할 수 있다.
 
-![5](/Users/a10300/Choi/Git/dev-note/spring/images/toby-spring-vol2/5.png)
+![5](./images/toby-spring-vol2/5.png)
 
 - 위 그림은 이론상으로는 가능하나 실제로 N개의 프론트 컨트롤러를 등록할 이유가 없기 때문에 일반적인 경우라면 1:1로 매칭한다.
 - 그럼에도 컨텍스트를 계층구조로 분리하는 이유는 웹 기술에 의존적인 부분과 그렇지 않은 부분을 구분하기 위해서 나눈다.
 - 스프링 서블릿을 사용하는 스프링의 웹 기술 외의 웹 기술을 고려하고 있다면 계층형태로 컨텍스트를 구분해두는것이 바람직하다.
 
-![6](/Users/a10300/Choi/Git/dev-note/spring/images/toby-spring-vol2/6.png)
+![6](./images/toby-spring-vol2/6.png)
 
 
 
@@ -824,7 +824,7 @@ protected void prepareWebApplicationContext(ServletContext servletContext) {
 - 컨테이너는 빈 설정 메타정보를 통해 빈의 클래스와 이름을 제공받고 파일이나 애너테이션같은 리소스로부터 전용 리더를 통해 `BeanDefinition` 타입의 오브젝트로 변환된다.
 - 적절한 리더나 `BeanDefinition` 생성기를 사용할 수만 있다면 빈 설정 메타정보를 담은 소스는 어떤 식으로 만들어도 상관 없다.
 
-![7](/Users/a10300/Choi/Git/dev-note/spring/images/toby-spring-vol2/7.png)
+![7](./images/toby-spring-vol2/7.png)
 
 ### 빈 설정 메타정보
 
