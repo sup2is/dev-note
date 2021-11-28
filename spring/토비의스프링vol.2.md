@@ -538,7 +538,7 @@ public interface ApplicationContextFactory {
 
   
 
-![3](./images/toby-spring-vol2/3.png)
+![3](/Users/a10300/Choi/Git/dev-note/spring/images/toby-spring-vol2/3.png)
 
 - `WebApplicationContext` 는 설정 메타정보를 읽어들여서 초기화한다.
 - 서블릿 컨테이너는 클라이언트의 요청을 받아서 서블릿을 동작시키는 일을 맡는다.
@@ -603,7 +603,7 @@ public class DispatcherServletAutoConfiguration {
 
 #### 부모 컨텍스트를 이용한 계층구조 효과
 
-![4](./images/toby-spring-vol2/4.png)
+![4](/Users/a10300/Choi/Git/dev-note/spring/images/toby-spring-vol2/4.png)
 
 - 계층 구조 안의 모든 컨텍스트는 각자 독립적인 설정정보를 이용해 빈 오브젝트를 만들고 관리한다.
 
@@ -689,13 +689,13 @@ Hello hello = child.getBean("hello", Hello.class)
 - 스프링 애플리케이션에는 하나 이상의 프론트 컨트롤러 역할을 하는 서블릿이 등록될 수 있고 서블릿에는 각각 독립적으로 애플리케이션 컨텍스트가 만들어진다.
 - 루트 애플리케이션 컨텍스트에 공통적인 빈들을 설정해둔다면 서블릿별로 중복돼서 생성되는걸 방지할 수 있다.
 
-![5](./images/toby-spring-vol2/5.png)
+![5](/Users/a10300/Choi/Git/dev-note/spring/images/toby-spring-vol2/5.png)
 
 - 위 그림은 이론상으로는 가능하나 실제로 N개의 프론트 컨트롤러를 등록할 이유가 없기 때문에 일반적인 경우라면 1:1로 매칭한다.
 - 그럼에도 컨텍스트를 계층구조로 분리하는 이유는 웹 기술에 의존적인 부분과 그렇지 않은 부분을 구분하기 위해서 나눈다.
 - 스프링 서블릿을 사용하는 스프링의 웹 기술 외의 웹 기술을 고려하고 있다면 계층형태로 컨텍스트를 구분해두는것이 바람직하다.
 
-![6](./images/toby-spring-vol2/6.png)
+![6](/Users/a10300/Choi/Git/dev-note/spring/images/toby-spring-vol2/6.png)
 
 
 
@@ -824,7 +824,7 @@ protected void prepareWebApplicationContext(ServletContext servletContext) {
 - 컨테이너는 빈 설정 메타정보를 통해 빈의 클래스와 이름을 제공받고 파일이나 애너테이션같은 리소스로부터 전용 리더를 통해 `BeanDefinition` 타입의 오브젝트로 변환된다.
 - 적절한 리더나 `BeanDefinition` 생성기를 사용할 수만 있다면 빈 설정 메타정보를 담은 소스는 어떤 식으로 만들어도 상관 없다.
 
-![7](./images/toby-spring-vol2/7.png)
+![7](/Users/a10300/Choi/Git/dev-note/spring/images/toby-spring-vol2/7.png)
 
 ### 빈 설정 메타정보
 
@@ -2399,9 +2399,86 @@ mail.from=mailer@mail.com
 
 - 스프링 AOP를 사용한다면 어떤 개발 방식을 적용하든 모두 프록시 방식의 AOP가 적용된다.
 - 스프링의 프록시 개념은 데코레이터 패턴에서 나온것이고, 동작원리는 JDK 다이내믹 프록시와 DI를 이용한다.
-- 이전에 살펴봤던 것처럼 `Client` -> `Proxy` -> `Target`
+- `Client` -> `Proxy` -> `Target` 순서로 의존관계를 맺게 하면 `Proxy`가 `Client`와 `Target` 호출 과정에 끼어들어서 부가기능을 제공할 수 있게 된다.
+- `Proxy`도 빈이 되고 `Target`도 빈이되면 같은 타입이라는 가정 하에 `@Autowired` 를 사용할 수 없게 되지만 스프링은 자동 프록시 생성기를 이용해서 컨테이너 초기화중에 만들어진 빈을 바꿔지기해서 프록시빈을 자동으로 등록해준다.
+- 빈을 선택하는 로직은 포인트컷을 이용하면 되고 xml이나 애너테이션을 통해 이미 정의된 빈의 의존관계를 바꿔치기 하는 것은 빈 후처리기를 사용한다.
+- 자동 프록시 생성기가 만들어주는 프록시는 새로운 빈으로 추가되는 것이 아니라 AOP 타깃 빈을 대체한다. 
+
+![8](./images/toby-spring-vol2/8.png)
+
+- 등록된 빈의 관점으로 볼때 자동 프록시 생성기 방식에서는 `Target` 오브젝트가 빈으로 직접 노출되지 않는다.
+- AOP 자동 프록시 생성기방식의 특징들
+
+`AOP 적용은 @Autowired의 타입에 의한 의존관계 설정에 문제를 일으키지 않는다.`
+
+- 직접 타겟 오브젝트의 인터페이스를 구현한 프록시를 적용한 경우에는 클라이언트에서 `@Autowired`를 사용할 수 없지만 자동 프록시 생성 AOP 방식에는 `@Autowired`를 사용할 수 있다.
+
+`AOP 적용은 다른 빈들이 Target 오브젝트에 직접 의존하지 못하게 한다.`
+
+- 타겟 오브젝트가 빈으로 등록되지 않기 때문에 클라이언트에서 아래와 같이 타겟 오브젝트에 직접적인 접근이 불가능해진다.
+
+```java
+public class Client {
+	@Autowired Target target;
+}
+```
+
+- 가능하다면 인터페이스를 사용해서 DI 관계를 유연하게 설정해줘야한다.
+
+
 
 #### 프록시의 종류
+
+- 스프링에서는 클래스를 직접 참조하면서 강한 의존관계를 맺고 있더라도 cglib 라이브러리를 통해서 프록시를 적용할 수 있다.
+- 타깃 클래스를 상속한 서브클래스를 만들어서 이를 프록시를 활용하는 방식이다.
+- 이 방식은 final 클래스와 final 메서드는 상속이 불가능하다는 제약과 같은 클래스 타입의 빈이 두 개 만들어지기 때문에 생성자가 두번 호출된다. 추가로 cglib이라는 바이트코드 생성 라이브러리가 필요하다. 
+- Spring 3.2 에서 cglib은 스프링 프로젝트에 흡수되었다. 따라서 별도의 라이브러리 설정은 필요하지 않다. [https://github.com/spring-projects/spring-framework/commit/92500ab9023ae2afd096be9c014423fcd4180c55#diff-dd90aa36a7221a652e04631ac19dcb6693a9c841e43a90d36cc3caa51121630e](https://github.com/spring-projects/spring-framework/commit/92500ab9023ae2afd096be9c014423fcd4180c55#diff-dd90aa36a7221a652e04631ac19dcb6693a9c841e43a90d36cc3caa51121630e)
+- 스프링은 타깃 오브젝트에 인터페이스가 있다면 그 인터페이스를 구현한 JDK 다이내믹 프록시를 만들어주지만, 인터페이스가 없다면 cglib을 이용한 클래스 프록시를 만든다.
+- 설정을 통해 강제로 프록시 클래스를 만들게 할 수도 있다.
+
+```java
+@EnableAspectJAutoProxy(proxyTargetClass = true) // proxyTargetClass 를 true로 설정
+```
+
+- 위와 같이 적용한다면 인터페이스 존재와 상관없이 클래스 프록시가 만들어진다.
+- Spring Boot 2.x 기준으로 proxyTargetClass 설정은 기본값이 true로 되어있다.
+
+```java
+@Configuration(proxyBeanMethods = false)
+@ConditionalOnProperty(prefix = "spring.aop", name = "auto", havingValue = "true", matchIfMissing = true)
+public class AopAutoConfiguration {
+
+	@Configuration(proxyBeanMethods = false)
+	@ConditionalOnClass(Advice.class)
+	static class AspectJAutoProxyingConfiguration {
+
+		@Configuration(proxyBeanMethods = false)
+		@EnableAspectJAutoProxy(proxyTargetClass = false)
+		@ConditionalOnProperty(prefix = "spring.aop", name = "proxy-target-class", havingValue = "false")
+		static class JdkDynamicAutoProxyConfiguration {
+
+		}
+
+		@Configuration(proxyBeanMethods = false)
+		@EnableAspectJAutoProxy(proxyTargetClass = true)
+		@ConditionalOnProperty(prefix = "spring.aop", name = "proxy-target-class", havingValue = "true",
+				matchIfMissing = true)
+		static class CglibAutoProxyConfiguration {
+
+		}
+
+	}
+  
+  ...
+    
+}
+```
+
+- `@ConditionalOnProperty` 을 확인해보면 `spring.aop.proxy-target-class` 값이 true인 경우 `CglibAutoProxyConfiguration` 을 빈으로 등록하는데 
+
+
+
+
 
 ### @AspectJ AOP
 
