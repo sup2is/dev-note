@@ -2505,7 +2505,7 @@ public class SimpleMonitoringAspect {
 ```
 
 - 이 클래스를 애스펙트로 사용하려면 빈으로 등록해야한다.
-- @Aspect 클래스에는 포인트컷과 어드바이스를 정의할 수 있다. 두가지 모두 애너테이션이 달린 메서드를 사용해 정의한다.
+- `@Aspect` 클래스에는 포인트컷과 어드바이스를 정의할 수 있다. 두가지 모두 애너테이션이 달린 메서드를 사용해 정의한다.
 
 `포인트컷: @Pointcut`
 
@@ -2549,7 +2549,11 @@ public Object around(ProceedingJoinPoint pjp) throws Throwable {
 }
 ```
 
-- @Aspect 클래스에는 일반 메서드, 일반 필드도 정의할 수 있고 상속과 인터페이스 구현 또는 DI를 통한 다른 빈의 참조도 모두 가능하다.
+- `@Aspect` 클래스에는 일반 메서드, 일반 필드도 정의할 수 있고 상속과 인터페이스 구현 또는 DI를 통한 다른 빈의 참조도 모두 가능하다.
+
+
+
+
 
 
 
@@ -2630,12 +2634,144 @@ args(String, *)
 `@target, @within`
 
 - `@target` 지시자는 타깃 오브젝트에 특정 애너테이션이 부여된것을 선정한다.
-- `@within` 은 타깃 오브젝트의 클래스에 특정 애너테이션이 부여된 것을 찾는다.
-- 
+- `@within` 도 타깃 오브젝트의 클래스에 특정 애너테이션이 부여된 것을 찾지만 선택될 조인 포인트인 메서드는 타깃 클래스에서 선언되어 있어야 한다. 슈퍼클래스의 메서드는 해당되지 않는다.
+
+```java
+@target(org.springframework.stereotype.Controller)
+```
+
+`@args`
+
+- `args` 와 비슷하지만 파라미터 오브젝트에 지정된 애너테이션이 부여되어 있는 경우 선정 대상이 된다
+
+```java
+@args(org.springframework.web.bind.annotation.RequestParam)
+```
+
+`@annotation`
+
+- 조인 포인트 메서드에 특정 애너테이션이 있는 것만 선정하는 지시자
+
+```java
+@annotation(org.springframework.transaction.annotation.Transactional)
+```
+
+`bean`
+
+- 빈 이름 또는 아이디를 이용해서 선정하는 지시자
+- 와일드카드를 사용할 수 있다.
+
+```java
+bean(*Service) //Service로 끝나는 모든 빈 이름을 가진 빈 오브젝트를 선정
+```
+
+
+
+
+
+----
+
+
+
+- 조건이 복잡한 포인트컷을 만들 때는 하나의 표현식에 모든 내용을 담기보다는 의미있는 작은 단위로 분리해서 저의한 후에 이를 조합하는 것이 좋다.
+- 포인트컷 표현식은 논리연산 기호를 이용해서 여러 개의 포인트컷 지시자 또는 포인트컷 자체를 조합할 수 있다. 
+
+`&&`
+
+- 두 개의 포인트컷 지시자를 AND 조건으로 결합한다.
+
+```java
+within(com.example.service..*) && args(java.io.Serializable)
+```
+
+- 아래와 같이 포인트컷 자체를 조합하는 조건에 추가할 수 있다.
+
+```java
+serviceLayer() && args(java.io.Serializable)
+```
+
+
+
+`||, !`
+
+-  `||` 는 OR조건이고 `!` 는 NOT 조건이다.
+
+```java
+daoLater() || within(com.example.dao..*)
+  
+daoLater() && !within(com.example.exclude.dao..*)
+```
+
+
 
 
 
 #### 어드바이스 메서드와 애너테이션
+
+- 어드바이스는 다섯 종류가있다. 메서드 실행 과정의 일부분에만 적용할 수 있도록 만들어졌다.
+
+![9](./images/toby-spring-vol2/9.png)
+
+- 어드바이스가 프록시 안에서 어느 단계에 적용되느냐에 따라 어드바이스의 종류가 달라진다.
+- 어드바이스를 정의하는 메서드는 어드바이스 애너테이션과 어드바이스에 적용되는 포인트컷 그리고 메서드 코드로 구성된다.
+
+```java
+@Before("daoLayer()")
+public void logDaoAccess(JoinPoint jp) {
+	...
+}
+```
+
+
+
+`@Around`
+
+- `@Around`는 프록시를 통해서 타깃 오브젝트의 메서드가 호출되는 전 과정을 모두 담을 수 있는 어드바이스다.
+- 인터페이스 구현 방식의 AOP에서 어드바이스를 만들 때 사용했던 `MethodInterceptor` 인터페이스와 유사하게 동작한다.
+- 파라미터는 `ProceedingJoinPoint`를 받는데 이 오브젝트를 이용해 타깃 오브젝트의 메서드를 실행하고 그 결과를 받을 수 있다.
+- 어드바이스중 가장 강력한 어드바이스이다. 타깃 오브젝트의 메서드를 여러번 호출하거나, 호출 파라미터를 바꿔치기하는 등등의 다양한 동작을 수행할 수 있다.
+
+```java
+@Around("myPointcut()")
+public Object doNothing(ProceedingJoinPoint pjp) throws Throwable {
+	Object ret = pjp.proceed();
+  return ret;
+}
+```
+
+
+
+`@Before`
+
+- `@Before`는 타깃 오브젝트의 메서드가 실행되기 전에 사용되는 어드바이스다.
+- `@Before`를 사용해서 타깃 오브젝트 메서드를 호출하는 방식을 제어하거나 파라미터를 변경할 수 없다.
+- `@Before`는 `JoinPoint` 타입의 파라미터를 사용할 수 있다. 이 `JointPoint`는 `ProceedingJoinPoint` 의 상위 타입인데 `proceed()` 메서드가 없다.
+
+```java
+@Before("myPointcut()")
+public void logJoinPoint(JoinPoint) {
+  System.out.println(jp.getSignature().getDeclaringTypeName());
+  System.out.println(jp.getSignature().getName());
+}
+
+```
+
+
+
+`@AfterReturning`
+
+- `@AfterReturning`은 타깃 오브젝트의 메서드가 실행을 마친 뒤에 실행되는 어드바이스이다.
+- 예외가 발생하지 않고 정상적으로 종료한 경우에만 해당된다.
+- 타깃 오브젝트의 메서드가 정상 종료된 후에 호출되기 때문에 메서드의 리턴 값을 참조할 수 있다.
+
+```java
+@AfterReturning(pointcut="myPointcut()", returning="ret")
+public void logReturnValue(Object ret) {
+  ...
+}
+```
+
+
 
 #### 파라미터 선언과 바인딩
 
