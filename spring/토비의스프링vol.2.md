@@ -2474,19 +2474,166 @@ public class AopAutoConfiguration {
 }
 ```
 
-- `@ConditionalOnProperty` 을 확인해보면 `spring.aop.proxy-target-class` 값이 true인 경우 `CglibAutoProxyConfiguration` 을 빈으로 등록하는데 
-
-
-
-
+- `@ConditionalOnProperty` 을 확인해보면 `spring.aop.proxy-target-class` 값이 true인 경우 `CglibAutoProxyConfiguration` 을 빈으로 등록한다. [https://github.com/spring-projects/spring-boot/blob/main/spring-boot-project/spring-boot-autoconfigure/src/main/resources/META-INF/additional-spring-configuration-metadata.json](https://github.com/spring-projects/spring-boot/blob/main/spring-boot-project/spring-boot-autoconfigure/src/main/resources/META-INF/additional-spring-configuration-metadata.json)
+-  `spring.aop.proxy-target-class`을 재정의해서 설정을 변경할 수 있다.
 
 ### @AspectJ AOP
 
+- 애스펙트는 애플리케이션의 도메인 로직을 담은 핵심 기능은 아니지만 많은 오브젝트에 걸쳐서 필요한 부가기능을 추상화해놓은 것이다.
+- 스프링의 어드바이저는 하나의 포인트컷과 하나의 어드바이스로 정의된 가장 단순한 형태의 애스펙트다.
+- 독립적인 빈의 조합으로 만들어지는 어드바이저와 달리 애스펙트는 다양한 조합을 갖는 포인트컷과 어드바이스를 하나의 모듈로 정의할 수 있다.
+
 #### @AspectJ를 이용하기 위한 준비사항
 
-#### @AspectJ 클래스와 구성요소
+- xml방식인 경우 아래와 같이 정의해두면 클래스레벨에 `@Aspect` 가 붙은 것을 모두 애스펙트로 자동 등록해준다.
+
+```xml
+<aop:aspectj-autoproxy/>
+```
+
+- 애너테이션방식인 경우 위에서 확인했던 `@EnableAspectJAutoProxy` 를 사용하면 된다.
+
+#### @Aspect 클래스와 구성요소
+
+- 애스펙트는 자바 클래스에 `@Aspect`라는 애너테이션을 붙여서 만든다.
+
+```java
+@Aspejct
+public class SimpleMonitoringAspect {
+	...
+}
+```
+
+- 이 클래스를 애스펙트로 사용하려면 빈으로 등록해야한다.
+- @Aspect 클래스에는 포인트컷과 어드바이스를 정의할 수 있다. 두가지 모두 애너테이션이 달린 메서드를 사용해 정의한다.
+
+`포인트컷: @Pointcut`
+
+- 메서드에 `@Pointcut`을 사용해 포인트컷 표현식을 넣어서 정의한다.
+- 하나의 `@Aspect` 클래스 안에 여러 개의 포인트컷을 선언할 수도 있다.
+
+```java
+@Pointcut("execution(* hello(..))")
+private void all() { }
+```
+
+
+
+`어드바이스: @Before, @AfterReturning, @AfterThrowing, @After, @Around`
+
+- 어드바이스도 포인트컷과 마찬가지로 애너테이션이 붙은 메서드를 이용해 정의한다.
+- @AspectJ에서는 다섯가지 종류의 어드바이스를 사용할 수 있다.
+
+- 어드바이스의 애너테이션에는 이에 적용할 포인트컷을 명시해야한다.
+- 애스펙트에서는 어드바이저라는 이름을 따로 지정하지 않고 어드바이스에 포인트컷을 직접 지정해줄 수 있다.
+
+```java
+@Around("all()")
+public Object around(ProceedingJoinPoint pjp) throws Throwable {
+	...
+	Object ret = pjp.proceed();
+  ...
+	return ret;
+}
+```
+
+- 위 방법 대신 어드바이스 애너테이션에 직접 포인트컷 표현식을 넣어서 적용하는 방법도 있다. 이런 경우엔 포인트컷 이름이 없기 때문에 다른 어드바이스에서 참조될 수 없다.
+
+```java
+@Around("execution(* hello(..))")
+public Object around(ProceedingJoinPoint pjp) throws Throwable {
+	...
+	Object ret = pjp.proceed();
+  ...
+	return ret;
+}
+```
+
+- @Aspect 클래스에는 일반 메서드, 일반 필드도 정의할 수 있고 상속과 인터페이스 구현 또는 DI를 통한 다른 빈의 참조도 모두 가능하다.
+
+
 
 #### 포인트컷 메서드와 애너테이션
+
+- 포인트컷 메서드에는 구현 코드는 필요 없고 항상 void 형이어야 한다.
+
+```java
+@Pointcut("execution(* hello(..))")
+private void all() { }
+```
+
+- 포인트컷은 적용할 조인 포인트를 선별하는 것이다. 여기서 조인 포인트란 어드바이스로 정의된 부가기능을 적용할 수 있는 위치다. 스프링에서는 프록시 방식의 AOP를 사용하기 떄문에 조인 포인트는 메서드 실행 지점뿐이다. 조인포인트 = 메서드
+- 포인트컷 표현식은 여러 종류의 포인트컷 지시자를 이용해 정의할 수 있다.
+
+`execution()`
+
+- 가장 대표적인 포인트컷 지시자.
+- 접근제한자, 리턴 타입, 타입, 메서드, 파라미터 타입, 예외 타입 조건을 조합해서 메서드 단위까지 선택가능한 가장 정교한 포인트컷을 만들 수 있다.
+
+`within()`
+
+- `within()`은 타입 패턴만을 이용해 조인 포인트 메서드를 선택한다. 
+- 타깃 클래스의 타입에만 적용되며 조인 포인트는 타깃 클래스 안에서 선언된 것만 선정된다.
+- 선택된 타입의 모든 메서드가 AOP의 대상이 된다.
+- 패턴을 이용할 수 있기 때문에 패키지나 모듈이 잘 설계 되어 있다면 계층별 포인트컷을 만들어 사용할 수 있다.
+
+```java
+@Pointcut(within("com.example.dao..*"))
+private void daoLayer() {}
+
+@Pointcut(within("com.example.service..*"))
+private void serviceLayer() {}
+
+@Pointcut(within("com.example.web..*"))
+private void webLayer() {}
+```
+
+`this, target`
+
+- `this`와 `target`은 하나의 타입을 지정하는 방식이다.
+- `this`는 프록시 오브젝트의 타입을 비교해서 선정하고, `target`은 타깃 오브젝트의 타입을 비교한다.
+
+```java
+public class HelloImpl implements Hello {
+...
+}
+
+// 프록시 빈 오브젝트의 타입을 지정하는 것이므로 HelloImpl은 포인트컷의 대상이됨
+this("com.example.Hello")
+  
+// 프록시 빈 오브젝트는 타깃 오브젝트(HelloImpl) 의 타입이 아니므로 포인트컷 대상이 아님
+this("com.example.HelloImpl")
+
+```
+
+
+
+`args`
+
+- `args` 지시자는 메서드의 파라미터 타입만을 이용해 포인트컷을 설정할 때 사용한다.
+- `args` 는 주로 다른 지시자와 함께 사용해서 파라미터 타입 조건을 추가하기도 한다.
+
+```java
+//파라미터가 없는 메서드를 선별
+args()
+
+//파라미터가 하나이고 String인 메서드를 선별
+args(String)
+
+//첫번째 파라미터가 String이고 파라미터의 개수는 하나 이상인 메서드를 선별
+args(String,...)
+
+//첫번째 파라미터가 String이고 파라미터가 n개인 메서드를 선별
+args(String, *)
+```
+
+`@target, @within`
+
+- `@target` 지시자는 타깃 오브젝트에 특정 애너테이션이 부여된것을 선정한다.
+- `@within` 은 타깃 오브젝트의 클래스에 특정 애너테이션이 부여된 것을 찾는다.
+- 
+
+
 
 #### 어드바이스 메서드와 애너테이션
 
