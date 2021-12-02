@@ -2773,19 +2773,88 @@ public void logReturnValue(Object ret) {
 
 
 
+`@AfterThrowing`
+
+- `@AfterThrowing`은 타깃 오브젝트의 메서드를 호출했을 때 예외가 발생하면 실행되는 어드바이스다.
+- throwing 앨리먼트를 이용해서 예외를 전달받을 메서드 파라미터 이름을 지정할 수 있다.
+
+```java
+@AfterThrowing(pointcut="myPointcut()", throwing="ex")
+public void logDAException(DataAccessException ex) {
+  ...
+}
+```
+
+
+
+`@After`
+
+- `@After`는 메서드 실행이 정상 종료됐을때, 예외가 발생했을 때 모두 실행되는 어드바이스다.
+- finally 키워드와 비슷하지만 리턴값이나 예외를 직접 전달받을 수 없다
+
+
+
 #### 파라미터 선언과 바인딩
+
+- 어드바이스 메서드에는 `JoinPoint`, `ProceedingJoinPoint`를 기본적으로 사용할 수 있다. 또 종류에 따라 returning이나 throwing을 이용해서 선언된 리턴값 또는 예외 파라미터를 이용할 수 있다.
+- 포인트컷 표현식의 타입 정보를 파라미터와 연결하는 방법도 있다.
+
+```java
+@Before("@target(com.example.foo.bar.BatchJob)")
+public void beforeBatch() {...}
+
+
+@Before("@target(batchJob)")
+public void beforeBatch(BatchJob batchJob) {...}
+
+```
+
+
 
 #### @AspectJ를 이용한 AOP의 학습 방법과 적용 전략
 
-
+- 복잡한 문법, 포인트컷 표현식 등등으로 사용법이 복잡한편인데 AOP를 적용할때는 항상 단순하고 명료하게 접근해야 한다.
+- 러닝커브가 있기때문에 팀내부에서 단계를 거쳐 점진적으로 도입하는 것도 중요하다.
+- 객체지향적인 방법으로 해결할 수 있는 것을 불필요하게 AOP를 사용하지 말아야한다.
+- AOP는 기본적으로 애플리케이션의 핵심 로직이 아니라 부가적인 기능을 적용할 떄 사용하는 것이다.
+- AOP도 POJO기반이기 때문에 충분한 테스트를 작성해야한다.
+- 이것 외에도 다양한 AOP 고급 적용기술이 있기 때문에 필요한 경우 레퍼런스를 확인하면된다.
 
 ## AspectJ와 @Configurable
 
 ### AspectJ AOP
 
+- AspectJ는 타깃 오브젝트 자체의 코드를 바꿈으로써 애스펙트를 적용하기때문에 프록시를 사용하지 않는다.
+- AspectJ가 바이트코드 조작을 필요로 하는 이유는 프록시 방식으로는 어드바이스를 적용할 수 없는 조인 포인트와 포인트컷 지시자를 지원하기 위해서이다.
+- AspectJ의 조인 포인트는 메서드 실행 지점 외에도 필드 읽기와 쓰기, 스태틱 초기화, 인스턴스 생성, 인스턴스 초기화 등도 지원한다.
+- 자바의 프록시 기법을 이용해서는 특정 오브젝트가 생성된 시점이나 특정 필드를 읽을 지점에 어드바이스를 추가할 방법이 없다.
+- 일반적인 경우에는 메서드 실행 지점을 조인포인트로 사용해서 대부분의 요구사항을 스프링의 프록시 방식 AOP로 해결할 수 있지만 위 문제를 해결하기 위해 AspectJ AOP를 적용할 수 있다.
+- AspectJ AOP는 방대한 주제이므로 자세한 설명은 생략한다...
+
 ### 빈이 아닌 오브젝트에 DI 적용하기
 
+- 스프링 빈이 아니더라도 수정자 메서드를 가진 임의의 오브젝트에는 스프링의 API의 도움을 받아서 간단히 DI를 할 수 있지만 문제는 오브젝트가 생성되는 시점은 스프링 AOP에서 지원하는 조인포인트가 아니다.
+- 스프링이 직접 제공하는 AspectJ AOP 적용 기능을 활용해서 위 문제를 해결할 수 있다.
+
 #### DI 애스펙트
+
+- 스프링은 AspectJ 기술로 만들어진 `DependencyInjectionAspect` 라는 애스펙트를 제공한다.
+- 실제 내부는 AspectJ 언어로 만들어져 있기 때문에 복잡하지만 내부에는 아래와 같은 코드가 있다.
+
+```
+public pointcut beanConstruction(Object bean) :
+	initilization(ConfigurableObject+.new(..)) && this(bean);
+
+declare parents: @Configurable * impletments ConfigurableObject;
+
+after(Object bean) returning :
+	beanConstruction(bean) && postConstructionCondition() && inConfigurableBean() {
+		configureBean(bean);
+	}
+```
+
+- 결론적으로 @Configurable이 붙은 오브젝트가 생성되는 조인 포인트에 이 어드바이스가 실행되도록 되어 있다.
+- DependencyInjectionAspect 애스펙트가 적용되면 @Configurable이 붙은 도메인 오브젝트가 어디서든 생성될 때마다 이 어드바이스가 적용되어 자동DI 작업이 일어난다. 또 빈의 초기화 메서드가 정의되어 있다면 실행된다. DI 방식은 도메인 오브젝트를 빈으로 선언해서 명시적으로 지정할 수도 있고 자동와이어링 방식도 이용할 수 있다.
 
 #### @Configurable
 
