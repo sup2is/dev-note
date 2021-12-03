@@ -2854,11 +2854,51 @@ after(Object bean) returning :
 ```
 
 - 결론적으로 @Configurable이 붙은 오브젝트가 생성되는 조인 포인트에 이 어드바이스가 실행되도록 되어 있다.
-- DependencyInjectionAspect 애스펙트가 적용되면 @Configurable이 붙은 도메인 오브젝트가 어디서든 생성될 때마다 이 어드바이스가 적용되어 자동DI 작업이 일어난다. 또 빈의 초기화 메서드가 정의되어 있다면 실행된다. DI 방식은 도메인 오브젝트를 빈으로 선언해서 명시적으로 지정할 수도 있고 자동와이어링 방식도 이용할 수 있다.
+- `DependencyInjectionAspect` 애스펙트가 적용되면 `@Configurable`이 붙은 도메인 오브젝트가 어디서든 생성될 때마다 이 어드바이스가 적용되어 자동DI 작업이 일어난다. 또 빈의 초기화 메서드가 정의되어 있다면 실행된다. DI 방식은 도메인 오브젝트를 빈으로 선언해서 명시적으로 지정할 수도 있고 자동와이어링 방식도 이용할 수 있다.
 
 #### @Configurable
 
+- 다음과 같이 User 도메인 안에 비지니스 로직을 넣기 위해 스프링 빈을 DI받아야한다면 아래와 같이 작성할 수 있다.
+
+```java
+public class User {
+
+    private MyService myService;
+
+    public void doSomething() {
+        myService.something();
+    }
+}
+```
+
+- User는 스프링의 빈이 아니기 때문에 new 키워드를 사용해서 직접생성하기 때문에 별도의 설정이 없으면 myService는 null을 리턴하지만 DI 애스펙트를 적용하면 필요한 빈이 주입된다.
+
+```java
+@Configurable
+public class User {
+	...
+}
+```
+
+- xml 방식, setter 방식이 있지만 가장 간단한 애너테이션 의존 방식을 사용하면 필드주입으로 간단하게 DI를 적용할 수 있다.
+
+```java
+@Configurable
+public class User {
+
+    private MyService myService;
+
+    public void doSomething() {
+        myService.something();
+    }
+}
+```
+
+
+
 #### 로드타임 위버와 자바 에이전트
+
+- 추가적으로 DI 애스펙트를 적용하기 위한 작업이 필요하다. 먼저 AspectJ AOP가 동작할 수 있는 환경설정과 DI 애스펙트 자체를 등록해서 @Configurable 오브젝트에 어드바이스가 적용되게 해야 한다.
 
 ## 로드타입 위버(LTW)
 
