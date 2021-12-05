@@ -2400,7 +2400,7 @@ mail.from=mailer@mail.com
 - 스프링 AOP를 사용한다면 어떤 개발 방식을 적용하든 모두 프록시 방식의 AOP가 적용된다.
 - 스프링의 프록시 개념은 데코레이터 패턴에서 나온것이고, 동작원리는 JDK 다이내믹 프록시와 DI를 이용한다.
 - `Client` -> `Proxy` -> `Target` 순서로 의존관계를 맺게 하면 `Proxy`가 `Client`와 `Target` 호출 과정에 끼어들어서 부가기능을 제공할 수 있게 된다.
-- `Proxy`도 빈이 되고 `Target`도 빈이되면 같은 타입이라는 가정 하에 `@Autowired` 를 사용할 수 없게 되지만 스프링은 자동 프록시 생성기를 이용해서 컨테이너 초기화중에 만들어진 빈을 바꿔지기해서 프록시빈을 자동으로 등록해준다.
+- `Proxy`도 빈이 되고 `Target`도 빈이되면 같은 타입이라는 가정 하에 `@Autowired` 를 사용할 수 없게 되지만(컨테이너에 같은 타입이 두 개 등록되기 때문에) 스프링은 자동 프록시 생성기를 이용해서 컨테이너 초기화중에 만들어진 빈을 바꿔치기해서 프록시빈을 자동으로 등록해준다.
 - 빈을 선택하는 로직은 포인트컷을 이용하면 되고 xml이나 애너테이션을 통해 이미 정의된 빈의 의존관계를 바꿔치기 하는 것은 빈 후처리기를 사용한다.
 - 자동 프록시 생성기가 만들어주는 프록시는 새로운 빈으로 추가되는 것이 아니라 AOP 타깃 빈을 대체한다. 
 
@@ -2415,7 +2415,7 @@ mail.from=mailer@mail.com
 
 `AOP 적용은 다른 빈들이 Target 오브젝트에 직접 의존하지 못하게 한다.`
 
-- 타겟 오브젝트가 빈으로 등록되지 않기 때문에 클라이언트에서 아래와 같이 타겟 오브젝트에 직접적인 접근이 불가능해진다.
+- 타겟 오브젝트가 빈으로 등록되지 않기 때문에 클라이언트에서 아래와 같이 타겟 오브젝트에 직접적인 접근이 불가능해진다. (인터페이스 방식으로 자동프록시를 생성하는 경우)
 
 ```java
 public class Client {
@@ -2423,7 +2423,31 @@ public class Client {
 }
 ```
 
-- 가능하다면 인터페이스를 사용해서 DI 관계를 유연하게 설정해줘야한다.
+- Target을 직접 참조한다면 아래와 같은 에러메시지를 확인할 수 있다.
+
+```
+The bean 'fooImpl' could not be injected because it is a JDK dynamic proxy
+
+The bean is of type 'com.sun.proxy.$Proxy76' and implements:
+	com.example.springmvcexam.service.Foo
+	org.springframework.aop.SpringProxy
+	org.springframework.aop.framework.Advised
+	org.springframework.core.DecoratingProxy
+
+Expected a bean of type 'com.example.springmvcexam.service.FooImpl' which implements:
+	com.example.springmvcexam.service.Foo
+
+
+Action:
+
+Consider injecting the bean as one of its interfaces or forcing the use of CGLib-based proxies by setting proxyTargetClass=true on @EnableAsync and/or @EnableCaching.
+
+Disconnected from the target VM, address: '127.0.0.1:57768', transport: 'socket'
+
+Process finished with exit code 1
+```
+
+- 위와 같은 문제가 발생할 수 있기 때문에 가능하다면 인터페이스를 사용해서 DI 관계를 유연하게 설정해줘야한다.
 
 
 
@@ -2898,9 +2922,42 @@ public class User {
 
 #### 로드타임 위버와 자바 에이전트
 
-- 추가적으로 DI 애스펙트를 적용하기 위한 작업이 필요하다. 먼저 AspectJ AOP가 동작할 수 있는 환경설정과 DI 애스펙트 자체를 등록해서 @Configurable 오브젝트에 어드바이스가 적용되게 해야 한다.
+- 추가적으로 DI 애스펙트를 적용하기 위한 작업이 필요하다. 먼저 AspectJ AOP가 동작할 수 있는 환경설정과 DI 애스펙트 자체를 등록해서 `@Configurable` 오브젝트에 어드바이스가 적용되게 해야 한다.
+- AspectJ를 사용하려면 클래스를 로딩하는 시점에 바이트코드 조작이 가능하도록 로드타임 위버를 적용해줘야 한다.
+- 로드타임 위버는 jvm의 javaagent 옵션을 사용해서 jvm 레벨에 적용해야한다.
 
-## 로드타입 위버(LTW)
+```
+-javaagent:/Users/a10300/.m2/repository/org/springframework/spring-instrument/5.3.10/spring-instrument-5.3.10.jar
+```
+
+
+
+## 로드타임 위버(LTW)
+
+- 로드타임위버는 스프링에서 여러가지 기능에 활용된다.
+  - `@Configurable` 지원
+  - AspectJ AOP 에서 사용
+  - JPA에서 필요로하는 로드타임 위버로 사용
+- 하이버네이트 JPA를 제외하면 대부분의 JPA 구현 제품은 고급 기능을 위해 로드타임 위버를 사용하도록 요구한다.
+- 로드타임위버의 사용에서 두가지 문제
+  - JVM레벨에 적용되기 때문에 JVM을 통해 로딩되는 모든 클래스를 다 조사하고 클래스 바이트코드 조작 대상으로 삼기 때문에 서버에 적용하기 부담스럽다.
+  - JVM의 자바에이전트 옵션은 한 번에 한가지만 적용할 수 있다. AspectJ와 JPA 동시 적용 불가능
+- 스프링 로드타임 위버는 JPA와 AspectJ를 위한 로드타임 위버로 동작하고 JVM 레벨의 자바에이전트를 대체할 수 있는 로드타임 위버 적용 방법을 자동으로 찾아줌으로써 해결한다.
+- 스프링의 로드타임 위버는 자바에이전트 방식에 종속적이지 않다.
+- 스프링은 자동으로 로드타임 위버 구현 방법중에서 하나를 적용해준다.
+
+`WAS 전용 로드타임 위버`
+
+- 애플리케이션 서버가 WebLogic, OC4j, GlassFish, J BossAS라면 서버가 제공하는 클래스 로더를 이요하는 전용 로드타임 위버를 설정해준다.
+- JVM에 자바에이전트를 설정해줄 필요가 없다.
+
+`JVM 자바에이전트`
+
+- 스프링이 제공하는 로드타임위버 적용하기
+
+`관례를 따르는 클래스 로더`
+
+- 
 
 ## 스프링 3.1의 AOP와 LTW
 
@@ -2908,8 +2965,26 @@ public class User {
 
 #### @EnableAspectJAutoProxy
 
+- `@EnableAspectJAutoProxy` 는 @Aspect로 애스펙트를 정의할 수 있게 해주는 @AspectJ AOP 컨테이너 인프라 빈을 등록해준다.
+
 #### @EnableLoadTimeWeaving
+
+- `@EnableLoadTimeWeaving` 은 환경에 맞는 로드타임 위버를 등록해주는 애너테이션이다.
+
+```java
+@Configuration
+@EnableSpringConfigured
+@EnableLoadTimeWeaving
+public class Config {
+
+}
+```
 
 
 
 ## 정리
+
+- 스프링에서는 프록시 기반의 AOP 기술을 네 가지 접근 방법을 통해 활용할 수 있다. 각 접근 방법의 장당점을 파악하고 자신에게 맞는 방법을 선택할 수 있어야한다.
+- @AspectJ는 AspectJ 스타일의 POJO 애스펙트 작성 방법이다. @AspectJ는 유연하고 강력한 기능을 가진 애스팩트를 손쉽게 만들어주지만, 복잡한 AspectJ 문법과 사용방법을 익혀야하는 부담이 있다.
+- 스프링은 또한 AspectJ를 스프링 애플리케이션 내에서 간접적으로 활용할 수 있는 몇가지 방법을 제공한다. @Configurable은 스프링 빈이 아닌 오브젝트에 DI를 적용할 수 있게 해준다.
+- 스프링은 다양한 선버환경에서 사용 가능한 편리한 로드타임 위버를 제공해준다.
