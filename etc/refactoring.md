@@ -308,7 +308,7 @@
 - 메시지 체인은 클라이언트가 한 객체에 제 2의 객체를 요청하면 제 2의 객체가 3의 객체를 요청하는 식으로 연쇄적 요청이 발생하는 문제점을 뜻한다.
 - 대리 객체 은폐 등의 문제로 해결할 수 있다.
 
-## 
+
 
 ## 과잉 중개 메서드
 
@@ -356,3 +356,71 @@
 - 단순한 읽기 쓰기 메서드는 테스트가 필요 없다. (요즘에 공감되는 내용)
 - 버그 가능성이 거의 없는 부분은 애시당초 테스트 작성 대상에서 제외시켜야 한다.
 - 완벽한 테스트에 목표를 두지 말고 차근차근 테스트를 만들어 가야 한다.
+
+
+
+
+
+# #5 리팩토링 기법 카탈로그에 대해
+
+
+
+
+
+
+
+# #6 메서드 정리
+
+- 리팩토링의 주된 작업은 코드를 포장하는 메서드를 적절히 정리하는 것이다.
+- 참고 [https://github.com/HugoMatilla/Refactoring-Summary](https://github.com/HugoMatilla/Refactoring-Summary)
+
+
+
+## 메서드 추출 Extract MEthod
+
+- 어떤 코드를 그룹으로 묶어도 되겠다고 판단될 땐 그 코드를 뺴내어 목적을 잘 나타내는 직관적 이름의 메서드로 만들자.
+
+```java
+	void printOwing(double amount) {
+		printBanner();
+		//print details
+		System.out.println ("name:" + _name);
+		System.out.println ("amount" + amount);
+	}
+```
+
+
+
+```java
+	void printOwing(double amount) {
+		printBanner();
+		printDetails(amount);
+	}
+
+	void printDetails (double amount) {
+		System.out.println ("name:" + _name);
+  	System.out.println ("amount" + amount);
+	}
+```
+
+`동기`
+
+- 메서드 추출 기법은 제일 많이 사용된다.
+- 직관적인 이름의 간결한 메서드가 좋은 이유
+  - 메서드가 적절히 잘게 쪼개져 있으면 다른 메서드에서 쉽게 사용할 수 있다.
+  - 상위 계층의 메서드에서 주석 같은 더 많은 정보를 읽어들일 수 있다.
+  - 재정의하기 수월하다.
+- 메서드의 이름을 잘 짓는게 중요하다.
+- 메서드의 길이는 중요하지 않고 메서드 명과 메서드 내용의 의미가 명확해야 한다.
+
+
+
+`방법`
+
+- 목적에 부합하는 이름의 새 메서드를 생성하자. 이때 메서드명은 원리가 아니라 기능을 나타내는 이름이어야 한다.
+- 빼내는 코드가 한줄이라면 그 한줄보다 더 의미있는 메서드명이어야 한다.
+
+
+
+
+
