@@ -415,10 +415,192 @@
 
 
 
-`방법`
 
-- 목적에 부합하는 이름의 새 메서드를 생성하자. 이때 메서드명은 원리가 아니라 기능을 나타내는 이름이어야 한다.
-- 빼내는 코드가 한줄이라면 그 한줄보다 더 의미있는 메서드명이어야 한다.
+
+## 메서드 내용 직접 삽입 Inline Method
+
+- 메서드 기능이 너무 단순해서 메서드 명만 봐도 너무 뻔할 땐 그 메서드의 기능을 호출하는 메서드에 넣어버리고 그 메서드는 삭제하자.
+
+```java
+	int getRating() {
+		return (moreThanFiveLateDeliveries()) ? 2 : 1;
+	}
+
+	boolean moreThanFiveLateDeliveries() {
+		return _numberOfLateDeliveries > 5;
+	}
+```
+
+to
+
+```java
+	int getRating() {
+		return (_numberOfLateDeliveries > 5) ? 2 : 1;
+	}
+```
+
+
+
+`동기`
+
+- 지나치게 단순한 메서드는 정리해야 한다.
+- 과다한 인다이렉션은 좋지 않다.
+
+
+
+
+
+## 임시변수 내용 직접 삽입 Inline Temp
+
+- 간단한 수식을 대입받는 임시변수로 인해 다른 리팩토링 기법 적용이 힘들 땐 그 임시변수를 참조하는 부분을 전부 수식으로 치환하자.
+
+```java
+	double basePrice = anOrder.basePrice();
+	return (basePrice > 1000)
+```
+
+to
+
+```java
+	return (anOrder.basePrice() > 1000)
+```
+
+
+
+`동기`
+
+
+
+## 임시변수를 메서드 호출로 전환 Replace Temp with Query
+
+- 수식의 결과를 저장하는 임시변수가 있을 땐 그 수식을 뺴내어 메서드로 만든 후, 임시변수 참조 부분을 전부 수식으로 교체하자. 새로 만든 메서드는 다른 메서드에서도 호출 가능하다.
+
+```java
+	double basePrice = _quantity * _itemPrice;
+	if (basePrice > 1000)
+		return basePrice * 0.95;
+	else
+		return basePrice * 0.98;
+```
+
+to
+
+```java
+	if (basePrice() > 1000)
+		return basePrice() * 0.95;
+	else
+		return basePrice() * 0.98;
+	...
+	double basePrice() {
+		return _quantity * _itemPrice;
+	}
+```
+
+
+
+`동기`
+
+- 임시변수는 일시적이고 적용이 국소적 범위로 제한된다는 단점이 있다.
+- 임시변수는 자신이 속한 메서드 안에서만 인식되므로 코드는 길어지게 된다.
+- 임시변수를 메서드 호출로 수정하면 클래스 안 모든 메서드가 그 정보에 접근할 수 있다.
+
+
+
+## 직관적 임시변수 사용 Introduce Explaining Variable
+
+- 사용된 수식이 복잡할 땐 수식의 결과나 수식의 일부분을 용도에 부합하는 직관적 이름의 임시변수에 대입하자.
+
+```java
+	if ( (platform.toUpperCase().indexOf("MAC") > -1) &&
+		(browser.toUpperCase().indexOf("IE") > -1) &&
+		wasInitialized() && resize > 0 )
+	{
+		// do something
+	}
+```
+
+to
+
+```java
+	final boolean isMacOs = platform.toUpperCase().indexOf("MAC") >-1;
+	final boolean isIEBrowser = browser.toUpperCase().indexOf("IE") >-1;
+	final boolean wasResized = resize > 0;
+	if (isMacOs && isIEBrowser && wasInitialized() && wasResized) {
+		// do something
+	}
+```
+
+
+
+`동기`
+
+- 수식이 너무 복잡하면 임시변수를 사용해서 직관적으로 수정할 수 있다.
+- 임시변수는 가능하면 사용하지 말고 메서드 추출로 해결해보자
+
+
+
+## 임시변수 분리 Split Temporary Variable
+
+- 루프나 변수나 값 누적용 임시변수가 아닌 임시변수에 여러번 값이 대입될 땐 각 대입마다 다른 임시변수를 사용하자
+
+```java
+	double temp = 2 * (_height + _width);
+	System.out.println (temp);
+	temp = _height * _width;
+	System.out.println (temp);
+```
+
+to
+
+```java
+	final double perimeter = 2 * (_height + _width);
+	System.out.println (perimeter);
+	final double area = _height * _width;
+	System.out.println (area);
+```
+
+
+
+`동기`
+
+- 임시변수에는 값이 한번만 대입되어야 한다.
+
+
+
+## 매개변수로의 값 대입 제거 Remove Assignments to Parameters
+
+- 매개변수로 값 대입하는 코드가 있을 땐 매개변수 대신 임시변수를 사용하게 수정하자.
+
+```java
+	int discount (int inputVal, int quantity, int yearToDate) {
+		if (inputVal > 50) inputVal -= 2;
+```
+
+to
+
+```java
+	int discount (int inputVal, int quantity, int yearToDate) {
+		int result = inputVal;
+		if (inputVal > 50) result -= 2;
+```
+
+
+
+`동기`
+
+- 전달받은 매개변수에 다른 값을 대입하면 코드의 명료성이 떨어진다.
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
