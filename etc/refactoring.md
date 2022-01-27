@@ -592,6 +592,91 @@ to
 
 
 
+## 메서드를 메서드 객체로 전환 Replace Method with Method Object
+
+- 지역변수 때문에 메서드 추출을 적용할 수 없는 긴 메서드가 있을 땐 그 메서드 자체를 객체로 전환해서 모든 지역변수를 객체의 필드로 만들자. 그런 다음 그 메서드를 객체 안의 여러 메서드로 쪼개면 된다.
+
+```java
+	class Order...
+		double price() {
+			double primaryBasePrice;
+			double secondaryBasePrice;
+			double tertiaryBasePrice;
+			// long computation;
+			...
+		}
+```
+
+to
+
+```java
+	class Order...
+		double price(){
+			return new PriceCalculator(this).compute()
+		}
+	}
+
+	class PriceCalculato {
+    double primaryBasePrice;
+    double secondaryBasePrice;
+    double tertiaryBasePrice;
+    
+		compute(){
+      // long computation;
+      return ...
+    }
+  }
+```
+
+
+
+`동기`
+
+- 이 책에서 강조하는 핵심은 간결한 메서드의 아름다움 이다.
+- 메서드를 메서드 객체로 전환 기법을 적용하면 모든 지역변수가 메서드 객체의 속성이 된다.
+
+
+
+## 알고리즘 전환 Substitute Algorithm
+
+- 알고리즘을 더 분명한 것으로 교체해야 할 땐 해당 메서드의 내용을 새 알고리즘으로 바꾸자.
+
+```java
+	String foundPerson(String[] people){
+		for (int i = 0; i < people.length; i++) {
+			if (people[i].equals ("Don")){
+				return "Don";
+			}
+			if (people[i].equals ("John")){
+				return "John";
+			}
+			if (people[i].equals ("Kent")){
+				return "Kent";
+			}
+		}
+		return "";
+	}
+```
+
+to
+
+```java
+	String foundPerson(String[] people){
+		List candidates = Arrays.asList(new String[] {"Don", "John","Kent"});
+	for (int i = 0; i<people.length; i++)
+		if (candidates.contains(people[i]))
+			return people[i];
+	return "";
+	}
+```
+
+
+
+`동기`
+
+- 어떤 기능을 수행하기 위한 비교적 간단한 방법이 있다면 복잡한 방법을 좀 더 간단한 방법으로 교체해야 한다.
+- 이런 경우 메서드를 잘게 유지해야 변경하기 쉬워진다.
+
 
 
 
