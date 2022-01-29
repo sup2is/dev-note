@@ -679,6 +679,252 @@ to
 
 
 
+# #7 객체 간의 기능 이동
+
+
+
+## 메서드 이동 Move Method
+
+- 메서드가 자신이 속한 클래스보다 다른 클래스의 기능을 더 많이 이용할 땐 그 메서드가 제일 많이 이용하는 클래스 안에서 비슷한 내용의 새 메서드를 작성하자.
+- 기존 메서드는 간단한 대리 메서드로 전환하던지 아예 삭제하자.
+
+```java
+	class Class1 {
+		aMethod()
+	}
+
+	class Class2 {	}
+```
+
+to
+
+```java
+	class Class1 {	}
+
+	class Class2 {
+		aMethod()
+	}
+```
+
+`동기`
+
+- 클래스에 기능이 너무 많거나 클래스가 다른 클래스와 과하게 연동되어 의존성이 지나칠 때는 메서드를 옮기는 것이 좋다.
+
+
+
+## 필드 이동 Move field
+
+- 어떤 필드가 자신이 속한 클래스보다 다른 클래스에서 더 많이 사용될 때는 대상 클래스 안에 새 필드를 선언하고 그 필드 참조 부분을 전부 새 필드 참조로 수정하자
+
+```java
+	class Class1 {
+		aField
+	}
+
+	class Class2 {	}
+```
+
+to
+
+```java
+	class Class1 {	}
+
+	class Class2 {
+		aField
+	}
+```
+
+
+
+`동기`
+
+- 한 클래스에서 다른 클래스로 상태와 기능을 옮기는 것은 리팩토링의 기본이다.
+- 지금은 올바르다고 판단해도 나중엔 아닐 수 있는데 문제는 그게 아니라 그런 상황에서도 가만히 냅두는게 문제다.
+- 어떤 필드가 자신이 속한 클래스보다 다른 클래스에 있는 메서드를 더 많이 참조해서 정보를 이용한다면 그 필드를 옮기는 것을 생각해 보자.
+
+
+
+## 클래스 추출 Extract Class
+
+- 두 클래스가 처리해야 할 기능이 하나의 클래스에 들어 있을 땐 새 클래스를 만들고 기존 클래스의 관련 필드와 메서드를 새 클래스로 옮기자.
+
+```java
+	class Person {
+		name,
+		officeAreaCode,
+		officeNumber,
+		getTelephoneNumber()
+	}
+```
+
+
+
+to
+
+```java
+	class Person {
+		name,
+		getTelephoneNumber()
+	}
+
+	class TelephoneNumber {
+		areaCode,
+		number,
+		getTelephoneNumber()
+	}
+```
+
+`동기`
+
+- 클래스는 확실하게 추상화되어야 하고, 두세 가지의 명확한 기능을 담당해야 한다.
+
+
+
+## 클래스 내용 직접 삽입 Inline Class
+
+- 클래스에 기능이 너무 적을 땐 그 클래스의 모든 기능을 다른 클래스로 합쳐 넣고 원래의 클래스는 삭제하자.
+
+```java
+	class Person {
+		name,
+		getTelephoneNumber()
+	}
+
+	class TelephoneNumber {
+		areaCode,
+		number,
+		getTelephoneNumber()
+	}
+```
+
+
+
+to
+
+```java
+	class Person {
+		name,
+		officeAreaCode,
+		officeNumber,
+		getTelephoneNumber()
+	}
+```
+
+`동기`
+
+- 클래스 추출과는 반대되는 과정
+- 클래스가 더 이상 제 역할을 수행하지 못하여 존재할 이유가 없을 때 실시한다.
+
+
+
+## 대리 객체 은폐 Hide Delegate
+
+- 클라이언트가 객체의 대리 클래스를 호출할 땐 대리 클래스를 감추는 메서드를 서버에 작성하자.
+
+```java
+	class ClientClass {
+		//Dependencies
+		Person person = new Person()
+		Department department = new Department()
+		person.doSomething()
+		department.doSomething()
+	}
+```
+
+to
+
+```java
+	class ClientClass {
+		Person person = new Person()
+		person.doSomething()
+	}
+
+	class Person{
+		Department department = new Department()
+		department.doSomething()
+	}
+```
+
+`동기`
+
+- 객체에서 핵심 개념 중 하나가 바로 캡슐화다.
+- 객체를 캡슐화하면 무언가를 변경할 때 그 변화를 전달해야 할 객체가 줄어드므로 변경하기가 쉬워진다.
+
+
+
+```java
+> manager = john.getDepartment().getManager();
+	class Person {
+		Department _department;
+		public Department getDepartment() {
+			return _department;
+		}
+		public void setDepartment(Department arg) {
+			_department = arg;
+			}
+		}
+
+	class Department {
+		private String _chargeCode;
+		private Person _manager;
+		public Department (Person manager) {
+			_manager = manager;
+		}
+		public Person getManager() {
+			return _manager;
+		}
+		...
+```
+
+to
+
+```java
+> manager = john.getManager();
+	class Person {
+		...
+		public Person getManager() {
+			return _department.getManager();
+		}
+	}
+```
+
+## 
+
+## 과잉 중개 메서드 제거 Remove Middle Man
+
+- 클래스에 자잘한 위임이 너무 많을 땐 대리 객체를 클라이언트가 직접 호출하게 하자.
+
+```java
+	class ClientClass {
+		Person person = new Person()
+		person.doSomething()
+	}
+
+	class Person{
+		Department department = new Department()
+		department.doSomething()
+	}
+```
+
+
+
+to
+
+```java
+	class ClientClass {
+		//Dependencies
+		Person person = new Person()
+		Department department = new Department()
+		person.doSomething()
+		department.doSomething()
+	}
+```
+
+- 6개월 전에 수행했던 대리 객체 은폐가 현재는 부적절해질 수도 있다.
+- 리팩토링에서는 후회는 불필요하며, 필요해질 때마다 보수하면 된다.
+
+
+
 
 
 
