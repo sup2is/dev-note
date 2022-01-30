@@ -1000,3 +1000,259 @@ to
 
 
 
+# #8 데이터 체계화
+
+## 필드 자체 캡슐화 Self Encapsulate Field
+
+- 필드에 직접 접근하던 중 그 필드로의 결합에 문제가 생길 땐 그 필드용 읽기/쓰기 메서드를 작성해서 두 메서드를 통해서만 필드에 접근하게 만들자.
+
+```java
+	private int _low, _high;
+	boolean includes (int arg) {
+		return arg >= _low && arg <= _high;
+	}
+```
+
+to
+
+```java
+	private int _low, _high;
+	boolean includes (int arg) {
+		return arg >= getLow() && arg <= getHigh();
+	}
+	int getLow() {return _low;}
+	int getHigh() {return _high;}
+```
+
+`동기`
+
+- 클래스 내에서 변수에 직접 접근할지, 간접적으로 접근할지에 대한 내용
+- 맘가는대로 하면 될듯?
+
+
+
+## 데이터 값을 객체로 전환 Replace Data Value with Object
+
+- 데이터 항목에 데이터나 기능을 더 추가해야 할 때는 데이터 항목을 객체로 만들자.
+
+```java
+	class Order...{
+		private String _customer;
+		public Order (String customer) {
+			_customer = customer;
+		}
+	}
+```
+
+to
+
+```java
+	class Order...{
+		public Order (String customer) {
+			_customer = new Customer(customer);
+		}
+	}
+
+	class Customer {
+		public Customer (String name) {
+			_name = name;
+		}
+	}
+```
+
+
+
+`동기`
+
+- 시간이 지나면서 단순한 값의 크기가 커진다면 데이터 객체로 전환하자.
+
+
+
+
+
+## 값을 참조로 전환 Change Value to Reference
+
+- 클래스에 같은 인스턴스가 많이 들어 있어서 이것들을 하나의 객체로 바꿔야 할 땐 그 객체를 참조 객체로 전환하자.
+
+```java
+	class Order...{
+		public Order (String customer) {
+			_customer = new Customer(customer);
+		}
+	}
+
+	class Customer {
+		public Customer (String name) {
+			_name = name;
+		}
+	}
+```
+
+to
+
+```java
+	//Use Factory Method
+	class Customer...
+		static void loadCustomers() {
+			new Customer ("Lemon Car Hire").store();
+			new Customer ("Associated Coffee Machines").store();
+			new Customer ("Bilston Gasworks").store();
+		}
+		private void store() {
+			_instances.put(this.getName(), this);
+		}
+		public static Customer create (String name) {
+			return (Customer) _instances.get(name);
+		}
+```
+
+`동기`
+
+
+
+## 참조를 값으로 전환 Change Reference to Value
+
+- 참조 객체가 작고 수정할 수 없고 관리하기 힘들 땐 그 참조 객체를 값 객체로 만들자.
+
+```java
+	new Currency("USD").equals(new Currency("USD")) // returns false
+```
+
+to
+
+```java
+	// Add `equals` and `hashCode` to the Currency class 
+	class Currency{ 
+		...
+		public boolean equals(Object arg) {
+	 		if (! (arg instanceof Currency)) return false;
+	 		Currency other = (Currency) arg;
+			return (_code.equals(other._code));
+		}
+
+		public int hashCode() {
+ 			return _code.hashCode();
+ 		}
+ 	}
+
+ 	// Now you can do
+	new Currency("USD").equals(new Currency("USD")) // now returns true
+```
+
+
+
+`동기`
+
+- 값 객체는 변경할 수 없어야 한다는 주요 특징이 있다.
+
+
+
+
+
+## 배열을 객체로 전환 Replace Array with Object
+
+- 배열을 구성하는 특정 원소가 별의별 의미를 지닐 땐 그 배열을 각 원소마다 필드가 하나씩 든 객체로 전환하자.
+
+```java
+	String[] row = new String[3];
+	row [0] = "Liverpool";
+	row [1] = "15";
+```
+
+to
+
+```java
+	Performance row = new Performance();
+	row.setName("Liverpool");
+	row.setWins("15");
+```
+
+`동기`
+
+- 배열은 비슷한 객체들의 컬렉션을 일정 순서로 담는 용도로만 사용해야 한다.
+
+
+
+## 관측 데이터 복제 Duplicate Observed Data
+
+- 도메인 데이터는 GUI 컨트롤 안에서만 사용 가능한데, 도메인 메서드가 그 데이터에 접근해야 할땐 그 데이터를 도메인 객체로 복사하고, 양측의 데이터를 동기화하는 관측 인터페이스 observer를 작성하자.
+
+
+
+`동기`
+
+
+
+## 클래스의 단방향 연결을 양방향으로 전환 Change Unidirectional Association to Bidirectional
+
+- 두 클래스가 서로의 기능을 사용해야 하는 데 한 방향으로만 연결되어 있을 땐 역포이넡를 추가하고 두 클래스 모두 업데이트할 수 있게 접근 한정자를 수정하자.
+
+```java
+	class Order...
+		Customer getCustomer() {
+			return _customer;
+		}
+		void setCustomer (Customer arg) {
+			_customer = arg;
+		}
+		Customer _customer;
+	}
+```
+
+to
+
+```java
+	class Order...
+		Customer getCustomer() {
+			return _customer;
+		}
+		void setCustomer (Customer arg) {
+			if (_customer != null) _customer.friendOrders().remove(this);
+			_customer = arg;
+			if (_customer != null) _customer.friendOrders().add(this);
+		}
+		private Customer _customer;
+
+		class Customer...
+			void addOrder(Order arg) {
+				arg.setCustomer(this);
+			}
+			private Set _orders = new HashSet();
+
+			Set friendOrders() {
+				/** should only be used by Order */
+				return _orders;
+			}
+		}
+	}
+
+	// Many to Many
+	class Order... //controlling methods
+		void addCustomer (Customer arg) {
+			arg.friendOrders().add(this);
+			_customers.add(arg);
+		}
+		void removeCustomer (Customer arg) {
+			arg.friendOrders().remove(this);
+			_customers.remove(arg);
+		}
+	class Customer...
+		void addOrder(Order arg) {
+			arg.addCustomer(this);
+		}
+		void removeOrder(Order arg) {
+			arg.removeCustomer(this);
+		}
+	}
+```
+
+
+
+`동기`
+
+
+
+
+
+
+
