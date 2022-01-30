@@ -925,13 +925,76 @@ to
 
 
 
+## 외래 클래스에 메서드 추가 Introduce Foreign Method
+
+- 사용 중인 서버 클래스에 메서드를 추가해야 하는데 그 클래스를 수정할 수 없을 땐 클라이언트 클래스 안에 서버 클래스의 인스턴스를 첫 번째 인자로 받는 메서드를 작성하자.
 
 
 
+```java
+	Date newStart = new Date(previousEnd.getYear(),
+                           previousEnd.getMonth(),
+                           previousEnd.getDate() + 1);
+```
+
+to
+
+```java
+	Date newStart = nextDay(previousEnd);
+
+	private static Date nextDay(Date date){
+		return new Date(date.getYear(),
+                    date.getMonth(),
+                    date.getDate() + 1);
+	}
+```
 
 
 
+`동기`
 
+- 원본 클래스를 수정할 수 없을 땐 그 메서드를 클라이언트 클래스 안에 작성해야 한다.
+
+
+
+## 국조석 상속확장 클래스 사용 Introduce Local Extension
+
+- 사용 중인 서버 클래스에 여러 개의 메서드를 추가해야 하는데 클래스를 수정할 수 없을 땐 새 클래스를 작성하고 그 안에 필요한 여러 개의 메서드를 작성하자.
+- 이 상속확장 클래스를 원본 클래스의 하위클래스나 래퍼 클래스로 만들자.
+
+```java
+	class ClientClass(){
+
+		Date date = new Date()
+		nextDate = nextDay(date);
+
+		private static Date nextDay(Date date){
+			return new Date(date.getYear(),date.getMonth(),date.getDate()+1);
+		}
+	}
+```
+
+to
+
+```java
+	class ClientClass() {
+		MfDate date = new MfDate()
+		nextDate = nextDate(date)
+	}
+	class MfDate() extends Date {
+		...
+		private static Date nextDay(Date date){
+			return new Date(date.getYear(),date.getMonth(),date.getDate()+1);
+		}
+	}
+```
+
+
+
+`동기`
+
+- 필요한 메서드가 한두 개일 경우 외래 클래스에 메서드 추가 기법을 실시하면되지만 필요한 메서드 수가 세 개 이상이면 그 기법으론 무리다.
+- 이런 경우 하위 클래스와 wrapper화를 시켜서 필요한 메서드를 모아둘 수 있다.
 
 
 
