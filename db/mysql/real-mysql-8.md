@@ -236,7 +236,129 @@ FROM information_schema.INNODB_CMP_PER_INDEX;
 
 
 
+# #7 데이터 암호화
 
+
+
+# #8 인덱스
+
+
+
+# #9 옵티마이저와 힌트
+
+
+
+# #10 실행 계획
+
+- 대부분의 DBMS의 목적은 사용자의 데이터를 안전하게 저장 및 관리하고 원하는 데이터를 빠르게 조회할 수 있게 해주는 것이 주 목적이다.
+- 이러한 목적을 달성하려면 옵티아미어가 사용자의 쿼리를 최적으로 처리할 수 있게 하는 실행 계획을 수립할 수 있어야 하는데 옵티마이저는 사용자, 관리자의 개입 없이 항상 좋은 실행 계획을 만들어내는 것은 아니다.
+- DBMS 서버는 이러한 문제점을 관리자나 사용자가 보완할 수 있도록 `EXPLAIN` 명령으로 옵티마이저가 수립한 실행 계획을 확인할 수 있게 해준다.
+
+
+
+## 통계 정보
+
+- MySQL 서버는 5.7 버전까지 테이블과 인덱스에 대한 개괄적인 정보를 가지고 실행 계획을 수집했지만 이 방법은 테이블 칼럼의 값들이 실제 어떻게 분포돼 있는지에 대한 정보가 없기 때문에 실행 계획의 정확도가 떨어지는 경우가 많았다.
+- MySQL 8.0 부터는 데이터 분포도를 수집해서 저장하는 히스토그램 정보가 도입됐다.
+
+
+
+### 테이블 및 인덱스 통계 정보
+
+- 비용 기반 최적화에서 가장 중요한 것은 통계 정보다.
+  - 1억건의 레코드가 저장된 테이블의 통계 정보가 갱신되지 않아 10만건으로 알고 있다면 옵티마이저는 전혀 엉뚱한 실행계획으로 쿼리를 수행할 수 있다.
+- MySQL은 다른 DBMS 보다 통계 정보의 정확도가 높지 않고 통계 정보의 휘발성이 강했다.
+- MySQL 5.6부터는 통계 정보의 정확성을 높일 수 있는 방법이 제공되기 시작했지만 아직도 많은 사용자가 기존 방식을 그대로 사용한다.
+
+
+
+### MySQL 서버의 통계 정보
+
+- MySQL 5.5 버전까지는 각 테이블의 통계 정보가 메모리에만 관리되었고 MySQL 서버가 재시작되면 지금까지 수집한 통계 정보가 모두 사라진다.
+- MySQL 5.6 버전 부터는 InnoDB 스토리지 엔진을 사용하는 테이블에 대한 통계 정보를 영구적으로 관리할 수 있게  `mysql` 데이터베이스의 `innodb_index_stats` 테이블과 `innodb_table_stats` 테이블로 관리할 수 있게 개선됐다.
+
+![4](./images/real-mysql-8/4.png)
+
+- MySQL 5.6에서 테이블 생성시 `STATS_PERSISTENT` 옵션을 설정할 수 있는데 이 설정값으로 테이블 단위 영구적인 통계 정보를 보관할지 말지를 결정할 수 있다.
+
+`STATS_PERSISTENT=0` 
+
+- 테이블의 통계 정보를 MySQL 5.5 이전 방식대로 관리한다. (메모리로만 관리)
+
+`STATS_PERSISTENT=1`
+
+- 테이블의 통계 정보를 `innodb_index_stats` 테이블과 `innodb_table_stats` 테이블로 관리한다.
+
+`STATS_PERSISTENT=DEFAULT`
+
+- `STATS_PERSISTENT` 을 지정하지 않았을때와 동일하며 `innodb_stats_persistent` 시스템 변수의 값을 통해 설정한다.
+- `innodb_stats_persistent` 의 기본 설정값은 ON(1) 이다.
+
+```SQL
+CREATE TABLE tab_persistent (fd1 INT, fd2 VARCHAR(20), PRIMARY KEY(fd1)) 
+ENGINE=InnoDB STATS_PERSISTENT=1;
+
+CREATE TABLE tab_transient (fd1 INT, fd2 VARCHAR(20), PRIMARY KEY(fd1)) 
+ENGINE=InnoDB STATS_PERSISTENT=0;
+```
+
+
+
+![5](./images/real-mysql-8/5.png)
+
+![12](./images/real-mysql-8/6.png)
+
+![image-20220131234917872](./images/real-mysql-8/14.png)
+
+
+
+
+
+- 아래 명령어를 통해 이미 생성된 테이블의 설정을 변경할 수 있다.
+
+```SQL
+ALTER TABLE tab_transient STATS_PERSISTENT=1;
+```
+
+![7](./images/real-mysql-8/7.png)
+
+![8](./images/real-mysql-8/8.png)
+
+
+
+- 통계정보의 각 칼럼
+
+  - `innodb_index_stats.stat_name='n_diff_pfx%'`
+
+    - 인덱스가 가진 유니크한 값의 개수
+
+  - `innodb_index_stats.stat_name='n_leaf_pages'`
+
+    - 인덱스의 리프 노드 페이지 개수
+
+  - `innodb_index_stats.stat_name='size'`
+
+    - 인덱스 트리의 전체 페이지 개수
+
+  - `innodb_index_stats.n_rows`
+
+    - 테이블의 전체 레코드 건수
+
+  - `innodb_index_stats.clustered_index_size`
+
+    - 프라이머리 키의 크기 (innoDB 페이지 개수)
+
+  - `innodb_index_stats.sum_of_other_index_size`
+
+    - 프라이머리 키를 제외한 인덱스의 크기 (innoDB 페이지 개수)
+
+    - 이 값은 테이블의 `STATS_AUTO_RECALC` 옵션에 따라 0으로 보일 수 있는데 아래 명령어를 실행하면 통계값이 저장된다
+
+    - ```sql
+      ANALYZE TABLE employees.employees;
+      ```
+
+      
 
 
 
