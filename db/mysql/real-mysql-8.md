@@ -274,7 +274,13 @@ FROM information_schema.INNODB_CMP_PER_INDEX;
 
 ### MySQL 서버의 통계 정보
 
-- MySQL 5.5 버전까지는 각 테이블의 통계 정보가 메모리에만 관리되었고 MySQL 서버가 재시작되면 지금까지 수집한 통계 정보가 모두 사라진다.
+- MySQL 5.5 버전까지는 각 테이블의 통계 정보가 메모리에만 관리되었고 MySQL 서버가 재시작되면 지금까지 수집한 통계 정보가 모두 사라진다. 그 외에도 아래와 같은 경우에 통계정보가 관리자, 사용자 모르게 갱신됐다
+  - 테이블이 새로 오픈된 경우
+  - 테이블의 레코드가 대량으로 변경되는 경우 (테이블의 전체 레코드 중에서 1/16 정도의 `UPDATE` 또는 `INSERT`나 `DELETE`가 실행되는 경우)
+  - `ANALYZE TABLE` 명령이 실행되는 경우
+  - `SHOW TABLE STATUS` 명령이나 `SHOW INDEX FROM` 명령이 실행되는 경우
+  - InnoDB 모니터가 활성화되는 경우
+  - `innodb_stats_on_metadata` 시스템 설정이 ON 인 상태에서 `SHOW TABLE STATUS` 명령이 실행되는 경우
 - MySQL 5.6 버전 부터는 InnoDB 스토리지 엔진을 사용하는 테이블에 대한 통계 정보를 영구적으로 관리할 수 있게  `mysql` 데이터베이스의 `innodb_index_stats` 테이블과 `innodb_table_stats` 테이블로 관리할 수 있게 개선됐다.
 
 ![4](./images/real-mysql-8/4.png)
@@ -306,11 +312,7 @@ ENGINE=InnoDB STATS_PERSISTENT=0;
 
 ![5](./images/real-mysql-8/5.png)
 
-![12](./images/real-mysql-8/6.png)
-
-![image-20220131234917872](./images/real-mysql-8/14.png)
-
-
+![6](./images/real-mysql-8/6.png)
 
 
 
@@ -323,8 +325,6 @@ ALTER TABLE tab_transient STATS_PERSISTENT=1;
 ![7](./images/real-mysql-8/7.png)
 
 ![8](./images/real-mysql-8/8.png)
-
-
 
 - 통계정보의 각 칼럼
 
@@ -358,13 +358,86 @@ ALTER TABLE tab_transient STATS_PERSISTENT=1;
       ANALYZE TABLE employees.employees;
       ```
 
-      
 
 
 
 
+- MySQL 5.6 에서 영구적인 통계 정보가 도입되면서 `innodb_stats_auto_recalc` 시스템 설졍 변수의 값을 통해 통계 정보가 자동으로 갱신되는 것을 막을 수 있다.
+  - OFF로 설정하면 영구적인 통계 정보를 이용한다는 뜻. 기본값은 ON
+- 통계 정보를 자동으로 수집할지 여부도 테이블을 생성할때 `STATS_AUTO_RECALC` 옵션을 이용해 테이블 단위로 조정할 수 있다.
+
+`STATS_AUTO_RECALC=1`
+
+- 테이블의 통계 정보를 MySQL 5.5 이전의 방식대로 수집한다.
+
+`STATS_AUTO_RECALC=0`
+
+- 테이블의 통계 정보는 ANALYZE TABLE 명령을 실행할 때만 수집된다.
+
+`STATS_AUTO_RECALC=DEFAULT`
+
+- 별도로 `STATS_AUTO_RECALC` 을 지정하지 않았을 때와 동일하며 `innodb_stats_auto_recalc` 시스템 변수의 값으로 설정한다.
+
+  
+
+- MySQL 5.5 버전에서 테이블의 통계 정보를 수집할 때 몇 개의 InnoDB 테이블 블록을 샘플링할지 결정하는 innodb_stats_sample_pages 시스템 변수는 5.6 버전부터 없어졌다.(Deprecated) 대신 이 시스템 변수는 아래 2개로 분리 되었다.
+
+`innodb_stats_transient_sample_pages`
+
+- 기본값은 8
+- 자동으로 통계 정보 수집이 실행될 때 8개 페이지만 임의로 샘플링해서 분석하고 그 결과를 통계 정보로 활용함을 의미한다.
+
+`innodb_stats_persistent_sample_pages`
+
+- 기본값은 20
+- `ANALYZE TABLE` 명령이 실행되면 임의로 20개 페이지만 샘플링해서 분석하고 그 결과를 영구적인 통계 정보 테이블에 저정하고 활용함을 의미한다.
+- 더 정확한 통계정보를 수집하고 싶다면 이 값에 높은 값을 설정하면 되지만 값이 너무 높을 경우 정보 수집 시간이 길어지므로 주의해야 한다.
 
 
+
+### 히스토그램
+
+- MySQL 5.7 버전까지의 통계 정보는 단순히 인덱스된 칼럼의 유니크한 값의 개수정도만 가지고 있었는데 이는 옵티마이저가 최적의 실행 계획을 수립하기에는 많이 부족했다.
+- MySQL 8.0 버전부터 히스토그램을 도임해서 칼럼의 데이터 분포도를 참조할 수 있게 됐다.
+
+
+
+#### 히스토그램 정보 수집 및 삭제
+
+- MySQL 8.0 부터 히스토그램 정보는 칼럼 단위로 관리된다.
+- 자동으로 수집되지 않고 `ANALYZE TABLE ... UPDATE HISTOGRAM` 명령을 실행해 수동으로 수집 및 관리한다.
+- 수집된 히스토그램 정보는 시스템 딕셔너리에 함께 저장되고, MySQL 서버가 시작될 때 딕셔너리의 히스토그램 정보를 `information_schema` 데이터베이스의 `column_statistics` 테이블로 로드한다.
+
+
+
+```sql
+ANALYZE TABLE employees.employees UPDATE HISTOGRAM ON gender, hire_date;
+```
+
+```sql
+SELECT *
+FROM information_schema.COLUMN_STATISTICS
+WHERE SCHEMA_NAME='employees'
+	AND TABLE_NAME='employees'\G
+```
+
+
+
+![9](/Users/a10300/Choi/Git/dev-note/db/mysql/images/real-mysql-8/9.png)
+
+
+
+- MySQL 버전에서는 아래와 같은 2종류의 히스토리그램 타입이 지원된다.
+
+`Singleton(싱글톤 히스토그램)`
+
+- 칼럼값 개별로 레코드 건수를 관리하는 히스토그램
+- Value-Based 히스토그램 또는 도수 분포라고 불린다.
+
+`Equi-Height(높이 균형 히스토그램)`
+
+- 칼럼값의 범위를 균등한 개수로 구분해서 관리하는 히스토그램
+- Height-Balanced 히스토그램이라고도 불린다.
 
 
 
