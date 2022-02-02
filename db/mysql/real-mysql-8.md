@@ -511,7 +511,6 @@ SET GLOBAL optimizer_switch='condition_fanout_filter=off'
 - 특정 커넥션, 특정 쿼리에서만 히스토그램을 사용하지 않고자 한다면 다음과 같은 방법을 사용하면 된다.
 
 ```sql
-
 -- //현재 커넥션에서 실행되는 쿼리만 히스토그램을 사용하지 않게 설정
 SET SESSION optimizer_witch='condition_fanout_filter=off';
 
@@ -587,6 +586,334 @@ WHERE first_name='Zita'
 - MySQL 8.0 서버에서는 인덱스된 칼럼을 검색 조건으로 사용하는 경우 그 칼럼의 히스토그램은 사용하지 않고 실제 인덱스 다이브를 통해 직접 수집한 정보를 활용한다.
 - 이는 실제 검색 조건의 대상 값에 대한 샘플링을 실행하는 것이므로 항상 히스토그램보다 정확한 결과를 기대할 수 있기 때문이다.
 - **MySQL 8.0 에서 히스토그램은 주로 인덱스되지 않은 컬럼에 대한 데이터 분포도를 참조하는 용도로 사용된다.** (IN 절과 같이 인덱스 다이브 비용이 높은 경우 히스토그램을 활용하는 최적화 기능이 MySQL 서버에 추가될 가능성이 있지 않을까? 라는 저자의 추정..)
+
+
+
+### 코스트 모델 (Cost Model)
+
+- MySQL 서버가 쿼리를 처리하려면 다음과 같은 다양한 작업을 필요로 한다.
+  - 디스크로부터 데이터 페이지 읽기
+  - 메모리(InnoDB 버퍼 풀)로부터 데이터 페이지 읽기
+  - 인덱스 키 비교
+  - 레코드 평가
+  - 메모리 임시 테이블 작업
+  - 디스크 임시 테이블 작업
+- MySQL 서버는 사용자의 쿼리에 대해 이러한 다양한 작업이 얼마나 필요한지 예측하고 전체 작업 비용을 계산한 결과를 바탕으로 최적의 실행 계획을 찾는다.
+- 이렇게 전체 쿼리의 비용을 계산하는데 필요한 단위 작업들의 비용을 코스트 모델이라고 한다.
+- MySQL 5.7 이전 버전까지는 이런 작업들의 비용을 MySQL 서버 소스 코드에 상수화해서 사용했지만 이 작업들의 비용이 하드웨어에 따라 달라질 수 있어서 최적의 실행 계획 수립에 있어서는 방해 요소였다.
+- MySQL 5.7 버전부터는 각 단위의 작업 비용을 DBMS 관리자가 조정할 수 있게 됐지만 인덱스되지 않은 칼럼의 데이터 분포(히스토그램)나 메모리에 상주중인 페이지 비율 등 비용 계산과 연관된 부분의 정보가 부족했다.
+- MySQL 8.0 부터 히스토그램과 각 인덱스별 메모리 적재 페이지 비율이 관리되고 옵티마이저의 실행 계획 수립에 사용되기 시작했다.
+
+  
+
+- MySQL 8.09 서버의 코스트 모델은 다음 2개의 테이블에 저장되어 있다. (mysql db)
+  - `server_cost`
+    - 인덱스를 찾고 레코드를 비교하고 임시테이블 처리에 대한 비용 관리
+  - `engine_cost`
+    - 레코드를 가진 데이터 페이지를 가져오는 데 필요한 비용 관리
+
+
+
+`server_cost와 engine_cost의 공통 칼럼`
+
+- `cost_name`
+  - 코스트 모델의 각 단위 작업
+- `default_value`
+  - 각 단위 작업의 비용(기본값이며 이 값은 MySQL 서버 소스코드에 설정된 값)
+- `cost_value`
+  - DBMS 관리자가 설정한 값(이 값이 NULL이면 MySQL 서버는 `default_value` 칼럼의 비용 사용)
+- `last_updated`
+  - 단위 작업의 비용이 변경된 시점(단순 정보성. 옵티마이저와 연관 없음)
+- `comment`
+  - 비용에 대한 추가 설명(단순 정보성. 옵티마이저와 연관 없음)
+
+
+
+`engine_cost의 추가 2개 칼럼`
+
+- `engine_name`
+  - 비용이 적용된 스토리지 엔진
+  - 기본값은 default. default 인 경우 모든 스토리지 엔진에 적용된다.
+  - MEMORY, MyISAM, InnoDB 에 대해 단위 작업의 비용일 달리 설정하고자 한다면 이 칼럼을 이용하면 된다.
+- `device_type`
+  - 디스크 타입
+  - MySQL 8.0 기준으로 아직 이 칼럼의 값을 활용하지 않는다. 따라서 0만 설정할 수 있다.
+
+
+
+`MySQL 8.0 버전의 코스트 모델에서 지원하는 단위 작업 목록`
+
+| cost_name       | cost_name                    | default_value | 설명                             |
+| --------------- | ---------------------------- | ------------- | -------------------------------- |
+| **engine_cost** | io_block_read_cost           | 1.00          | 디스크 데이터 페이지 읽기        |
+|                 | memory_block_read_cost       | 0.25          | 메모리 데이터 페이지 읽기        |
+| **server_cost** | disk_temptable_create_cost   | 20.00         | 디스크 임시 테이블 생성          |
+|                 | disk_temptable_row_cost      | 0.50          | 디스크 임시 테이블의 레코드 읽기 |
+|                 | key_compare_cost             | 0.05          | 인덱스 키 비교                   |
+|                 | memory_temptable_create_cost | 1.00          | 메모리 임시 테이블 생성          |
+|                 | memory_template_row_cost     | 0.10          | 메모리 임시 테이블의 레코드 읽기 |
+|                 | row_evaluate_cost            | 0.10          | 레코드 비교                      |
+
+- `row_evaluate_cost`는 스토리지 엔진이 반환한 레코드가 쿼리의 조건에 일치하는지 평가하는 단위 작업. 이 값이 증가할수록 풀 테이블 스캔과 같이 많은 레코드를 처리하는 쿼리의 비용이 높아지고 레인지 스캔과 같이 상대적으로 적은 수의 레코드를 처리하는 쿼리의 비용이 낮아진다.
+- `key_compare_cost` 값이 높아질수록 레코드 정렬과 같이 키 값 비교 처리가 많은 경우 쿼리의 비용이 높아진다.
+
+
+
+`MySQL 서버에서 각 실행 계획의 계산된 비용을 확인하는 방법`
+
+```sql
+EXPLAIN FORMAT=TREE
+SELECT *
+FROM employees WHERE first_name='Matt' \G
+
+```
+
+
+
+```sql
+EXPLAIN FORMAT=JSON
+SELECT *
+FROM employees WHERE first_name='Matt' \G
+
+```
+
+- MySQL 서버의 실행 계획에 표시되는 비용을 직접 계산해보고 싶을 수 있지만 이는 상당히 어렵다.
+- 코스트 모델에서 중요한 것은 각 단위 작업에 설정되는 비용 값이 커지면 어떤 실행 계획들이 고비용으로 바뀌고 어떤 실행 계획들이 저비용으로 바뀌는지를 파악하는 것이다.
+- 이 값들을 사용자가 변경할 수 있다고 해서 꼭 바꿔서 사용하라는 뜻은 아니다. 하드웨어와 MySQL 서버 내부처리 방식에 대한 깊은 이해도가 있을 경우에만 변경하자!
+
+
+
+`각 단위 작업의 비용이 변경되면 예상할 수 있는 결과 목록 (언제까지나 참고 사항. 기본값들도 잘 된다)`
+
+- `key_compare_cost` 을 높이면 MySQL 서버 옵티마이저가 가능하면 정렬을 수행하지 않는 방향의 실행 계획을 선택할 가능성이 높아진다.
+- `row_evaluate_cost`을 높이면 풀 스캔을 실행하는 쿼리들의 비용이 높아지고, MySQL 서버 옵티마이저는 가능하면 인덱스 레인지 스캔을 사용하는 실행 계획을 선택할 가능성이 높아진다.
+- `disk_temptable_create_cost`, `disk_temptable_row_cost` 을 높이면 MySQL 서버 옵티마이저는 디스크에 임시 테이블을 만들지 않는 방향의 실행 계획을 선택할 가능성이 높아진다.
+- `memory_temptable_create_cost`, `memory_template_row_cost` 을 높이면 MySQL 서버 옵티마이저는 메모리 임시 테이블을 만들지 않는 방향의 실행 계획을 선택할 가능성이 높아진다.
+- `io_block_read_cost` 비용이 높아지면 MySQL 서버 옵티마이저는 가능하면 InnoDB 버퍼 풀에 데이터 페이지가 많이 적재돼 있는 인덱스를 사용하는 실행 계획을 선택할 가능성이 높아진다.
+- `memory_block_read_cost` 비용이 높아지면 MySQL 서버는 InnoDB 버퍼 풀에 적재된 데이터 페이지가 상대적으로 적다고 하더라도 그 인덱스를 사용할 가능성이 높아진다.
+
+  
+
+
+
+## 실행 계획 확인
+
+- MySQL 서버의 실행 계획은 `DESC` 또는 `EXPLAIN` 명령으로 확인할 수 있다.
+- MySQL 8.0 부터 `EXPLAIN 에 새로운 옵션이 추가되었다.
+
+
+
+### 실행 계획 출력 포맷
+
+- 이전 버전에서 `EXPLAIN EXTENDED` 또는 `EXPLAIN PARTITIONS` 명령이 구분돼 있었지만 MySQL 8.0 부터는 모든 내용이 통합, 개선되면서 이 옵션들은 문법에서 제거됐다.
+- MySQL 8.0 버전부터는 FORMAT 옵션을 사용해 실행 계획의 표시 방법을 JSON, TREE, 단순 테이블 형태로 선택할 수 있다.
+
+
+
+```sql
+EXPLAIN
+SELECT *
+FROM employees e
+	INNER JOIN salaries s ON s.emp_no=e.emp_no
+WHERE first_name='ABC'\G
+
+*************************** 1. row ***************************
+           id: 1
+  select_type: SIMPLE
+        table: e
+   partitions: NULL
+         type: ref
+possible_keys: PRIMARY,ix_firstname
+          key: ix_firstname
+      key_len: 58
+          ref: const
+         rows: 1
+     filtered: 100.00
+        Extra: NULL
+*************************** 2. row ***************************
+           id: 1
+  select_type: SIMPLE
+        table: s
+   partitions: NULL
+         type: ref
+possible_keys: PRIMARY
+          key: PRIMARY
+      key_len: 4
+          ref: employees.e.emp_no
+         rows: 9
+     filtered: 100.00
+        Extra: NULL
+```
+
+
+
+
+
+```sql
+EXPLAIN FORMAT=TREE
+SELECT *
+FROM employees e
+	INNER JOIN salaries s ON s.emp_no=e.emp_no
+WHERE first_name='ABC'\G
+
+*************************** 1. row ***************************
+EXPLAIN: -> Nested loop inner join  (cost=2.71 rows=9)
+    -> Index lookup on e using ix_firstname (first_name='ABC')  (cost=0.76 rows=1)
+    -> Index lookup on s using PRIMARY (emp_no=e.emp_no)  (cost=1.95 rows=9)
+
+1 row in set (0.00 sec)
+
+```
+
+
+
+
+
+```sql
+EXPLAIN FORMAT=JSON
+SELECT *
+FROM employees e
+	INNER JOIN salaries s ON s.emp_no=e.emp_no
+WHERE first_name='ABC'\G
+
+
+
+*************************** 1. row ***************************
+EXPLAIN: {
+  "query_block": {
+    "select_id": 1,
+    "cost_info": {
+      "query_cost": "2.71"
+    },
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "e",
+          "access_type": "ref",
+          "possible_keys": [
+            "PRIMARY",
+            "ix_firstname"
+          ],
+          "key": "ix_firstname",
+          "used_key_parts": [
+            "first_name"
+          ],
+          "key_length": "58",
+          "ref": [
+            "const"
+          ],
+          "rows_examined_per_scan": 1,
+          "rows_produced_per_join": 1,
+          "filtered": "100.00",
+          "cost_info": {
+            "read_cost": "0.66",
+            "eval_cost": "0.10",
+            "prefix_cost": "0.76",
+            "data_read_per_join": "136"
+          },
+          "used_columns": [
+            "emp_no",
+            "birth_date",
+            "first_name",
+            "last_name",
+            "gender",
+            "hire_date"
+          ]
+        }
+      },
+      {
+        "table": {
+          "table_name": "s",
+          "access_type": "ref",
+          "possible_keys": [
+            "PRIMARY"
+          ],
+          "key": "PRIMARY",
+          "used_key_parts": [
+            "emp_no"
+          ],
+          "key_length": "4",
+          "ref": [
+            "employees.e.emp_no"
+          ],
+          "rows_examined_per_scan": 9,
+          "rows_produced_per_join": 9,
+          "filtered": "100.00",
+          "cost_info": {
+            "read_cost": "1.01",
+            "eval_cost": "0.94",
+            "prefix_cost": "2.71",
+            "data_read_per_join": "150"
+          },
+          "used_columns": [
+            "emp_no",
+            "salary",
+            "from_date",
+            "to_date"
+          ]
+        }
+      }
+    ]
+  }
+}
+
+1 row in set (0.00 sec)
+
+
+```
+
+
+
+> \G 옵션을 사용하면 쿼리 결과를 수직으로 볼 수 있어서 더 쉽게 확인할 수 있다.
+
+
+
+### 쿼리의 실행 시간 확인
+
+- MySQL 8.0.18 버전부터 쿼리의 실행 계획과 단계별 소요 시간 정보를 확인할 수 있는 `EXPLAIN ANALYZE` 기능이 추가됐다.
+- `SHOW PROFILE` 명령으로 어떤 부분에서 시간이 많이 소요됐는지 확인할 수 있지만 실행 계획의 단계별로 소요된 시간 정보를 보여주진 않는다.
+- `EXPLAIN ANALYZE` 명령은 항상 TREE 명령으로 보여주기 때문에 `FORMAT` 옵션을 사용할 수 없다.
+
+```sql
+EXPLAIN ANALYZE
+SELECT e.emp_no, avg(s.salary)
+FROM employees e
+	INNER JOIN salaries s ON s.emp_no=e.emp_no
+		AND s.salary>50000
+		AND s.from_date<='1990-01-01'
+		AND s.to_date>'1990-01-01'
+WHERE e.first_name='Matt'
+GROUP BY e.hire_date \G
+```
+
+
+
+> 위 쿼리를 실행하다가 아래 에러를 만났는데
+>
+> Expression #1 of SELECT list is not in GROUP BY clause and contains nonaggregated column 'employees.e.emp_no' which is not functionally dependent on columns in GROUP BY clause; this is incompatible with sql_mode=only_full_group_by
+>
+> 5.7 버전부터 `sql_mode` 가 생겼고 GROUP BY 절에 집계되지 않은 열을 차좀하는 쿼리를 거부하는 모드인 것 같다.
+>
+> 해결 방법은 모든 컬럼을 GROUP BY 또는 집계함수에 포함해서 SELECT 하는 방법이고 다른 방법은 `only_full_group_by` 를 꺼주는 방법이다.
+>
+> ```sql
+> mysql> set global sql_mode='STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION';
+> 
+> mysql> set session sql_mode='STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION';
+> ```
+
+
+
+![14](./images/real-mysql-8/14.png)
+
+
+
+- 들여쓰기가 같은 레벨에서는 상단에 위치한 라인이 먼저 실행된다.
+- 들여쓰기가 다른 레벨에서는 가장 안쪽에 위치한 라인이 먼저 실행된다.
+
+
+
+
 
 
 
