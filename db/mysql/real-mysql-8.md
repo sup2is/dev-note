@@ -699,14 +699,14 @@ FROM employees WHERE first_name='Matt' \G
 ## 실행 계획 확인
 
 - MySQL 서버의 실행 계획은 `DESC` 또는 `EXPLAIN` 명령으로 확인할 수 있다.
-- MySQL 8.0 부터 `EXPLAIN 에 새로운 옵션이 추가되었다.
+- MySQL 8.0 부터 `EXPLAIN` 에 새로운 옵션이 추가되었다.
 
 
 
 ### 실행 계획 출력 포맷
 
 - 이전 버전에서 `EXPLAIN EXTENDED` 또는 `EXPLAIN PARTITIONS` 명령이 구분돼 있었지만 MySQL 8.0 부터는 모든 내용이 통합, 개선되면서 이 옵션들은 문법에서 제거됐다.
-- MySQL 8.0 버전부터는 FORMAT 옵션을 사용해 실행 계획의 표시 방법을 JSON, TREE, 단순 테이블 형태로 선택할 수 있다.
+- MySQL 8.0 버전부터는 `FORMAT` 옵션을 사용해 실행 계획의 표시 방법을 JSON, TREE, 단순 테이블 형태로 선택할 수 있다.
 
 
 
@@ -892,7 +892,7 @@ GROUP BY e.hire_date \G
 >
 > Expression #1 of SELECT list is not in GROUP BY clause and contains nonaggregated column 'employees.e.emp_no' which is not functionally dependent on columns in GROUP BY clause; this is incompatible with sql_mode=only_full_group_by
 >
-> 5.7 버전부터 `sql_mode` 가 생겼고 GROUP BY 절에 집계되지 않은 열을 차좀하는 쿼리를 거부하는 모드인 것 같다.
+> 5.7 버전부터 `sql_mode` 가 생겼고 GROUP BY 절에 집계되지 않은 열을 참조하는 쿼리를 거부하는 모드인 것 같다.
 >
 > 해결 방법은 모든 컬럼을 GROUP BY 또는 집계함수에 포함해서 SELECT 하는 방법이고 다른 방법은 `only_full_group_by` 를 꺼주는 방법이다.
 >
@@ -911,9 +911,344 @@ GROUP BY e.hire_date \G
 - 들여쓰기가 같은 레벨에서는 상단에 위치한 라인이 먼저 실행된다.
 - 들여쓰기가 다른 레벨에서는 가장 안쪽에 위치한 라인이 먼저 실행된다.
 
+`실행 순서`
+
+1. D) Index lookup on e using ix_firstname 
+2. F) Index lookup on s using PRIMARY
+3. E) Filter: ((s.salary > 50000) and (s.from_date <= DATE'1990-01-01') and (s.to_date > DATE'1990-01-01'))
+4. C) Nested loop inner join
+5. B) Aggregate using temporary table
+6. A) Table scan on \<temporary\>
+
+> D 랑 F랑 순서가 바뀐게 아닐까..? 하는 생각이 듦..
+
+1. `employees` 테이블의 `ix_firstname` 인덱스를 통해 `first_name='Matt'` 조건에 일치하는 레코드를 찾고
+2. `salaries` 테이블의 PRIMARY 키를 통해 `emp_no`가 (1)번 결과의 `emp_no`와 동일한 레코드를 찾아서
+3. `((s.salary > 50000) and (s.from_date <= DATE'1990-01-01') and (s.to_date > DATE'1990-01-01'))` 조건에 일치하는 건만 가져와
+4. 1번과 3번의 결과를 조인해서
+5. 임시 테이블에 결과를 저장하면서 `GROUP BY` 집계를 실행하고
+6. 임시테이블의 결과를 읽어서 결과를 반환한다.
 
 
 
+`실행계획 F) 라인에 나열된 필드들의 의미`
+
+- `actual time=0.281..0.289`
+  - 테이블에서 읽은 `emp_no` 값을 기준으로 `salaries` 테이블에서 일치하는 레코드를 검색하는데 걸린 평균 시간
+- `rows=10`
+  - `employees` 테이블에서 읽은 `emp_no`에 일치하는 `salaries` 테이블의 평균 레코드 건수
+- `loops=233`
+  - `employees` 테이블에서 읽은 `emp_no`를 이용해 `salaries` 테이블의 레코드를 찾는 작업이 반복된 횟수
+
+  
+
+- `EXPLAIN ANALYZE` 명령은 `EXPLAIN` 명령과 달리 실행 계획만 추출하는 것이 아니라 실제 쿼리를 실행하고 사용된 실행 계획과 소요된 시간을 보여주기 때문에 쿼리 실행시간이 오래걸릴수록 확인도 늦어진다.
+- 쿼리의 실행 계획이 아주 나쁜 경우라면 `EXPLAIN ANALYZE` 이전에 `EXPLAIN` 으로 튜닝 후 사용하는게 좋다.
+
+
+
+## 실행 계획 분석
+
+### id 칼럼
+
+- 실행 계획에서 가장 왼쪽에 표시되는 `id` 칼럼은 단위 `SELECT` 쿼리별로 부여되는 식별자 값이다.
+- 테이블을 조인하는 경우 테이블의 개수만큼 실행 계획 레코드가 출력되지만 같은 `id` 값이 부여된다.
+
+```sql
+EXPLAIN
+SELECT e.emp_no, e.first_name, s.from_date, s.salary
+FROM employees e, salaries s
+WHERE e.emp_no=s.emp_no LIMIT 10;
+```
+
+![15](/Users/a10300/Choi/Git/dev-note/db/mysql/images/real-mysql-8/15.png)
+
+```sql
+EXPLAIN
+SELECT
+( (SELECT COUNT(*) FROM employees) + (SELECT COUNT(*) FROM departments) ) AS total_count;
+```
+
+![16](/Users/a10300/Choi/Git/dev-note/db/mysql/images/real-mysql-8/16.png)
+
+
+
+- `id` 칼럼이 테이블의 접근 순서를 의미하지는 않는다.
+
+```sql
+EXPLAIN
+SELECT * FROM dept_emp de
+WHERE de.emp_no = (SELECT e.emp_no
+                  FROM employees e
+                  WHERE e.first_name='Georgi'
+                  	AND e.last_name='Facello' LIMIT 1);
+```
+
+![17](/Users/a10300/Choi/Git/dev-note/db/mysql/images/real-mysql-8/17.png)
+
+```sql
+EXPLAIN FORMAT=TREE
+SELECT * FROM dept_emp de
+WHERE de.emp_no = (SELECT e.emp_no
+                  FROM employees e
+                  WHERE e.first_name='Georgi'
+                  	AND e.last_name='Facello' LIMIT 1)\G
+```
+
+![18](/Users/a10300/Choi/Git/dev-note/db/mysql/images/real-mysql-8/18.png)
+
+- `EXPLAIN FORMAT=TREE` 을 통해 실제 실행계획을 확인해보면 `employees` 테이블의 `ix_firstname` 인덱스를 먼저 조회한것을 확인할 수 있다.
+
+
+
+### select_type 칼럼
+
+- 각 단위 `SELECT` 쿼리가 어떤 타입의 쿼리인지 표시되는 칼럼이다.
+
+#### SIMPLE
+
+- `UNION`이나 서브쿼리를 사용하지 않는 단순한 `SELECT` 쿼리인 경우 해당 쿼리 문장의 `select_type`  은 `SIMPLE`로 표시된다.
+- 일반적으로 제일 바깥 `SELECT` 쿼리의 `select_type` 이 `SIMPLE` 로 표시된다.
+- 한개만 존재한다.
+
+
+
+#### PRIMARY
+
+- `UNION` 이나 서브쿼리를 가지는 `SELECT` 쿼리의 실행 계획에서 가장 바깥쪽에 있는 단위 쿼리는 `select_type` 이 `PRIMARY`로 표시된다.
+- 한개만 존재한다.
+
+
+
+#### UNION
+
+- `UNION` 으로 결합하는 단위  `SELECT` 쿼리 가운데 첫번째를 제외한 두 번째 이후 단위  `SELECT` 쿼리의  `select_type` 은 `UNION` 으로 표시된다. 
+- `UNION` 의 첫번째 단위  `SELECT` 는  `select_type` 이 `UNION` 이 아니라 `UNION` 되는 쿼리들을 모아서 저장하는 임시테이블(`DERIVED`)이  `select_type` 으로 표시된다.
+
+```sql
+EXPLAIN
+SELECT * FROM (
+	(SELECT emp_no FROM employees e1 LIMIT 10) UNION ALL
+	(SELECT emp_no FROM employees e2 LIMIT 10) UNION ALL
+	(SELECT emp_no FROM employees e3 LIMIT 10)
+) tb;
+```
+
+![19](./images/real-mysql-8/19.png)
+
+- 첫번째 (e1) 테이블은 `UNION` 결과를 대표하는  `select_type` 으로 설정됐다.
+- 세 개의 서브쿼리로 조회된 결과를 `UNION ALL` 로 결합해 임시 테이블을 만들어서 사용하고 있으므로 `DERIVED`  라는  `select_type` 을 갖는다. 
+
+
+
+#### DEPENDENT UNION
+
+-  `DEPENDENT UNION`또한 `UNION`  `select_type` 과 같이 `UNION` 이나 `UNION ALL` 로 집합을 결합하는 쿼리에서 표시된다.
+-  `DEPENDENT` 는 `UNION` 이나 `UNION ALL`로 결합된 단위 쿼리가 외부 쿼리에 의해 영향을 받는 것을 의미한다.
+
+```sql
+EXPLAIN
+SELECT *
+FROM employees e1 WHERE e1.emp_no IN (
+	SELECT e2.emp_no FROM employees e2 WHERE e2.first_name='Matt'
+  UNION
+	SELECT e3.emp_no FROM employees e3 WHERE e3.first_name='Matt'
+);
+```
+
+
+
+![20](./images/real-mysql-8/20.png)
+
+- 예제 쿼리의 경우 MySQL 옵티마이저는 IN 내부의 서브쿼리를 먼저 처리하지 않고 외부의 employees 테이블을 먼저 읽은 다음 서브쿼리를 실행하는데 이때 employees 테이블의 칼럼값이 서브쿼리에 영향을 준다.
+- 이렇게 내부 쿼리가 외부의 값을 참조해서 처리될 때  `select_type` 에 `DEPENDENT` 키워드가 표시된다.
+
+
+
+#### UNION RESULT
+
+- `UNION RESULT` 는 `UNION` 결과를 담아두는 테이블을 의미한다.
+- MySQL 8.0 이전 버전에서는 `UNION ALL` 이나 `UNION` 쿼리는 모두 결과를 임시 테이블로 생성했는데 MySQL 8.0 버전부터 `UNION ALL` 의 경우 임시 테이블을 사용하지 않도록 기능이 개선됐다. (`UNION` , `UNION DISTINCT` 는 여전히 임시테이블에 결과를 버퍼링한다. )
+
+```sql
+EXPLAIN
+SELECT emp_no FROM salaries WHERE salary>10000
+UNION DISTINCT
+SELECT emp_no FROM dept_emp WHERE from_date>'2001-01-01';
+```
+
+
+
+![21](./images/real-mysql-8/21.png)
+
+- `UNION RESULT` 는 실제 쿼리에서 단위 쿼리가 아니기 때문에 별도의 id 값은 부여되지 않는다.
+- `table` 컬럼에서 1, 2는 id 값이 1과 2인 단위 쿼리의 조회 결과를 `UNION` 했다는 의미다.
+- 같은 쿼리를 `UNION ALL`로 실행하면 임시 테이블을 사용하지 않기 때문에 `UNION RESULT` 라인이 없어지게 된다.
+
+```sql
+EXPLAIN
+SELECT emp_no FROM salaries WHERE salary>10000
+UNION ALL
+SELECT emp_no FROM dept_emp WHERE from_date>'2001-01-01';
+```
+
+![22](./images/real-mysql-8/22.png)
+
+
+
+#### SUBQUERY
+
+- 여기서 말하는  `select_type` 의 `SUBQUERY` 는 `FROM` 절 이외에서 사용되는 서브쿼리만을 의미한다.
+- MySQL 서버의 실행계획에서 `FROM` 절에 사용된  `select_type` 은 `DERIVED` (파생 테이블) 로 표시된다.
+- 서브쿼리는 사용하는 위치에 따라 각기 다른 이름을 갖는다.
+
+`중첩된 쿼리 (Nested Query)`
+
+- SELECT 되는 칼럼에 사용된 서브쿼리를 네스티드 쿼리라고 한다.
+
+`서브쿼리(Subquery)`
+
+- WHERE 절에 사용된 경우 일반적으로 그냥 서브쿼리라고 한다.
+
+`파생 테이블(Derived Table)`
+
+- FROM 절에 사용된 서브쿼리를 MySQL에서는 파생 테이블이라고 하며, RDBMS에서는 보통 인라인 뷰, 또는 서브 셀렉트 라고 부른다.
+
+  
+
+- 서브쿼리가 반환하는 값의 특성에 따라 다음과 같이 구분하기도 한다.
+
+`스칼라 서브쿼리(Scalar Subquery)`
+
+- 하나의 값만(칼럼이 단 하나인 레코드 1건만) 반환하는 쿼리
+
+`로우 서브쿼리(Row subquery)`
+
+- 칼럼의 개수와 상관없이 하나의 레코드만 반환하는 쿼리
+
+
+
+#### DEPENDENT SUBQUERY
+
+- 서브쿼리가 바깥쪽  `SELECT` 쿼리에서 정의된 칼럼을 사용하는 경우  `select_type` 에서 `DEPENDENT SUBQUERY` 이라고 표시된다.
+
+```sql
+EXPLAIN
+SELECT e.first_name,
+	(SELECT COUNT(*)
+  FROM dept_emp de, dept_manager dm
+  WHERE dm.dept_no=de.dept_no AND de.emp_no=e.emp_no) AS cnt
+FROM employees e
+WHERE e.first_name='Matt';
+	
+```
+
+![23](./images/real-mysql-8/23.png)
+
+- 안쪽의 서브쿼리 결과가가 바깥쪽  `SELECT` 쿼리 칼럼에 의존적이기 때문에 `DEPENDENT` 라는 키워드가 붙는다.
+- 외부쿼리가 먼저 수행된 후 내부쿼리가 실행돼야 하므로 일반 서브쿼리보다는 처리속도가 느릴 때가 많다.
+
+
+
+#### DERIVED
+
+- MySQL 5.5 버전까지는 서브쿼리가 `FROM` 절에 사용된 경우 항상  `select_type` 이 `DERIVED`인 실행계획을 만든다.
+- MySQL 5.6 버전부터는 옵티마이저 옵션에 따라 `FROM`절의 서브쿼리를 외부 쿼리와 통합하는 형태의 최적화가 수행되기도 한다.
+- `DERIVED` 는 단위  `SELECT`  쿼리의 실행 결과로 메모리나 디스크에 임시 테이블을 생성하는 것을 의미한다.
+- MYSQL 5.5 버전까지는 파생 테이블에 인덱스가 전혀 없었으므로 다른 테이블과 조인할 떄 성능상 불리했지만 MySQL 6.5 버전부터 옵티마이저 옵션에 따라 쿼리의 특성에 맞게 임시 테이블에도 인덱스를 추가해서 만들 수 있게 최적화 됐다.
+
+```sql
+EXPLAIN
+SELECT *
+FROM (SELECT de.emp_no FROM dept_emp de GROUP BY de.emp_no) tb,
+	employees e
+WHERE e.emp_no=tb.emp_no;
+```
+
+![24](./images/real-mysql-8/24.png)
+
+
+
+- 가능하면 `DERIVED` 형태의 실행 계획을 조인으로 해결할 수 있게 쿼리를 바꿔주는게 좋다.
+- MySQL 8.0 버전부터는 `FROM` 절의 서브쿼리에 대한 최적화도 많이 개선되어 가능하다면 불필요한 서브쿼리는 조인으로 쿼리를 재작성해서 처리한다.
+- 옵티마이저에 의존하기보다는 직접 최적화된 쿼리를 작성하는 것이 중요하다.
+- 서브쿼리를 조인으로 해결할 수 있는 경우라면 반드시 조인을 사용하자!
+
+
+
+#### DEPENDENT DERIVED
+
+- MySQL 8.0이전 버전에서는 `FROM` 절의 서브쿼리는 외부 칼럼을 사용할 수가 없었는데 MySQL 8.0에서 래터럴(`LATERAL JOIN`) 조인 기능이 추가되면서 `FROM` 절의 서브쿼리에서도 외부 칼럼을 참조할 수 있게 됐다
+
+```sql
+EXPLAIN
+SELECT *
+FROM employees e
+LEFT JOIN LATERAL
+	(SELECT *
+	FROM salaries s
+	WHERE s.emp_no=e.emp_no
+	ORDER BY s.from_date DESC LIMIT 2) AS s2 ON s2.emp_no=e.emp_no;
+```
+
+
+
+![25](./images/real-mysql-8/25.png)
+
+-  `DEPENDENT DERIVED` 은 해당 테이블이 레터럴 조인으로 사용된 것을 의미한다.
+
+
+
+#### UNCACHEABLE SUBQUERY
+
+- 하나의 쿼리 문장에 서브쿼리가 하나만 있더라도 그 서브쿼리가 여러번 실행될 수 있다.
+- 조건이 똑같은 서브쿼리가 실행될 때는 다시 실행하지 않고 이전 실행 결과를 그대로 사용할 수 있게 서브쿼리의 결과를 내부적인 캐시 공간에 담아둔다.
+- 일반 `SUBQUERY`는 바깥쪽의 영향을 받지 않으므로 처음 한번만 실행해서 그 결과를 캐시하고 필요할 때 캐시된 결과를 이용한다.
+- `DEPENDENT SUBQUERY`는 의존하는 바깥쪽 쿼리의 칼럼의 값 단위로 캐시해두고 사용한다.
+-  `select_type` 이 `UNCACHEABLE SUBQUERY` 인 경우는 서브쿼리에 포함된 요소에 의해 캐시 자체가 불가능해졌을때다.
+
+`UNCACHEABLE SUBQUERY가 발생하는 요소`
+
+- 사용자 변수가 서브쿼리에 사용된 경우
+- `NOT-DETERMINISTIC` 속성의 스토어드 루틴이 서브쿼리 내에 사용된 경우
+- `UUID()`나 `RAND()`와 같이 결과값이 호출할 때마다 달라지는 함수가 서브쿼리에 사용된 경우
+
+
+
+```sql
+EXPLAIN
+SELECT *
+FROM employees e WHERE e.emp_no = (
+	SELECT @status FROM dept_emp de WHERE de.dept_no='d005'
+);
+```
+
+
+
+![26](/Users/a10300/Choi/Git/dev-note/db/mysql/images/real-mysql-8/26.png)
+
+
+
+#### UNCACHEABLE UNION
+
+- `UNCACHEABLE UNION` 이란 `UNION` 과 `UNCACHEABLE` 속성이 혼합된  `select_type` 을 의미한다.
+
+#### MATERIALIZED
+
+- MySQL 5.6 버전부터 도입됐다.
+- 주로 `FROM` 절이나 `IN(subquery)` 형태의 쿼리에서 사용된 서브쿼리의 최적화를 위해 사용된다.
+
+```sql
+EXPLAIN
+SELECT * 
+FROM employees e
+WHERE e.emp_no IN (SELECT emp_no FROM salaries WHERE salary BETWEEN 100 AND 1000);
+```
+
+![27](./images/real-mysql-8/27.png)
+
+- MySQL 5.6 버전까지는 `employees` 테이블을 읽어서  `employees` 테이블의 레코드마다 `salaries` 테이블을 일근ㄴ 서브쿼리가 실행되는 형태로 처리됐다
+- MySQL 5.7 버전부터는 서브쿼리의 내용을 임시 테이블로 구체화(materialization)한 후 임시 테이블과 `employees` 테이블을 조인하는 형태로 최적화되어 처리된다.
 
 
 
