@@ -961,7 +961,7 @@ FROM employees e, salaries s
 WHERE e.emp_no=s.emp_no LIMIT 10;
 ```
 
-![15](/Users/a10300/Choi/Git/dev-note/db/mysql/images/real-mysql-8/15.png)
+![15](./images/real-mysql-8/15.png)
 
 ```sql
 EXPLAIN
@@ -969,7 +969,7 @@ SELECT
 ( (SELECT COUNT(*) FROM employees) + (SELECT COUNT(*) FROM departments) ) AS total_count;
 ```
 
-![16](/Users/a10300/Choi/Git/dev-note/db/mysql/images/real-mysql-8/16.png)
+![16](./images/real-mysql-8/16.png)
 
 
 
@@ -984,7 +984,7 @@ WHERE de.emp_no = (SELECT e.emp_no
                   	AND e.last_name='Facello' LIMIT 1);
 ```
 
-![17](/Users/a10300/Choi/Git/dev-note/db/mysql/images/real-mysql-8/17.png)
+![17](./images/real-mysql-8/17.png)
 
 ```sql
 EXPLAIN FORMAT=TREE
@@ -995,7 +995,7 @@ WHERE de.emp_no = (SELECT e.emp_no
                   	AND e.last_name='Facello' LIMIT 1)\G
 ```
 
-![18](/Users/a10300/Choi/Git/dev-note/db/mysql/images/real-mysql-8/18.png)
+![18](./images/real-mysql-8/18.png)
 
 - `EXPLAIN FORMAT=TREE` 을 통해 실제 실행계획을 확인해보면 `employees` 테이블의 `ix_firstname` 인덱스를 먼저 조회한것을 확인할 수 있다.
 
@@ -1225,7 +1225,7 @@ FROM employees e WHERE e.emp_no = (
 
 
 
-![26](/Users/a10300/Choi/Git/dev-note/db/mysql/images/real-mysql-8/26.png)
+![26](./images/real-mysql-8/26.png)
 
 
 
@@ -1251,6 +1251,159 @@ WHERE e.emp_no IN (SELECT emp_no FROM salaries WHERE salary BETWEEN 100 AND 1000
 - MySQL 5.7 버전부터는 서브쿼리의 내용을 임시 테이블로 구체화(materialization)한 후 임시 테이블과 `employees` 테이블을 조인하는 형태로 최적화되어 처리된다.
 
 
+
+### table 칼럼
+
+- MySQL 서버의 실행 계획은 단위  `SELECT` 기준이 아니라 테이블 기준으로 표시된다.
+- `table` 칼럼엔 `<derived N>` 또는 `<union M,N>` 과 같은 이름이 `<>` 로 둘러 쌓인 이름은 임시 테이블을 의미한다.
+- 또한 N값은 단위 SELECT 쿼리의 id 값을 지칭한다.
+
+![24](./images/real-mysql-8/24.png)
+
+- 여기에서  `<derived2>`는 단위 SELECT 쿼리의 id 값이 2인 실행 계획으로부터 만들어진 파생 테이블이라는 뜻이다.
+
+`id 칼럼, select_type 칼럼, table 칼럼을 기반으로 위 실행계획 해석하기`
+
+1. 첫 번째 라인의 테이블이  `<derived2>` 라는 것으로 보아 이 라인보다 id 값이 2인 라인이 먼저 실행되고 그 결과가 파생 테이블로 준비돼야 한다는 것을 알 수 있다.
+2. 세 번째 라인을 보면  `select_type`  칼럼의 값이 `DERIVED` 로 표시되어 있다. 즉 이 라인은 `table` 칼럼에 표시된 `dept_emp` 테이블을 읽어서 파생 테이블을 생성하는 것을 알 수 있다.
+3. 첫 번째 라인과 두 번째 라인은 같은 id 값을 가지고 있는 것으로 봐서 2개 테이블이 조인되는 쿼리라는 사실을 알 수 있다.  `<derived2>` 테이블이 먼저 표시됐기 때문에  `<derived2>` 가 드라이빙 테이블이 되고 `e` 테이블은 드리븐 테이블이 된다는 것을 알 수 있다. 즉  `<derived2>` 테이블을 먼저 읽어서 `e` 테이블로 조인을 실행했다는 것을 알 수 있다.
+
+
+
+- MySQL 8.0에서  `select_type` 이 `MATERIALIZED` 인 실행 계획에서는 `<subquery N>` 과 같은 값이 `table` 표시된다. 이는 서브쿼리의 결과를 구체화해서 임시테이블로 만들었다는 의미이고 실제로는  `<derived N>` 과 같은 방법으로 해석하면 된다.
+
+
+
+### partition 칼럼
+
+- MySQL 5.7 버전까지는 옵티마이저가 사용하는 파티션들의 목록은 `EXPLAIN PARTITION` 명령을 이용해 확인 가능했다.
+- MySQL 8.0 버전부터는 `EXPLAIN` 명령으로 파티션 관련 실행 계획까지 모두 확인할 수 있게 변경됐다.
+
+```sql
+CREATE TABLE employees_2 (
+	emp_no int NOT NULL,
+  birth_date DATE NOT NULL,
+  first_name VARCHAR(14) NOT NULL,
+  last_name VARCHAR(16) NOT NULL,
+  gender ENUM('M', 'F') NOT NULL,
+  hire_date DATE NOT NULL,
+  PRIMARY KEY (emp_no, hire_date)  -- 파티션 제약사항으로 인해 pk에 hire_date를 포함
+) PARTITION BY RANGE COLUMNS(hire_date)
+(
+	PARTITION p1986_1990 VALUES LESS THAN ('1990-01-01'),
+	PARTITION p1991_1995 VALUES LESS THAN ('1996-01-01'),
+	PARTITION p1996_2000 VALUES LESS THAN ('2000-01-01'),
+	PARTITION p2001_2005 VALUES LESS THAN ('2006-01-01')
+);
+
+INSERT INTO employees_2 SELECT * FROM employees;
+
+
+EXPLAIN
+SELECT *
+FROM employees_2
+WHERE hire_date BETWEEN '1999-11-15' AND '2000-01-15';
+```
+
+​	![28](./images/real-mysql-8/28.png)
+
+- 옵티마이저는 `p1996_2000` 과 `p2001_2005` 파티션에만 필요한 데이터가 있는것을 파악해서 해당 파티션에 대해서만 분석한다.
+- 이처럼 파티션이 여러 개인 테이블에서 불필요한 파티션을 빼고 쿼리를 수행하기 위해 접근해야 할 것으로 판단되는 테이블만 골라내는 과정을 파티션 프루닝이라고 한다.
+- 위에서 주목할만한 점은 `type` 칼럼이 `ALL` , 테이블 풀 스캔이다. MySQL을 포함한 대부분의 RDBMS는 파티션을 개별 테이블처럼 물리적으로 별도의 저장 공간에 저장한다. `p1996_2000` 과 `p2001_2005` 만 풀 스캔한 것이다.
+
+
+
+### type 칼럼
+
+- 일반적으로 쿼리를 튜닝할 때 인덱스를 효율적으로 사용하는지 확인하는 것이 중요하므로 실행 계획에서 `type` 칼럼은 반드시 체크해야할 중요 정보다.
+- MySQL의 매뉴얼에서는 `type` 칼럼을 '조인 타입'으로 설명하지만 각 테이블의 접근 방법으로 해석하면 된다.
+
+`type 칼럼에 올 수 있는 속성들 (성능이 빠른 순)`
+
+- `system`
+- `const`
+- `eq_ref`
+- `ref`
+- `fulltext`
+- `ref_or_null`
+- `unique_subquery`
+- `index_subquery`
+- `range`
+- `index_merge` <- 유일하게 인덱스를 2개 이상 사용한다.
+- `index`
+- `all` <- 유일하게 index를 사용하지 않는다.
+
+
+
+
+
+#### system
+
+- 레코드가 1건만 존재하는 테이블 또는 한 건도 존재하지 않는 테이블을 참조하는 형태의 접근 방법을 `system` 이라고 한다.
+- InnoDB에서는 없고 MyISAM이나 MEMORY에서 사용한다.
+
+```sql
+CREATE TABLE tbl_dual (fd1 int NOT NULL) ENGINE=MyISAM;
+INSERT INTO tb_dual VALUES (1);
+
+EXPLAIN SELECT * FROM tb_dual;
+```
+
+![29](./images/real-mysql-8/29.png)
+
+> 실제로 MyISAM 테이블을 생성하고 1개의 row만 넣었는데 `type` 값에 `ALL` 이 나와서 당황 ...
+
+
+
+#### const
+
+- 테이블의 레코드 건수에 관계 없이 쿼리가 프라이머리 키나 유니크 키 칼럼을 이용하는 `WHERE` 조건절을 가지고 있으며 반드시 1건을 반환하는 쿼리의 처리 형식을 `contst`라고 한다.
+- 다른 DBMS에서는 이것을 유니크 인덱스 스캔이라고도 표현한다.
+
+```sql
+EXPLAIN
+SELECT * FROM employees WHERE emp_no=10001;
+```
+
+![30](./images/real-mysql-8/30.png)
+
+- 다중 칼럼으로 구성된 프라이머리 키나 유니크 키 중에서 인덱스의 일부 칼럼만 조건으로 사용할 때는 `const` 타입의 접근 방법을 사용할 수 없다.
+- 프라이머리 키의 일부만 조건으로 사용할 때는 `const` 가 아닌 `ref` 로 표시된다.
+- 다중 칼럼이라도 모든 칼럼을 전부 동등 조건으로 명시하면 `const` 접근 방법을 사용한다.
+- `const`인 실행 계획은 MySQL의 옵티마이저가 쿼리를 최적화하는 단계에서 쿼리를 먼저 실행해서 통째로 상수화하기 때문에 `const`라는 이름을 갖는다.
+
+```sql
+SELECT COUNT(*)
+FROM employees e1
+WHERE first_name=(SELECT first_name FROM employees e2 WHERE emp_no=100001);
+
+-- 최적화되는 시점에 다음 쿼리로 변환된다.
+
+
+SELECT COUNT(*)
+FROM employees e1
+WHERE first_name='Jasminko' -- 사번이 100001인 사원의 first_name
+
+```
+
+#### 
+
+
+
+### eq_ref
+
+- `eq_ref` 접근 방법은 여러 테이블이 조인되는 쿼리의 실행 계획에서만 표시된다.
+- 조인에서 처음 읽은 테이블의 칼럼 값을, 그 다음 읽어야 할 테이블의 pk나 유니크 키 칼럼의 검색 조건에 사용할 때를 가리켜 `eq_ref` 라고 한다.
+- 이때 두번째 이후에 읽는 테이블의 `type` 칼럼에 `eq_ref`가 표시된다. 또한 두번째 이후에 읽히는 테이블을 유니크 키로 검색할 때 그 유니크 인덱스는 NOT NULL 이어야 하며 다중 칼럼으로 만들어진 pk나 유니크 인덱스라면 인덱스의 모든 칼럼이 비교 조건에 사용 되어야만 `eq_ref` 접근 방법이 사용될 수 있다.
+- 즉 조인에서 두번째 이후에 읽는 테이블에서 반드시 1건만 존재한다는 보장이 있어야 사용할 수 있는 접근 방법이다.
+
+```sql
+EXPLAIN
+SELECT * FROM dept_emp de, employees e
+WHERE e.emp_no=de.emp_no AND de.dept_no = 'd005';
+```
+
+![31](./images/real-mysql-8/31.png)
 
 
 
