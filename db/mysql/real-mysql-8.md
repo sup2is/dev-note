@@ -1279,7 +1279,7 @@ WHERE e.emp_no IN (SELECT emp_no FROM salaries WHERE salary BETWEEN 100 AND 1000
 - MySQL 5.7 버전까지는 옵티마이저가 사용하는 파티션들의 목록은 `EXPLAIN PARTITION` 명령을 이용해 확인 가능했다.
 - MySQL 8.0 버전부터는 `EXPLAIN` 명령으로 파티션 관련 실행 계획까지 모두 확인할 수 있게 변경됐다.
 
-```sql
+```
 CREATE TABLE employees_2 (
 	emp_no int NOT NULL,
   birth_date DATE NOT NULL,
@@ -1486,7 +1486,7 @@ SELECT * FROM titles
 WHERE to_date='1985-03-01' OR to_date IS NULL;
 ```
 
-![34](/Users/a10300/Choi/Git/dev-note/db/mysql/images/real-mysql-8/34.png)
+![34](./images/real-mysql-8/34.png)
 
 
 
@@ -1503,7 +1503,7 @@ SELECT * FROM departments
 WHERE dept_no IN (SELECT dept_no FROM dept_emp WHERE emp_no=10001);
 ```
 
-![35](/Users/a10300/Choi/Git/dev-note/db/mysql/images/real-mysql-8/35.png)
+![35](./images/real-mysql-8/35.png)
 
 - 8.0 으로 올라가면서 `WHERE` 조건절에서 사용될 수 있는 `IN(subquery)` 형태의 세미 조인을 최적화하기 위한 많은 기능이 도입됐다.
 - `unique_subquery` 실행계획을 보고싶다면 아래 옵션을 비활성화해주면 된다.
@@ -1553,7 +1553,7 @@ WHERE emp_no BETWEEN 10001 AND 11000
 	OR first_name='Smith';
 ```
 
-![36](/Users/a10300/Choi/Git/dev-note/db/mysql/images/real-mysql-8/36.png)
+![36](./images/real-mysql-8/36.png)
 
 
 
@@ -1574,7 +1574,7 @@ EXPLAIN
 SELECT * FROM departments ORDER BY dept_no DESC LIMIT 10;
 ```
 
-![37](/Users/a10300/Choi/Git/dev-note/db/mysql/images/real-mysql-8/37.png)
+![37](./images/real-mysql-8/37.png)
 
 #### ALL
 
@@ -1598,13 +1598,496 @@ SELECT /*+ SET_VAR(innodb_parallel_read_threads=32)*/ COUNT(*) FROM big_table;
 
 
 
+### possible_key 칼럼
+
+- 사용 될 법 했던 인덱스의 목록이다.
+- 여기에 나열되는 인덱스 목록은 실제 쿼리 실행계획과 전혀 무관하므로 그냥 무시해도 된다.
 
 
 
+### key 칼럼
+
+- `key` 칼럼에 표시되는 인덱스는 최종으로 선택된 실행 계획에서 사용하는 인덱스를 의미한다.
+- 쿼리 튜닝시에는 `key` 칼럼에 의도했던 인덱스가 표시되는지 확인하는 것이 중요하다.
+- `index_merge` 는 2개 이상의 인덱스가 나열되고 그 외에는 전부 한개만 표시된다.
+
+![36](./images/real-mysql-8/36.png)
+
+- `type` 이 null 인 경우 인덱스를 사용하지 못했으므로 `key` 칼럼도 null로 표시된다.
 
 
 
+### key_len 칼럼
 
+- `key_len` 칼럼의 값은 쿼리를 처리하기 위해 다중 칼럼으로 구성된 인덱스에서 몇 개의 칼럼까지 사용했는지 우리에게 알려준다.
+- 정확하게는 인덱스의 각 레코드에서 몇 바이트까지 사용했는지 알려주는 값이다.
+
+```sql
+EXPLAIN
+SELECT * FROM dept_emp WHERE dept_no='d005';
+```
+
+![38](./images/real-mysql-8/38.png)
+
+- `dept_no`와 `emp_no` 으로 구성된 pk에 `dept_no`로만 검색한 쿼리의 결과
+- `dept_no`의 칼럼 타입이 `CHAR(4)` 이기 때문에 프라이머리 키에서 앞쪽 16 바이트만 유효하게 사용했다는 의미다. (utf8mb4 문자 집합에서 하나의 문자는 고정적으로 4바이트로 계산 4*4 = 16)
+
+```sql
+EXPLAIN
+SELECT * FROM dept_emp WHERE dept_no='d005' AND emp_no=10001;
+```
+
+![39](./images/real-mysql-8/39.png)
+
+- `dept_no`와 `emp_no` 을 모두 사용했을때 `key_len` 이 20인 것을 확인할 수 있다. (`emp_no`는 `int` 타입, 4바이트)
+
+
+
+### ref 칼럼
+
+- 접근 방법이 `ref` 면 참조 조건으로 어떤 값이 제공됐는지 보여준다.
+- 이 칼럼에 출력되는 내용은 크게 신경쓰지 않아도 무방하지만 산술 표현식을 넣거나 문자 집합이 일치하지 않는 경우 `func` 이라고 표시된다.
+- 문자 집합이 일치하지 않는 경우  MySQL 서버가 이런 변환을 내부적으로 실행하는데 가능하다면 MySQL  서버가 이런 변환을 하지 않아도 되게 조인의 칼럼의 타입은 일치시키는 편이 좋다.
+
+```sql
+EXPLAIN
+SELECT * 
+FROM employees e, dept_emp de WHERE e.emp_no=(de.emp_no-1)
+```
+
+![40](./images/real-mysql-8/40.png)
+
+
+
+### rows 칼럼
+
+- MySQL 옵티마이저는 각 조건에 대해 가능한 처리 방식을 나열하고 그중에서 최종적으로 하나의 실행계획을 수립한다.
+- 이때 각 처리 방식이 얼마나 많은 레코드를 읽고 비교해야 하는지 예측해서 비용을 산정한다.
+- `rows` 칼럼값은 실행 계획의 효율성 판단을 위해 예측했던 레코드 건수를 보여준다.
+- 이값은 스트리지 엔진 별로 가지고 있는 통계 정보를 참조해서 옵티마이저가 산출해낸 예상값이라서 정확하지는 않다.
+
+
+
+### filtered 칼럼
+
+- 옵티마이저는 각 테이블에서 일치하는 레코드 개수를 가능하면 정확히 파악해야 좀 더 효율적인 실행계획을 수립할 수 있다.
+- 대부분의 쿼리들이 `WHERE` 절의 조건들이 인덱스를 사용할 수 있는 것은 아니다. 특히 조인일때 인덱스를 사용하는 것도 중요하지만 인덱스를 사용하지 못하는 조건에 일치하는 레코드 건수를 파악하는 것도 매우 중요하다.
+
+```sql
+EXPLAIN
+SELECT *
+FROM employees e,
+	salaries s
+WHERE e.first_name = 'Matt' -- 인덱스 사용 가능
+	AND e.hire_date BETWEEN '1990-01-01' AND '1991-01-01'
+	AND s.emp_no=e.emp_no
+	AND s.from_date BETWEEN '1990-01-01' AND '1991-01-01'
+	AND s.salary BETWEEN 50000 AND 60000; -- 인덱스 사용 가능
+
+```
+
+
+
+![41](./images/real-mysql-8/41.png)
+
+- `employees` 테이블에서 인덱스 조건에만 일치하는 레코드는 대략 233건. 이중에서 16.03%만 인덱스를 사용하지 못하는 `e.hire_date BETWEEN '1990-01-01' AND '1991-01-01'`  조건에 일치한다는 것을 알 수 있다.
+- `filtered` 칼럼의 값은 필터링되어 버려지는 레코드의 비율이 아니라 필터링되고 남은 레코드의 비율을 말한다.
+- 따라서 `employees` 테이블에서 `salaries` 테이블로 조인을 수행한 레코드 건수는 대략 37건 (233 * 0.1603) 건이라는 것을 알 수 있다.
+- 옵티마이저는 조인의 횟수를 줄이고 그 과정에서 읽어온 데이터를 저장해둘 메모리 사용량을 낮추기 위해 대상 건수가 적은 테이블을 선행 테이블로 선택할 가능성이 높다.
+
+```sql
+EXPLAIN
+SELECT /*+ JOIN_ORDER(s, e)*/ *
+FROM employees e,
+	salaries s
+WHERE e.first_name = 'Matt' -- 인덱스 사용 가능
+	AND e.hire_date BETWEEN '1990-01-01' AND '1991-01-01'
+	AND s.emp_no=e.emp_no
+	AND s.from_date BETWEEN '1990-01-01' AND '1991-01-01'
+	AND s.salary BETWEEN 50000 AND 60000; -- 인덱스 사용 가능
+
+```
+
+![42](./images/real-mysql-8/42.png)
+
+- 조인 옵션을 주고 드라이빙 테이블을 바꾸면 위와 같은 결과를 볼 수 있다.
+- 약 13만건 (2838426 * 0.0477) 의 레코드를 조인에 사용했다.
+
+> salaries.salary 칼럼은 인덱스가 걸려있는데 왜 안탔는지는 잘 모르겠다.
+
+
+
+### Extra 칼럼
+
+- 쿼리의 실행 계획에서 성능에 관련된 중요한 내용이 `Extra` 칼럼에 자주 표시된다.
+- 일반적으로 2~3개씩 함께 표시된다.
+- `Extra` 는 주로 내부적인 처리 알고리즘에 대해 조금 더 깊이 있는 내용을 보여주는 경우가 많아서 버전이 올라갈때마다 추가되는 내용이 있을 수 있다. 아래 언급하는 값이외의 값이 있다면 MySQL 매뉴얼을 참조하자!
+
+
+
+#### const row not found
+
+- 쿼리의 실행 계획에서 `const` 접근 방법으로 테이블을 읽었지만 실제로 해당 테이블에 레코드가 1건도 없을 경우 `Extra` 칼럼에 이 내용이 표시된다.
+
+
+
+#### Deleting all rows
+
+-  MyISAM 스토리지 엔진과 같이 스토리지 엔진의 핸들러 차원에서 테이블의 모든 레코드를 삭제하는 기능을 제공하는 스토리이 엔진 테이블인 경우 `Extra` 칼럼에 이 내용이 표시된다.
+- 이 문구는 테이블의 모든 레코드를 삭제하는 핸들러 기능(api)을 한번 호출함으로써 처리됐다는 것을 의미한다.
+- 참고로 8.0 버전에서는 더 이상 `Deleting all rows` 가 표시되지 않는다. 테이블의 모든 레코드를 삭제하고싶다면 `TRUNCATE` 명령어를 사용하는게 좋다.
+
+
+
+#### Distinct
+
+
+
+```sql
+EXPLAIN
+SELECT DISTINCT d.dept_no
+FROM departments d, dept_emp de WHERE de.dept_no=d.dept_no;
+```
+
+![43](./images/real-mysql-8/43.png)
+
+- `DISTINCT`를 처리하기 위해 조인하지 않아도 되는 항목은 모두 무시하고 꼭 필요한것만 조인했다는 것을 의미한다.
+
+![44](./images/real-mysql-8/44.jpeg)
+
+#### FirstMatch
+
+```sql
+EXPLAIN
+SELECT *
+FROM employees e
+WHERE e.first_name='Matt'
+	AND e.emp_no IN (
+    	SELECT t.emp_no FROM titles t
+    	WHERE t.from_date BETWEEN '1995-01-01' AND '1995-01-30'
+  );
+```
+
+![44](./images/real-mysql-8/44.png)
+
+- `FirstMatch` 메시지와 함께 표시되는 테이블명은 기준 테이블을 의미한다.
+- `employees` 테이블을 기준으로 `titles` 테이블에서 첫 번째로 일치하는 한 건만 검색한다는 것을 의미한다.
+
+
+
+#### Full scan on NULL key
+
+- 이 처리는 `col1 IN (SELECT col2 FROM ...)` 과 같은 조건을 가진 쿼리에서 자주 발생할 수 있다.
+- `Full scan on NULL key` 은 MySQL 서버가 쿼리를 실행하는 중 `col1` 이 `NULL` 을 만나면 차선책으로 서브쿼리 테이블에 대해서 풀 테이블 스캔을 사용할 것이라는 사실을 알려주는 키워드다
+-  `col1 IN (SELECT col2 FROM ...)` 에서 `col1` 이 `NOT NULL` 이라면 표시되지 않는다.
+
+```sql
+EXPLAIN
+SELECT d1.dept_no, NULL IN (SELECT d2.dept_name FROM departments d2)
+FROM departments d1;
+```
+
+![46](/Users/a10300/Choi/Git/dev-note/db/mysql/images/real-mysql-8/46.png)
+
+- 칼럼이 `NOT NULL` 은 아니지만 `Full scan on NULL key` 을 무시하고싶을땐 `WHERE` 절에서 미리 걸러주면 된다.
+
+```sql
+SELECT *
+FROM tb_test1
+WHERE col1 IS NOT NULL
+	AND col1 IN (SELECT col2 FROM tb_test2);
+```
+
+- `Full scan on NULL key` 코멘트가 표시되었다고 하더라도 `IN`이나 `NOT IN` 연산자의 왼쪽에 있는 값이 `NULL` 이 아니라면 걱정하지 않아도 된다.
+
+
+
+#### Impossible HAVING
+
+- 쿼리에 사용된 `HAVING` 절의 조건에 만족하는 레코드가 없을 때 실행 계획의 `Extra` 칼럼에 해당 내용이 표시된다.
+
+```sql
+EXPLAIN
+SELECT e.emp_no, COUNT(*) AS cnt
+FROM employees e
+WHERE e.emp_no=10001
+GROUP BY e.emp_no
+HAVING e.emp_no IS NULL;
+```
+
+![47](/Users/a10300/Choi/Git/dev-note/db/mysql/images/real-mysql-8/47.png)
+
+
+
+#### Impossible WHERE
+
+- `WHERE` 조건이 항상 `FALSE`가 될 수밖에 없는 경우에 해당 내용이 표시된다.
+
+```sql
+EXPLAIN
+SELECT * FROM employees WHERE emp_no IS NULL;
+```
+
+![48](/Users/a10300/Choi/Git/dev-note/db/mysql/images/real-mysql-8/48.png)
+
+
+
+#### LooseScan
+
+- 세미 조인 최적화 중에서 `LooseScan` 최적화 전략이 사용되면 해당 내용이 표시된다.
+
+```sql
+EXPLAIN
+SELECT /*+ JOIN_ORDER(de, d)*/ * FROM departments d 
+WHERE d.dept_no IN (SELECT de.dept_no FROM dept_emp de);
+```
+
+![49](/Users/a10300/Choi/Git/dev-note/db/mysql/images/real-mysql-8/49.png)
+
+
+
+#### No matching min/max row
+
+- `MIN()` 또는 `MAX()`와 같은 집합 함수가 있는 쿼리의 조건절에 일치하는 레코드가 한 건도 없을 때는 해당 내용이 표시된다.
+
+```
+EXPLAIN
+SELECT MIN(dept_no), MAX(dept_no)
+FROM dept_emp WHERE dept_no='';
+```
+
+ ![50](/Users/a10300/Choi/Git/dev-note/db/mysql/images/real-mysql-8/50.png)
+
+#### no matching row in const table
+
+- 조인에 사용된 테이블에서 `const` 방법으로 접근할 때 일치하는 레코드가 없다면 해당 내용이 표시된다.
+
+```sql
+EXPLAIN
+SELECT *
+FROM dept_emp de, (SELECT emp_no FROM employees WHERE emp_no=0) tb1
+WHERE tb1.emp_no=de.emp_no AND de.dept_no='d005';
+```
+
+![51](/Users/a10300/Choi/Git/dev-note/db/mysql/images/real-mysql-8/51.png)
+
+
+
+#### No matching rows after partition pruning
+
+- 파티션된 테이블에 대한 `UPDATE` 또는 `DELETE` 명령의 실행 계획에서 표시될 수 있다.
+- 해당 파티션에서  `UPDATE` 또는 `DELETE` 할 대상 레코드가 없을때 표시된다. 
+- 조금 더 정확하게는 단순히 삭제할 레코드가 없음을 의미하는 것이 아니라 대상 파티션이 없다는 것을 의미한다.
+
+```sql
+CREATE TABLE employees_parted (
+	emp_no int NOT NULL,
+  birth_date DATE NOT NULL,
+  first_name VARCHAR(14) NOT NULL,
+  last_name VARCHAR(16) NOT NULL,
+  gender ENUM('M', 'F') NOT NULL,
+  hire_date DATE NOT NULL,
+  PRIMARY KEY (emp_no, hire_date)  -- 파티션 제약사항으로 인해 pk에 hire_date를 포함
+) PARTITION BY RANGE COLUMNS(hire_date)
+(
+	PARTITION p1986_1990 VALUES LESS THAN ('1990-01-01'),
+	PARTITION p1991_1995 VALUES LESS THAN ('1996-01-01'),
+	PARTITION p1996_2000 VALUES LESS THAN ('2000-01-01'),
+	PARTITION p2001_2005 VALUES LESS THAN ('2006-01-01')
+);
+
+INSERT INTO employees_parted SELECT * FROM employees;
+
+EXPLAIN DELETE FROM employees_parted WHERE hire_date>='2020-01-01';
+```
+
+![52](/Users/a10300/Choi/Git/dev-note/db/mysql/images/real-mysql-8/52.png)
+
+#### No tables used
+
+- `FROM` 절이 없는 쿼리 문장이나 `FROM DUAL` 형태의 쿼리 실행 계획에서는 해당 내용이 표시된다.
+
+```sql 
+EXPLAIN SELECT 1;
+EXPLAIN SELECT 1 FROM DUAL;
+```
+
+![53](/Users/a10300/Choi/Git/dev-note/db/mysql/images/real-mysql-8/53.png)
+
+
+
+#### Not exsists
+
+- 아우터 조인을 이용해 안티-조인을 수행하는 쿼리에서는 실행 계획에 해당 내용이 표시된다.
+- 안티조인이란 A 테이블에는 존재하지만 B 테이블에는 없는 값을 조회해야 하는 쿼리를 말한다. (`NOT IN(subquery)` or `NOT EXISTS`)
+
+```sql
+EXPLAIN
+SELECT * 
+FROM dept_emp de
+	LEFT JOIN departments d ON de.dept_no=d.dept_no
+WHERE d.dept_no IS NULL;
+```
+
+![54](/Users/a10300/Choi/Git/dev-note/db/mysql/images/real-mysql-8/54.png)
+
+- `Not exsists` 메시지는 옵티마이저가 `dept_emp` 테이블의 레코드를 이용해 `departments` 테이블을 조인할 때 `departments` 테이블을 조인할 때 `departments` 테이블의 레코드가 존재하는지 아닌지만 판단한다는 것을 의미한다.
+
+
+
+#### Plan isn't ready yet
+
+- MySQL 8.0에서는 다음과 같이 다른 커넥션에서 실행중인 쿼리의 실행 계획을 살펴볼 수 있다.
+
+```sql
+SHOW PROCESSLIST;
+```
+
+- `id` 칼럼을 통해 쿼리의 실행 계획을 `EXPLAIN FOR CONNECTION ${id}` 형태로 다른 커넥션의 실행계획을 확인할 수 있다.
+
+```sql
+EXPLAIN FOR CONNECTION 13;
+```
+
+- 이렇게 `EXPLAIN FOR CONNECTION` 명령을 실행했을때 `Plan isn't ready yet` 메시지가 나온다면 해당 커넥션이 아직 쿼리의 실행 계획을 수립하지 못한 상태에서 `EXPLAIN FOR CONNECTION` 명령이 실행된 것을 의미한다.
+- 이 경우 해당 커넥션의 쿼리가 실행 계획을 수립할 여유 시간을 좀 더 주고 다시 `EXPLAIN FOR CONNECTION` 명령을 실행하면 된다.
+
+
+
+#### Range checked for each record(index map: N)
+
+
+
+```sql
+EXPLAIN
+SELECT *
+FROM employees e1, employees e2
+WHERE e2.emp_no >= e1.emp_no;
+```
+
+- 조인 조건에 상수가 없고 둘 다 변수인 경우 옵티마이저는 `e1` 테이블을 먼저 읽고 조인을 위해 `e2`를 읽을 때 인덱스 레인지 스캔과 풀 테이블 스캔중 어느 것이 효율적인지 판단할 수 없다. (`e1` 테이블의 레코드를 읽을 때마다 `e1.emp_no`의 값이 계속 바뀌므로 어떤 접근 방법으로 `e2` 테이블에 접근하면 좋을지 판단할 수 없다. )
+- 위와 같이 레코드마다 인덱스 레인지 스캔을 체크하면 `Range checked for each record(index map: N)` 라는 내용을 확인할 수 있다.
+
+![55](/Users/a10300/Choi/Git/dev-note/db/mysql/images/real-mysql-8/55.png)
+
+- `index map` 은 16진수로 표시되는데 해석을 위해 이진수로 바꿔야 한다.
+- `0x1`은 1이기 때문에 이 쿼리는 `e2 `테이블의 첫번쨰 인덱스를 사용할지, 아니면 테이블을 풀 스캔할지를 매 레코드 단위로 결정하면서 처리된다.
+
+
+
+#### Recursive
+
+- MySQL 8.0 버전부터는 CTE(Common Table Expression)을 이용해 재귀 쿼리를 작성할 수 있게 됐다.
+
+```sql
+WITH RECURSIVE cte (n) AS
+(
+  SELECT 1
+  UNION ALL
+  SELECT n + 1 FROM cte WHERE n < 5
+)
+SELECT * FROM cte;
+```
+
+
+
+`WITH 절에서 실행하는 `작업`
+
+1. `n` 이라는 칼럼 하나를 가진 `cte 라는 이름의 내부 임시 테이블 생성`
+2. `n` 칼럼의 값이 1부터 5까지 1씩 증가하게 해서 레코드 5건을 만들어서 `cte` 내부 임시 테이블에 저장
+
+  
+
+- 재귀 쿼리를 이용한 실행 계획은 `Recursive` 구문이 표시된다.
+
+![56](/Users/a10300/Choi/Git/dev-note/db/mysql/images/real-mysql-8/56.png)
+
+- `WITH` 구문이 재귀 CTE로 사용될 경우에만 `Recursive` 메시지가 표시되는것을 참고하자
+
+```sql
+-- 해당 쿼리는 Recursive가 표시되지 않는다.
+EXPLAIN WITH RECURSIVE cte (n) AS
+(
+	SELECT 1
+)
+SELECT * FROM cte;
+```
+
+
+
+#### Rematerialize
+
+- MySQL 8.0 버전부터는 래터럴 조인 기능이 추가됐다.
+- 래터럴로 조인되는 테이블은 선행 테이블의 레코드별로 서브쿼리를 실행해서 그 결과를 임시 테이블에 저장한다. 이 과정을 Rematerializing 이라고 한다.
+
+```sql
+EXPLAIN
+SELECT * FROM employees e
+	LEFT JOIN LATERAL (
+  	SELECT * FROM salaries s
+    WHERE s.emp_no=e.emp_no
+    ORDER BY s.from_date DESC LIMIT 2
+  ) s2 ON s2.emp_no = e.emp_no
+WHERE e.first_name='Matt';
+```
+
+![57](/Users/a10300/Choi/Git/dev-note/db/mysql/images/real-mysql-8/57.png)
+
+- 이 실행계획에서는 `employees` 테이블의 레코드마다 `salaries` 테이블에서 `emp_no`가 일치하는 레코드 중에서 `from_date` 칼럼의 역순으로 2건만 가져와 임시 테이블 `derived2`로 저장한다.
+- 그리고 employees 테이블과  `derived2` 테이블을 조인한다. 그런데 여기서  `derived2` 임시 테이블은 `employees`테이블의 레코드마다 새로 임시 테이블이 생성되는데 이렇게 매번 임시 테이블이 새로 생성되는 경우 `Rematerialize` 라는 메시지가 표시된다.
+
+
+
+#### Select tables optimized away
+
+- `MIN()` 또는 `MAX()` 만 `SELECT` 절에 사용되거나 `GROUP BY` 로 `MIN()` 또는 `MAX()` 를 조회하는 쿼리가 인덱스를 오름차순 또는 내림차순으로 1건만 읽는 형태의 최적화가 적용된다면 해당 문구가 표시된다.
+- MyISAM 테이블은 `GROUP BY` 없이 `COUNT(*)`만 `SELECT` 할 때도 이런 형태의 최적화가 이루어지는데 MyISAM 테이블은 별도로 레코드건수를 관리하기 때문이다 (`WHERE` 조건절이 있는 쿼리는 불가능)
+
+```sql
+EXPLAIN
+SELECT MAX(emp_no), MIN(emp_no) FROM employees;
+
+EXPLAIN
+SELECT MAX(from_date), MIN(from_date) FROM salaries WHERE emp_no=10002;
+```
+
+![58](/Users/a10300/Choi/Git/dev-note/db/mysql/images/real-mysql-8/58.png)
+
+- 두번째 쿼리에서 `salaries` 테이블의 인덱스는 (`emp_no`, `from_date`) 로 이루어져있는데 인덱스를 다음과 같이 검색하기 때문에 이런 최적화 방법이 가능하다.
+
+![59](/Users/a10300/Choi/Git/dev-note/db/mysql/images/real-mysql-8/59.jpeg)
+
+
+
+#### Start temporary, End temporary
+
+#### unique row not found
+
+#### Using filesort
+
+#### Using index (커버링 인덱스)
+
+#### Using index condition
+
+#### Using index for group-by
+
+##### 타이트 인덱스 스캔(인덱스 스캔)을 통한 GROUP BY 처리
+
+##### 루스 인덱스 스캔을 통한 GROUP BY 처리
+
+#### Using index for skip scan
+
+#### Using join buffer(Block Nested Loop), Using join buffer(Batched Key Access), Using join buffer(hash join)
+
+#### Using MRR
+
+#### Using sort_union(...), Using union(...),  Using intersect(...)
+
+#### Using temporary
+
+#### Using where
+
+#### Zero limit
 
 
 
