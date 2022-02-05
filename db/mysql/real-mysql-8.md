@@ -1390,7 +1390,7 @@ WHERE first_name='Jasminko' -- 사번이 100001인 사원의 first_name
 
 
 
-### eq_ref
+#### eq_ref
 
 - `eq_ref` 접근 방법은 여러 테이블이 조인되는 쿼리의 실행 계획에서만 표시된다.
 - 조인에서 처음 읽은 테이블의 칼럼 값을, 그 다음 읽어야 할 테이블의 pk나 유니크 키 칼럼의 검색 조건에 사용할 때를 가리켜 `eq_ref` 라고 한다.
@@ -1404,6 +1404,215 @@ WHERE e.emp_no=de.emp_no AND de.dept_no = 'd005';
 ```
 
 ![31](./images/real-mysql-8/31.png)
+
+- `id` 가 같기 때문에 두 개의 테이블이 조인으로 실행된다는 것을 알 수 있다.
+- `dept_emp` 테이블이 실행계획 위쪽에 있기 때문에 먼저 읽고 `e.emp_no=de.emp_no` 조건을 통해 `employees` 테이블을 검색한다.
+- `employees` 테이블의 `emp_no` 는 pk라서 실행 계획의 두 번째 라인읜 `eq_ref` 로 표시된다.
+
+
+
+#### ref
+
+- `ref` 접근 방법은`eq_ref`와는 달리 조인의 순서와 관계 없이 사용되고 pk나 유니크키의 제약조건도 없다.
+- 인덱스 종류와 관계없이 동등 조건으로 검색할 때는 ref접근 방법이 사용된다.
+- 반환되는 레코드가 반드시 1건이라는 보장이 없기 때문에 `const`, `eq_ref`보다는 느리지만 그래도 매우 빠른 레코드 조회 방법중 하나다.
+
+```sql
+EXPLAIN
+SELECT * FROM dept_emp WHERE dept_no='d005';
+```
+
+![32](./images/real-mysql-8/32.png)
+
+
+
+`지금 까지 확인한 실행 계획`
+
+- `const`, `eq_ref`, `ref` 는 모두 `WHERE` 조건절에 사용하는 비교 연산자는 동등 비교 연산자여야 하는 공통점이 있다.
+- 세가지 모두 매우 좋은 접근 방법이고 인덱스 분포도가 나쁘지 않다면 성능상의 문제를 일으키지 않는 방법이다.
+
+
+
+
+
+#### fulltext
+
+- `fulltext` 접근 방법은 MySQL의 전문검색 인덱스를 사용해 레코드를 읽는 접근 방법을 의미한다.
+- 쿼리에서 전문 인덱스를 사용하는 조건과 그 이외의 일반 인덱스를 사용하는 조건을 사용하면 일반 인덱스의 접근 방법이 `const`, `eq_ref`, `ref` 가 아니라면 일반적으로 전문 인덱스를 사용할 만큼 MySQL 서버에서 전문 검색 조건은 우선순위가 상당히 높다.
+- 전문검색은 `MATCH (...) AGAINST (...)` 구문을 사용하는데 테이블에 전문 검색 인덱스가 없다면 쿼리는 오류가 발생하고 중지된다. 따라서 반드시 전문 검색 인덱스가 테이블에 정의되어 있어야 한다.
+
+```sql
+CREATE TABLE employee_name (
+  emp_no int NOT NULL,
+  first_name varchar(14) NOT NULL,
+  last_name varchar(16) NOT NULL,
+  PRIMARY KEY (emp_no),
+  FULLTEXT KEY fx_name (first_name, last_name) WITH PARSER ngram
+) ENGINE=InnoDB;
+
+
+-- const 실행계획
+EXPLAIN
+SELECT *
+FROM employee_name
+WHERE emp_no=10001 -- emp_no 가 pk, 1건만 조회
+	AND emp_no BETWEEN 10001 AND 10005
+	AND MATCH(first_name, last_name) AGAINST('Facello' IN BOOLEAN MODE);
+
+-- const 실행계획
+EXPLAIN
+SELECT *
+FROM employee_name
+WHERE emp_no BETWEEN 10001 AND 10005
+	AND MATCH(first_name, last_name) AGAINST('Facello' IN BOOLEAN MODE);
+
+```
+
+![33](./images/real-mysql-8/33.png)
+
+- 일반적으로 쿼리에 전문 검색 조건을 사용하면 MySQL은 아무런 주저없이 `fulltext` 접근 방식을 사용하는 경향이 있지만 일반 인덱스를 이용하는 `range` 접근 방법이 더 빨리 처리되는 경우가 많다.
+- 따라서 전문 검색 쿼리를 사용할 때는 조건별로 성능을 확인해보는게 좋다.
+
+
+
+#### ref_or_null
+
+- 이 접근 방법은 `ref` 접근 방법과  같은데 NULL 비교가 추가된 형태다.
+- 많이 활용되지 않지만, 사용된다면 나쁘지 않은 접근 방법 정도로 기억해두면 된다.
+
+```sql
+EXPLAIN
+SELECT * FROM titles
+WHERE to_date='1985-03-01' OR to_date IS NULL;
+```
+
+![34](/Users/a10300/Choi/Git/dev-note/db/mysql/images/real-mysql-8/34.png)
+
+
+
+
+
+#### unique_subquery
+
+- `WHERE` 조건절에서 사용될 수 있는 `IN(subquery)` 형태의 쿼리를 위한 접근 방법이다.
+- 서브쿼리에서 중복되지 않는 유니크한 값만 반환할 때 이 접근방법을 사용한다.
+
+```sql
+EXPLAIN
+SELECT * FROM departments
+WHERE dept_no IN (SELECT dept_no FROM dept_emp WHERE emp_no=10001);
+```
+
+![35](/Users/a10300/Choi/Git/dev-note/db/mysql/images/real-mysql-8/35.png)
+
+- 8.0 으로 올라가면서 `WHERE` 조건절에서 사용될 수 있는 `IN(subquery)` 형태의 세미 조인을 최적화하기 위한 많은 기능이 도입됐다.
+- `unique_subquery` 실행계획을 보고싶다면 아래 옵션을 비활성화해주면 된다.
+
+```java
+SET optimizer_switch='semijoin=off';
+```
+
+> 참고로 위 쿼리는 위 설정으로하면 전혀 다른 실행계획이 나온다
+
+
+
+#### index_subquery
+
+- `IN` 연산자의 특성상  `IN(subquery)` 또는 `IN(상수 나열)` 형태의 조건은 괄호 안에 있는 값의 목록 중에서 중복된 값이 먼저 제거되어야 한다.
+- `unique_subquery` 의 경우 중복된 값을 만들어내지 않는다는 보장이 있으므로 별도의 중복처리는 하지 않아도 된다.
+- 업무 특성상  `IN(subquery)` 에서 subquery가 중복된 값을 반환할 수도 있는데 이때 중복된 값을 인덱스를 사용해서 제거할 수 있을때 `index_subquery`방법이 사용된다.
+
+
+
+#### range
+
+- `range`는 인덱스 레인지 스캔 형태의 접근 방법이다.
+- `range`는 인덱스를 하나의 값이 아니라 범위로 검색하는 경우를 의미한다.
+-  `<>`, `IS NULL`, `BETWEN`, `IN`, `LIKE` 등의 연산자를 이용해 인덱스를 검색할 때 사용한다.
+- 일반적으로 애플리케이션 쿼리에서 가장 많이 사용되는 방식이고 우선순위가 아래에 있지만 `range` 까지만 나와줘도 최적의 성능이 보장된다고 볼 수 있다.
+- 위에서 언급한 `const`, `ref`, `range` 를 모두 통틀어 인덱스 레인지 스캔, 또는 레인지 스캔으로 언급할 때가 많으니 참고하자.
+
+
+
+#### index_merge
+
+- `index_merge` 는 2개 이상의 인덱스를 이용해 각각의 검색 결과를 만들어 낸 후, 그 결과를 병합해서 처리하는 방식이다.
+
+`특징`
+
+1. 여러 인덱스를 읽어야 하므로 일반 `range` 스캔보다는 효율성이 떨어진다.
+2. 전문 검색 인덱스를 사용하는 쿼리에서는 `index_merge`가 적용되지 않는다.
+3. `index_merge` 접근 방식으로 처리된 결과는 항상 2개 이상의 집합이 되기 때문에 그 두 집합의 교집합이나 합집합 또는 중복 제거와같은 부가적인 작업이 더필요하다.
+
+  
+
+```sql
+EXPLAIN 
+SELECT * FROM employees
+WHERE emp_no BETWEEN 10001 AND 11000
+	OR first_name='Smith';
+```
+
+![36](/Users/a10300/Choi/Git/dev-note/db/mysql/images/real-mysql-8/36.png)
+
+
+
+#### index
+
+- 접근 방법이 `index` 라서 익숙하지 않은 사람들은 오해할 수 있다.
+- 이 방법은 인덱스 풀 스캔을 의미한다.
+- 테이블 전체를 읽는건 풀 스캔과 동일하지만 인덱스를 사용하기 떄문에 훨씬 효율적이라고 할 수 있다.
+
+`index 접근 방법 사용하기 (1 + 2 or 1 + 3)`
+
+1. `range`나 `const` 또는 `ref`와 같은 접근 방식으로 인덱스를 사용하지 못하는 경우
+2. 인덱스에 포함된 칼럼으로 처리할 수 있는 쿼리인 경우 즉, 데이터 파일을 읽지 않아도 되는 경우
+3. 인덱스를 이용해 정렬이나 그룹핑 작업이 가능한 경우 즉, 별도의 정렬 작업을 피할 수 있는 경우
+
+```sql
+EXPLAIN
+SELECT * FROM departments ORDER BY dept_no DESC LIMIT 10;
+```
+
+![37](/Users/a10300/Choi/Git/dev-note/db/mysql/images/real-mysql-8/37.png)
+
+#### ALL
+
+- 풀 테이블 스캔 접근 방법은 가장 비효율적인 방법이다.
+- 일반적으로 `index`, `ALL` 접근 방법은 웹서비스, 온라인 트랜잭션 처리 환경에서는 적합하지 않다.
+- InnoDB도 다른 DBMS와 같이 풀 테이블 스캔, 인덱스 풀 스캔과 같은 대량의 디스크 I/O를 유발하는 작업을 위하 한꺼번에 많은 페이지를 읽어들이는 기능인 리드 어 헤드 (Read Ahead)를 제공한다. 이 방법은 잘못 튜닝된 쿼리보다 더 나은 접근 방법이 될 수 있다.
+
+`MySQL 8.0의 병렬 쿼리`
+
+- MySQL 인접한 페이지가 연속해서 몇 번 읽히면 백그라운드로 작동하는 읽기 스레드가 최대 64개의 페이지씩 한꺼번에 읽을 수 있다.
+- `innodb_read_ahead_threshold` 시스템 변수와 `innodb_random_read_ahead` 시스템 변수를 이용해 언제 리드 어헤드를 실행할지 제어할 수 있다.
+- MySQL 8.0에서는 병렬 쿼리기능이 도입됐는데 아직은 초기 구현 상태여서 조건 없이 전체 테이블 건수를 가져오는 쿼리정도만 병렬로 실행할 수 있다.
+
+```sql
+SELECT /*+ SET_VAR(innodb_parallel_read_threads=1)*/ COUNT(*) FROM big_table;
+
+SELECT /*+ SET_VAR(innodb_parallel_read_threads=4)*/ COUNT(*) FROM big_table;
+
+SELECT /*+ SET_VAR(innodb_parallel_read_threads=32)*/ COUNT(*) FROM big_table;
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
