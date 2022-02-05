@@ -1787,7 +1787,7 @@ SELECT d1.dept_no, NULL IN (SELECT d2.dept_name FROM departments d2)
 FROM departments d1;
 ```
 
-![46](/Users/a10300/Choi/Git/dev-note/db/mysql/images/real-mysql-8/46.png)
+![46](./images/real-mysql-8/46.png)
 
 - 칼럼이 `NOT NULL` 은 아니지만 `Full scan on NULL key` 을 무시하고싶을땐 `WHERE` 절에서 미리 걸러주면 된다.
 
@@ -1815,7 +1815,7 @@ GROUP BY e.emp_no
 HAVING e.emp_no IS NULL;
 ```
 
-![47](/Users/a10300/Choi/Git/dev-note/db/mysql/images/real-mysql-8/47.png)
+![47](./images/real-mysql-8/47.png)
 
 
 
@@ -1828,7 +1828,7 @@ EXPLAIN
 SELECT * FROM employees WHERE emp_no IS NULL;
 ```
 
-![48](/Users/a10300/Choi/Git/dev-note/db/mysql/images/real-mysql-8/48.png)
+![48](./images/real-mysql-8/48.png)
 
 
 
@@ -1842,7 +1842,7 @@ SELECT /*+ JOIN_ORDER(de, d)*/ * FROM departments d
 WHERE d.dept_no IN (SELECT de.dept_no FROM dept_emp de);
 ```
 
-![49](/Users/a10300/Choi/Git/dev-note/db/mysql/images/real-mysql-8/49.png)
+![49](./images/real-mysql-8/49.png)
 
 
 
@@ -1856,7 +1856,7 @@ SELECT MIN(dept_no), MAX(dept_no)
 FROM dept_emp WHERE dept_no='';
 ```
 
- ![50](/Users/a10300/Choi/Git/dev-note/db/mysql/images/real-mysql-8/50.png)
+ ![50](./images/real-mysql-8/50.png)
 
 #### no matching row in const table
 
@@ -1869,7 +1869,7 @@ FROM dept_emp de, (SELECT emp_no FROM employees WHERE emp_no=0) tb1
 WHERE tb1.emp_no=de.emp_no AND de.dept_no='d005';
 ```
 
-![51](/Users/a10300/Choi/Git/dev-note/db/mysql/images/real-mysql-8/51.png)
+![51](./images/real-mysql-8/51.png)
 
 
 
@@ -1901,7 +1901,7 @@ INSERT INTO employees_parted SELECT * FROM employees;
 EXPLAIN DELETE FROM employees_parted WHERE hire_date>='2020-01-01';
 ```
 
-![52](/Users/a10300/Choi/Git/dev-note/db/mysql/images/real-mysql-8/52.png)
+![52](./images/real-mysql-8/52.png)
 
 #### No tables used
 
@@ -1912,7 +1912,7 @@ EXPLAIN SELECT 1;
 EXPLAIN SELECT 1 FROM DUAL;
 ```
 
-![53](/Users/a10300/Choi/Git/dev-note/db/mysql/images/real-mysql-8/53.png)
+![53](./images/real-mysql-8/53.png)
 
 
 
@@ -1929,7 +1929,7 @@ FROM dept_emp de
 WHERE d.dept_no IS NULL;
 ```
 
-![54](/Users/a10300/Choi/Git/dev-note/db/mysql/images/real-mysql-8/54.png)
+![54](./images/real-mysql-8/54.png)
 
 - `Not exsists` 메시지는 옵티마이저가 `dept_emp` 테이블의 레코드를 이용해 `departments` 테이블을 조인할 때 `departments` 테이블을 조인할 때 `departments` 테이블의 레코드가 존재하는지 아닌지만 판단한다는 것을 의미한다.
 
@@ -1968,7 +1968,7 @@ WHERE e2.emp_no >= e1.emp_no;
 - 조인 조건에 상수가 없고 둘 다 변수인 경우 옵티마이저는 `e1` 테이블을 먼저 읽고 조인을 위해 `e2`를 읽을 때 인덱스 레인지 스캔과 풀 테이블 스캔중 어느 것이 효율적인지 판단할 수 없다. (`e1` 테이블의 레코드를 읽을 때마다 `e1.emp_no`의 값이 계속 바뀌므로 어떤 접근 방법으로 `e2` 테이블에 접근하면 좋을지 판단할 수 없다. )
 - 위와 같이 레코드마다 인덱스 레인지 스캔을 체크하면 `Range checked for each record(index map: N)` 라는 내용을 확인할 수 있다.
 
-![55](/Users/a10300/Choi/Git/dev-note/db/mysql/images/real-mysql-8/55.png)
+![55](./images/real-mysql-8/55.png)
 
 - `index map` 은 16진수로 표시되는데 해석을 위해 이진수로 바꿔야 한다.
 - `0x1`은 1이기 때문에 이 쿼리는 `e2 `테이블의 첫번쨰 인덱스를 사용할지, 아니면 테이블을 풀 스캔할지를 매 레코드 단위로 결정하면서 처리된다.
@@ -2000,7 +2000,7 @@ SELECT * FROM cte;
 
 - 재귀 쿼리를 이용한 실행 계획은 `Recursive` 구문이 표시된다.
 
-![56](/Users/a10300/Choi/Git/dev-note/db/mysql/images/real-mysql-8/56.png)
+![56](./images/real-mysql-8/56.png)
 
 - `WITH` 구문이 재귀 CTE로 사용될 경우에만 `Recursive` 메시지가 표시되는것을 참고하자
 
@@ -2031,7 +2031,7 @@ SELECT * FROM employees e
 WHERE e.first_name='Matt';
 ```
 
-![57](/Users/a10300/Choi/Git/dev-note/db/mysql/images/real-mysql-8/57.png)
+![57](./images/real-mysql-8/57.png)
 
 - 이 실행계획에서는 `employees` 테이블의 레코드마다 `salaries` 테이블에서 `emp_no`가 일치하는 레코드 중에서 `from_date` 칼럼의 역순으로 2건만 가져와 임시 테이블 `derived2`로 저장한다.
 - 그리고 employees 테이블과  `derived2` 테이블을 조인한다. 그런데 여기서  `derived2` 임시 테이블은 `employees`테이블의 레코드마다 새로 임시 테이블이 생성되는데 이렇게 매번 임시 테이블이 새로 생성되는 경우 `Rematerialize` 라는 메시지가 표시된다.
@@ -2051,27 +2051,131 @@ EXPLAIN
 SELECT MAX(from_date), MIN(from_date) FROM salaries WHERE emp_no=10002;
 ```
 
-![58](/Users/a10300/Choi/Git/dev-note/db/mysql/images/real-mysql-8/58.png)
+![58](./images/real-mysql-8/58.png)
 
 - 두번째 쿼리에서 `salaries` 테이블의 인덱스는 (`emp_no`, `from_date`) 로 이루어져있는데 인덱스를 다음과 같이 검색하기 때문에 이런 최적화 방법이 가능하다.
 
-![59](/Users/a10300/Choi/Git/dev-note/db/mysql/images/real-mysql-8/59.jpeg)
+![59](./images/real-mysql-8/59.jpeg)
 
 
 
 #### Start temporary, End temporary
 
+- 세미 조인 최적화 중에서 Duplicate Weed-out 최적화 전략이 사용되면 MySQL 옵티마이저는 `Start temporary`와 `End temporary` 문구를 표시하게 된다.
+
+```sql
+EXPLAIN
+SELECT * FROM employees e
+WHERE e.emp_no IN (SELECT s.emp_no FROM salaries s WHERE s.salary>150000);
+```
+
+![60](./images/real-mysql-8/60.png)
+
+- Duplicate Weed-out 최적화 전략은 불필요한 중복 건을 제거하기 위해서 내부 임시 테이블을 사용하는데 이때 종니되어 내부 임시테이블에 저장되는 테이블을 식별할 수 있게 해주는 조인의 첫 테이블에 `Start temporary`를. 조인이 끝나는 부분에 `End temporary` 문구를 표시하게 된다.
+- 위 예제에서는 `salaries` 테이블부터 시작해서 `employees` 테이블까지의 내용을 임시 테이블에 저장한다는 의미다.
+
+
+
 #### unique row not found
+
+- 두 개의 테이블이 각각 유니크(pk 포함) 칼럼으로 아우터 조인을 수행하는 쿼리에서 아우터 테이블에 일치하는 레코드가 존재하지 않을 때 해당 문구가 표시된다.
+
+```sql
+-- 테스트 케이스를 위한 테스트용 테이블 생성
+CREATE TABLE tb_test1 (fdpk INT, PRIMARY KEY(fdpk));
+CREATE TABLE tb_test2 (fdpk INT, PRIMARY KEY(fdpk));
+
+INSERT INTO tb_test1 VALUES (1),(2);
+INSERT INTO tb_test2 VALUES (1);
+
+EXPLAIN
+SELECT t1.fdpk
+FROM tb_test1 t1
+	LEFT JOIN tb_test2 t2 ON t2.fdpk=t1.fdpk WHERE t1.fdpk=2; -- tb_test2에는 2인 레코드가 없다.
+```
+
+![61](./images/real-mysql-8/61.png)
+
+
 
 #### Using filesort
 
+- `ORDER BY`를 처리하기 위해 인덱스를 이용할 수 있지만 적절한 인덱스를 사용하지 못할떄는 MySQL 서버가 조회된 레코드를 다시 한번 정렬해야 한다.
+- `ORDER BY` 인덱스를 처리하지 못할 때만 `Using filesort` 코멘트가 표시된다.
+- 이느 조회된 레코드를 정렬용 메모리 버퍼에 복사해 퀵소트 또는 힙 소트 알고리즘을 이용해 정렬을 수행하게 된다는 의미다.
+
+```sql
+EXPLAIN
+SELECT * FROM employees
+ORDER BY last_name DESC;
+```
+
+![스크린샷 2022-02-05 오후 10.15.58](./images/real-mysql-8/62.png)
+
+-  `Using filesort` 가 출력되는 쿼리는 많은 부하를 일으키므로 가능하다면 쿼리를 튜닝하거나 인덱스를 생성하는 것이 좋다.
+
 #### Using index (커버링 인덱스)
+
+- 데이터가 파일을 전혀 읽지 않고 인덱스만 읽어서 쿼리를 모두 처리할 수 있을 때 해당 문구가 표시된다.
+- 인덱스를 이용해 처리하는 쿼리에서 가장 큰 부하를 차지하는 부분은 인덱스 검색에서 일치하는 키들의 레코드를 읽기 위해 데이터 파일을 검색하는 작업 이다.
+- 최악의 경우에는 인덱스를 통해 검색된 결과 레코드를 한 건 한 건 마다 디스크를 한 번씩 읽어야 할 수도 있다.
+
+```sql
+EXPLAIN
+SELECT first_name
+FROM employees
+WHERE first_name BETWEEN 'Babette' AND 'Gad';
+```
+
+![63](./images/real-mysql-8/63.png)
+
+- 인덱스 레인지 스캔을 사용하지만 쿼리의 성능이 만족스럽지 못하다면 인덱스에 있는 칼럼만 사용하도록 쿼리를 변경해 큰 성능 향상을 볼 수 있다.
+- InnoDB의 모든 테이블은 클러스터링 인덱스로 구성되어 있다. 그리고 InnoDB 테이블의 모든 세컨더리 인덱스는 데이터 레코드의 주솟값으로 프라이머리 키 값을 가진다.
+- 인덱스의 레코드 주소 값에 실제 데이터 파일의 `emp_no` 값이 저장된 것을 확인할 수 있다.
+
+![64](./images/real-mysql-8/64.jpeg)
+
+- 따라서 아래 쿼리 역시 커버링 인덱스로 동작한다.
+
+```sql
+EXPLAIN
+SELECT first_name, emp_no
+FROM employees
+WHERE first_name BETWEEN 'Babette' AND 'Gad';
+```
+
+- 레코드 건수에 따라 차이가 있겠지만 쿼리를 커버링 인덱스로 처리하면 그렇지 못할 때와 성능 차이는 수십 배에서 수백 배까지 날 수 있다.
+- 하지만 무조건 커버링 인덱스로 처리하려고 인덱스에 많은 칼럼을 추가하면 메모리 낭비가 심해지고 레코드를 저장하거나 변경하는 작업이 매우 느려질 수 있기 때문에 더 위험할 수 있다.
+- 인덱스를 사용하는 모든 접근 방법(`type 칼럼` )은 커버링 인덱스로 동작할 수 있다.
+- 인덱스 풀 스캔을 사용하더라도 커버링 인덱스로 동작한다면 일반 인덱스 풀 스캔보다 훨씬 빠르게 처리된다.
+
+
 
 #### Using index condition
 
+- MySQL 옵티마이저가 인덱스 컨디션 푸시 다운(Index condition pushdown) 최적화를 사용하면 다음 예제와 같이 해당 문구가 표시된다.
+
+```sql
+EXPLAIN
+SELECT * FROM employees 
+WHERE last_name='Acton' AND first_name LIKE '%sal';
+```
+
+> 위 쿼리의 실행계획은 `Using Where` 로 나온다.
+
+
+
 #### Using index for group-by
 
+- `GROUP BY` 처리를 위해 MySQL 서버는 그루핑 기준 칼럼을 이용해 정렬 작업을 수행하고 다시 정렬된 경과를 그루핑하는 평태의 고부하 작업을 필요로 한다.
+- 하지만  `GROUP BY` 가 인덱스를 이용하면 정렬된 인덱스 칼럼을 순서대로 읽으면서 그루핑 작업만 수행하게 되고 상당히 효율적이고 빠르게 처리된다 .
+- `GROUP BY` 가 인덱스를 이용하면 `Using index for group-by` 가 표시된다.
+- `GROUP BY` 처리를 위해 인덱스를 읽는 방법을 루스 인덱스 스캔 이라고 한다. 
+- 루스 인덱스 스캔은 필요한 부분만 듬성 듬성 읽는다.
+
 ##### 타이트 인덱스 스캔(인덱스 스캔)을 통한 GROUP BY 처리
+
+
 
 ##### 루스 인덱스 스캔을 통한 GROUP BY 처리
 
