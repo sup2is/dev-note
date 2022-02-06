@@ -326,43 +326,59 @@ ALTER TABLE tab_transient STATS_PERSISTENT=1;
 
 ![8](./images/real-mysql-8/8.png)
 
-- 통계정보의 각 칼럼
+`innodb_index_stats 테이블 확인하기`
 
-  - `innodb_index_stats.stat_name='n_diff_pfx%'`
+```sql
+SELECT *
+FROM innodb_index_stats
+WHERE database_name='employees'
+	AND TABLE_NAME='salaries'\g
+```
 
-    - 인덱스가 가진 유니크한 값의 개수
+![9_](./images/real-mysql-8/9_.png)
 
-  - `innodb_index_stats.stat_name='n_leaf_pages'`
+- `innodb_index_stats.stat_name='n_diff_pfx%'`
+  - 인덱스가 가진 유니크한 값의 개수
 
-    - 인덱스의 리프 노드 페이지 개수
+- `innodb_index_stats.stat_name='n_leaf_pages'`
 
-  - `innodb_index_stats.stat_name='size'`
+  - 인덱스의 리프 노드 페이지 개수
 
-    - 인덱스 트리의 전체 페이지 개수
+- `innodb_index_stats.stat_name='size'`
+  - 인덱스 트리의 전체 페이지 개수
 
-  - `innodb_index_stats.n_rows`
+`innodb_table_stats 테이블 확인하기`
 
-    - 테이블의 전체 레코드 건수
+```sql
+SELECT *
+FROM innodb_table_stats
+WHERE database_name='employees'
+	AND TABLE_NAME='salaries'\g
+```
 
-  - `innodb_index_stats.clustered_index_size`
+![9__](./images/real-mysql-8/9__.png)
 
-    - 프라이머리 키의 크기 (innoDB 페이지 개수)
+- `innodb_table_stats.n_rows`
 
-  - `innodb_index_stats.sum_of_other_index_size`
+  - 테이블의 전체 레코드 건수
 
-    - 프라이머리 키를 제외한 인덱스의 크기 (innoDB 페이지 개수)
+- `innodb_table_stats.clustered_index_size`
 
-    - 이 값은 테이블의 `STATS_AUTO_RECALC` 옵션에 따라 0으로 보일 수 있는데 아래 명령어를 실행하면 통계값이 저장된다
+  - 프라이머리 키의 크기 (innoDB 페이지 개수)
 
-    - ```sql
-      ANALYZE TABLE employees.employees;
-      ```
+- `innodb_table_stats.sum_of_other_index_size`
 
+  - 프라이머리 키를 제외한 인덱스의 크기 (innoDB 페이지 개수)
 
+  - 이 값은 테이블의 `STATS_AUTO_RECALC` 옵션에 따라 0으로 보일 수 있는데 아래 명령어를 실행하면 통계값이 저장된다
 
+  - ```sql
+    ANALYZE TABLE employees.employees;
+    ```
 
+​    
 
-- MySQL 5.6 에서 영구적인 통계 정보가 도입되면서 `innodb_stats_auto_recalc` 시스템 설졍 변수의 값을 통해 통계 정보가 자동으로 갱신되는 것을 막을 수 있다.
+- MySQL 5.6 에서 영구적인 통계 정보가 도입되면서 `innodb_stats_auto_recalc` 시스템 설정 변수의 값을 통해 통계 정보가 자동으로 갱신되는 것을 막을 수 있다.
   - OFF로 설정하면 영구적인 통계 정보를 이용한다는 뜻. 기본값은 ON
 - 통계 정보를 자동으로 수집할지 여부도 테이블을 생성할때 `STATS_AUTO_RECALC` 옵션을 이용해 테이블 단위로 조정할 수 있다.
 
@@ -372,7 +388,7 @@ ALTER TABLE tab_transient STATS_PERSISTENT=1;
 
 `STATS_AUTO_RECALC=0`
 
-- 테이블의 통계 정보는 ANALYZE TABLE 명령을 실행할 때만 수집된다.
+- 테이블의 통계 정보는 `ANALYZE TABLE` 명령을 실행할 때만 수집된다.
 
 `STATS_AUTO_RECALC=DEFAULT`
 
@@ -380,7 +396,7 @@ ALTER TABLE tab_transient STATS_PERSISTENT=1;
 
   
 
-- MySQL 5.5 버전에서 테이블의 통계 정보를 수집할 때 몇 개의 InnoDB 테이블 블록을 샘플링할지 결정하는 innodb_stats_sample_pages 시스템 변수는 5.6 버전부터 없어졌다.(Deprecated) 대신 이 시스템 변수는 아래 2개로 분리 되었다.
+- MySQL 5.5 버전에서 테이블의 통계 정보를 수집할 때 몇 개의 InnoDB 테이블 블록을 샘플링할지 결정하는 `innodb_stats_sample_pages` 시스템 변수는 5.6 버전부터 없어졌다.(Deprecated) 대신 이 시스템 변수는 아래 2개로 분리 되었다.
 
 `innodb_stats_transient_sample_pages`
 
@@ -390,7 +406,7 @@ ALTER TABLE tab_transient STATS_PERSISTENT=1;
 `innodb_stats_persistent_sample_pages`
 
 - 기본값은 20
-- `ANALYZE TABLE` 명령이 실행되면 임의로 20개 페이지만 샘플링해서 분석하고 그 결과를 영구적인 통계 정보 테이블에 저정하고 활용함을 의미한다.
+- `ANALYZE TABLE` 명령이 실행되면 임의로 20개 페이지만 샘플링해서 분석하고 그 결과를 영구적인 통계 정보 테이블에 저장하고 활용함을 의미한다.
 - 더 정확한 통계정보를 수집하고 싶다면 이 값에 높은 값을 설정하면 되지만 값이 너무 높을 경우 정보 수집 시간이 길어지므로 주의해야 한다.
 
 
@@ -456,8 +472,8 @@ WHERE SCHEMA_NAME='employees'
 
 
 
-- 싱글톤 히스토그램은 ENUM('M', 'F') 타입인 gender 칼럼이 가질 수 있는 2개의 값에 대해 누적된 레코드 건수의 비율을 갖고 있다.
-- 싱글톤 히스토글매은 주로 코드 값과 같이 유니크한 값의 개수가 상대적으로 적은(히스토그램의 버킷 수 보다 적은) 경우 사용된다. 
+- 싱글톤 히스토그램은 `ENUM('M', 'F')` 타입인 gender 칼럼이 가질 수 있는 2개의 값에 대해 누적된 레코드 건수의 비율을 갖고 있다.
+- 싱글톤 히스토그램은 주로 코드 값과 같이 유니크한 값의 개수가 상대적으로 적은(히스토그램의 버킷 수 보다 적은) 경우 사용된다. 
 - `gender` 칼럼 값이 'M' 인 레코드의 비율은 0.5998 정도이고 'F'인 레코드의 비율은 1로 표시된다.
 - 히스토그램의 모든 레코드 건수 비율은 누적으로 표시되기 때문에 gnder 칼럼의 값이 'F'인 레코드의 비율은 (1 - 0.5998) 이다.
 
@@ -571,7 +587,7 @@ WHERE first_name='Zita'
 
 
 
-- 히스토그램이 없을때는 11.11%의 birth_date가 1950년대일 것으로 추측했지만 히스토그램을 사용했을때는 63.30%이 1950년대 출생인 것을 알 수 있다.
+- 히스토그램이 없을때는 11.11%의 birth_date가 1950년대일 것으로 추측했지만 히스토그램을 사용했을때는 61.30%이 1950년대 출생인 것을 알 수 있다. (실제로 63.84%가 1950년대 출생이다.)
 - 단순 통계 정보만 이용한 경우와 히스토그램을 이용한 경우의 차이가 매우 큰 것을 알 수 있다.
 - **히스토그램이 없으면 옵티마이저는 데이터가 균등하게 분포돼 있을 겻으로 예측한다.**
 - **히스토그램이 있으면 특정 범위의 데이터가 많고 적음을 식별할 수 있다. 이는 쿼리의 성능에 상당한 영향을 미칠 수 있다.**
@@ -581,7 +597,7 @@ WHERE first_name='Zita'
 #### 히스토그램과 인덱스
 
 - 히스토그램과 인덱스는 완전히 다른 객체이기 때문에 서로 비교할 대상은 아니지만 부족한 통계 정보를 수집하기 위해 사용된다는 측면에서 어느정도 공통점을 가진다고 볼 수 있다.
-- MySQL 서버에서는 쿼리의 실행 계획을 수립할 때 사용 가능한 인덱스들로부터 조건절에 일치한다 레코드 건수를 대략 파악하고 최종적으로 가장 나은 실행계획을 선택한다.
+- MySQL 서버에서는 쿼리의 실행 계획을 수립할 때 사용 가능한 인덱스들로부터 조건절에 일치하는 레코드 건수를 대략 파악하고 최종적으로 가장 나은 실행계획을 선택한다.
 - 이때 조건절에 일치하는 레코드 건수를 예측하기 위해 옵티마이저는 실제 인덱스의 B-Tree를 샘플링해서 살펴본다 (인덱스 다이브 Index Dive)
 - MySQL 8.0 서버에서는 인덱스된 칼럼을 검색 조건으로 사용하는 경우 그 칼럼의 히스토그램은 사용하지 않고 실제 인덱스 다이브를 통해 직접 수집한 정보를 활용한다.
 - 이는 실제 검색 조건의 대상 값에 대한 샘플링을 실행하는 것이므로 항상 히스토그램보다 정확한 결과를 기대할 수 있기 때문이다.
@@ -606,13 +622,13 @@ WHERE first_name='Zita'
 
   
 
-- MySQL 8.09 서버의 코스트 모델은 다음 2개의 테이블에 저장되어 있다. (mysql db)
+- MySQL 8.0 서버의 코스트 모델은 다음 2개의 테이블에 저장되어 있다. (mysql db에 있다.)
   - `server_cost`
     - 인덱스를 찾고 레코드를 비교하고 임시테이블 처리에 대한 비용 관리
   - `engine_cost`
     - 레코드를 가진 데이터 페이지를 가져오는 데 필요한 비용 관리
 
-
+![13_](./images/real-mysql-8/13_.png)
 
 `server_cost와 engine_cost의 공통 칼럼`
 
@@ -633,7 +649,7 @@ WHERE first_name='Zita'
 
 - `engine_name`
   - 비용이 적용된 스토리지 엔진
-  - 기본값은 default. default 인 경우 모든 스토리지 엔진에 적용된다.
+  - 기본값은 `default`. `default` 인 경우 모든 스토리지 엔진에 적용된다.
   - MEMORY, MyISAM, InnoDB 에 대해 단위 작업의 비용일 달리 설정하고자 한다면 이 칼럼을 이용하면 된다.
 - `device_type`
   - 디스크 타입
@@ -665,21 +681,21 @@ WHERE first_name='Zita'
 EXPLAIN FORMAT=TREE
 SELECT *
 FROM employees WHERE first_name='Matt' \G
-
 ```
 
-
+![13__](./images/real-mysql-8/13__.png)
 
 ```sql
 EXPLAIN FORMAT=JSON
 SELECT *
 FROM employees WHERE first_name='Matt' \G
-
 ```
+
+![13___](./images/real-mysql-8/13___.png)
 
 - MySQL 서버의 실행 계획에 표시되는 비용을 직접 계산해보고 싶을 수 있지만 이는 상당히 어렵다.
 - 코스트 모델에서 중요한 것은 각 단위 작업에 설정되는 비용 값이 커지면 어떤 실행 계획들이 고비용으로 바뀌고 어떤 실행 계획들이 저비용으로 바뀌는지를 파악하는 것이다.
-- 이 값들을 사용자가 변경할 수 있다고 해서 꼭 바꿔서 사용하라는 뜻은 아니다. 하드웨어와 MySQL 서버 내부처리 방식에 대한 깊은 이해도가 있을 경우에만 변경하자!
+- 이 값들을 사용자가 변경할 수 있다고 해서 꼭 바꿔서 사용하라는 뜻은 아니다. 이미 20년 넘게 수많은 응용프로그램에서 기본값으로 잘 동작하고 있다. 하드웨어와 MySQL 서버 내부처리 방식에 대한 깊은 이해도가 있을 경우에만 변경하자!
 
 
 
@@ -892,9 +908,9 @@ GROUP BY e.hire_date \G
 >
 > Expression #1 of SELECT list is not in GROUP BY clause and contains nonaggregated column 'employees.e.emp_no' which is not functionally dependent on columns in GROUP BY clause; this is incompatible with sql_mode=only_full_group_by
 >
-> 5.7 버전부터 `sql_mode` 가 생겼고 GROUP BY 절에 집계되지 않은 열을 참조하는 쿼리를 거부하는 모드인 것 같다.
+> 5.7 버전부터 `sql_mode` 가 생겼고 `GROUP BY` 절에 집계되지 않은 열을 참조하는 쿼리를 거부하는 모드인 것 같다.
 >
-> 해결 방법은 모든 컬럼을 GROUP BY 또는 집계함수에 포함해서 SELECT 하는 방법이고 다른 방법은 `only_full_group_by` 를 꺼주는 방법이다.
+> 해결 방법은 모든 컬럼을 `GROUP BY` 또는 집계함수에 포함해서 `SELECT` 하는 방법이고 다른 방법은 `only_full_group_by` 를 꺼주는 방법이다.
 >
 > ```sql
 > mysql> set global sql_mode='STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION';
@@ -938,10 +954,11 @@ GROUP BY e.hire_date \G
 - `rows=10`
   - `employees` 테이블에서 읽은 `emp_no`에 일치하는 `salaries` 테이블의 평균 레코드 건수
 - `loops=233`
-  - `employees` 테이블에서 읽은 `emp_no`를 이용해 `salaries` 테이블의 레코드를 찾는 작업이 반복된 횟수
-
   
-
+  - `employees` 테이블에서 읽은 `emp_no`를 이용해 `salaries` 테이블의 레코드를 찾는 작업이 반복된 횟수
+  
+  
+  
 - `EXPLAIN ANALYZE` 명령은 `EXPLAIN` 명령과 달리 실행 계획만 추출하는 것이 아니라 실제 쿼리를 실행하고 사용된 실행 계획과 소요된 시간을 보여주기 때문에 쿼리 실행시간이 오래걸릴수록 확인도 늦어진다.
 - 쿼리의 실행 계획이 아주 나쁜 경우라면 `EXPLAIN ANALYZE` 이전에 `EXPLAIN` 으로 튜닝 후 사용하는게 좋다.
 
@@ -963,17 +980,17 @@ WHERE e.emp_no=s.emp_no LIMIT 10;
 
 ![15](./images/real-mysql-8/15.png)
 
+- 아래의 경우 `SELECT` 가 총 세개이기 때문에 `id` 칼럼도 세개가 표시된다.
+
 ```sql
-EXPLAIN
+EXPLAIN 
 SELECT
 ( (SELECT COUNT(*) FROM employees) + (SELECT COUNT(*) FROM departments) ) AS total_count;
 ```
 
 ![16](./images/real-mysql-8/16.png)
 
-
-
-- `id` 칼럼이 테이블의 접근 순서를 의미하지는 않는다.
+- 주의해야할 점은 `id` 칼럼이 테이블의 접근 순서를 의미하지는 않는다.
 
 ```sql
 EXPLAIN
@@ -986,6 +1003,8 @@ WHERE de.emp_no = (SELECT e.emp_no
 
 ![17](./images/real-mysql-8/17.png)
 
+- `EXPLAIN FORMAT=TREE` 을 통해 실제 실행계획을 확인해보면 `employees` 테이블의 `ix_firstname` 인덱스를 먼저 조회한것을 확인할 수 있다.
+
 ```sql
 EXPLAIN FORMAT=TREE
 SELECT * FROM dept_emp de
@@ -997,8 +1016,6 @@ WHERE de.emp_no = (SELECT e.emp_no
 
 ![18](./images/real-mysql-8/18.png)
 
-- `EXPLAIN FORMAT=TREE` 을 통해 실제 실행계획을 확인해보면 `employees` 테이블의 `ix_firstname` 인덱스를 먼저 조회한것을 확인할 수 있다.
-
 
 
 ### select_type 칼럼
@@ -1009,14 +1026,14 @@ WHERE de.emp_no = (SELECT e.emp_no
 
 - `UNION`이나 서브쿼리를 사용하지 않는 단순한 `SELECT` 쿼리인 경우 해당 쿼리 문장의 `select_type`  은 `SIMPLE`로 표시된다.
 - 일반적으로 제일 바깥 `SELECT` 쿼리의 `select_type` 이 `SIMPLE` 로 표시된다.
-- 한개만 존재한다.
+- 쿼리문장이 아무리 복잡하더라도 `SIMPLE` 타입은 한개만 존재한다.
 
 
 
 #### PRIMARY
 
 - `UNION` 이나 서브쿼리를 가지는 `SELECT` 쿼리의 실행 계획에서 가장 바깥쪽에 있는 단위 쿼리는 `select_type` 이 `PRIMARY`로 표시된다.
-- 한개만 존재한다.
+- 쿼리문장이 아무리 복잡하더라도 `PRIMARY` 타입은 한개만 존재한다.
 
 
 
@@ -1036,7 +1053,7 @@ SELECT * FROM (
 
 ![19](./images/real-mysql-8/19.png)
 
-- 첫번째 (e1) 테이블은 `UNION` 결과를 대표하는  `select_type` 으로 설정됐다.
+- 첫번째 (`e1`) 테이블은 `UNION` 결과를 대표하는  `select_type` 으로 설정됐다.
 - 세 개의 서브쿼리로 조회된 결과를 `UNION ALL` 로 결합해 임시 테이블을 만들어서 사용하고 있으므로 `DERIVED`  라는  `select_type` 을 갖는다. 
 
 
@@ -1056,11 +1073,9 @@ FROM employees e1 WHERE e1.emp_no IN (
 );
 ```
 
-
-
 ![20](./images/real-mysql-8/20.png)
 
-- 예제 쿼리의 경우 MySQL 옵티마이저는 IN 내부의 서브쿼리를 먼저 처리하지 않고 외부의 employees 테이블을 먼저 읽은 다음 서브쿼리를 실행하는데 이때 employees 테이블의 칼럼값이 서브쿼리에 영향을 준다.
+- 예제 쿼리의 경우 MySQL 옵티마이저는 `IN` 내부의 서브쿼리를 먼저 처리하지 않고 외부의 `employees` 테이블을 먼저 읽은 다음 서브쿼리를 실행하는데 이때 `employees` 테이블의 칼럼값이 서브쿼리에 영향을 준다.
 - 이렇게 내부 쿼리가 외부의 값을 참조해서 처리될 때  `select_type` 에 `DEPENDENT` 키워드가 표시된다.
 
 
@@ -1082,7 +1097,7 @@ SELECT emp_no FROM dept_emp WHERE from_date>'2001-01-01';
 ![21](./images/real-mysql-8/21.png)
 
 - `UNION RESULT` 는 실제 쿼리에서 단위 쿼리가 아니기 때문에 별도의 id 값은 부여되지 않는다.
-- `table` 컬럼에서 1, 2는 id 값이 1과 2인 단위 쿼리의 조회 결과를 `UNION` 했다는 의미다.
+- `table` 컬럼에서 표시된 1, 2는 id 값이 1과 2인 단위 쿼리의 조회 결과를 `UNION` 했다는 의미다.
 - 같은 쿼리를 `UNION ALL`로 실행하면 임시 테이블을 사용하지 않기 때문에 `UNION RESULT` 라인이 없어지게 된다.
 
 ```sql
@@ -1104,11 +1119,11 @@ SELECT emp_no FROM dept_emp WHERE from_date>'2001-01-01';
 
 `중첩된 쿼리 (Nested Query)`
 
-- SELECT 되는 칼럼에 사용된 서브쿼리를 네스티드 쿼리라고 한다.
+- `SELECT` 되는 칼럼에 사용된 서브쿼리를 네스티드 쿼리라고 한다.
 
 `서브쿼리(Subquery)`
 
-- WHERE 절에 사용된 경우 일반적으로 그냥 서브쿼리라고 한다.
+- `WHERE` 절에 사용된 경우 일반적으로 그냥 서브쿼리라고 한다.
 
 `파생 테이블(Derived Table)`
 
@@ -1155,7 +1170,7 @@ WHERE e.first_name='Matt';
 - MySQL 5.5 버전까지는 서브쿼리가 `FROM` 절에 사용된 경우 항상  `select_type` 이 `DERIVED`인 실행계획을 만든다.
 - MySQL 5.6 버전부터는 옵티마이저 옵션에 따라 `FROM`절의 서브쿼리를 외부 쿼리와 통합하는 형태의 최적화가 수행되기도 한다.
 - `DERIVED` 는 단위  `SELECT`  쿼리의 실행 결과로 메모리나 디스크에 임시 테이블을 생성하는 것을 의미한다.
-- MYSQL 5.5 버전까지는 파생 테이블에 인덱스가 전혀 없었으므로 다른 테이블과 조인할 떄 성능상 불리했지만 MySQL 6.5 버전부터 옵티마이저 옵션에 따라 쿼리의 특성에 맞게 임시 테이블에도 인덱스를 추가해서 만들 수 있게 최적화 됐다.
+- MYSQL 5.5 버전까지는 파생 테이블에 인덱스가 전혀 없었으므로 다른 테이블과 조인할 떄 성능상 불리했지만 MySQL 5.6 버전부터 옵티마이저 옵션에 따라 쿼리의 특성에 맞게 임시 테이블에도 인덱스를 추가해서 만들 수 있게 최적화 됐다.
 
 ```sql
 EXPLAIN
@@ -1169,8 +1184,8 @@ WHERE e.emp_no=tb.emp_no;
 
 
 
-- 가능하면 `DERIVED` 형태의 실행 계획을 조인으로 해결할 수 있게 쿼리를 바꿔주는게 좋다.
-- MySQL 8.0 버전부터는 `FROM` 절의 서브쿼리에 대한 최적화도 많이 개선되어 가능하다면 불필요한 서브쿼리는 조인으로 쿼리를 재작성해서 처리한다.
+- 위 쿼리는 조인으로 변경할 수 있는데 가능하면 `DERIVED` 형태의 실행 계획을 조인으로 해결할 수 있게 쿼리를 바꿔주는게 좋다.
+- MySQL 8.0 버전부터는 `FROM` 절의 서브쿼리에 대한 최적화도 많이 개선되어 가능하다면 내부적으로 불필요한 서브쿼리는 조인으로 쿼리를 재작성해서 처리한다.
 - 옵티마이저에 의존하기보다는 직접 최적화된 쿼리를 작성하는 것이 중요하다.
 - 서브쿼리를 조인으로 해결할 수 있는 경우라면 반드시 조인을 사용하자!
 
@@ -1213,8 +1228,6 @@ LEFT JOIN LATERAL
 - `NOT-DETERMINISTIC` 속성의 스토어드 루틴이 서브쿼리 내에 사용된 경우
 - `UUID()`나 `RAND()`와 같이 결과값이 호출할 때마다 달라지는 함수가 서브쿼리에 사용된 경우
 
-
-
 ```sql
 EXPLAIN
 SELECT *
@@ -1222,8 +1235,6 @@ FROM employees e WHERE e.emp_no = (
 	SELECT @status FROM dept_emp de WHERE de.dept_no='d005'
 );
 ```
-
-
 
 ![26](./images/real-mysql-8/26.png)
 
@@ -1247,7 +1258,7 @@ WHERE e.emp_no IN (SELECT emp_no FROM salaries WHERE salary BETWEEN 100 AND 1000
 
 ![27](./images/real-mysql-8/27.png)
 
-- MySQL 5.6 버전까지는 `employees` 테이블을 읽어서  `employees` 테이블의 레코드마다 `salaries` 테이블을 일근ㄴ 서브쿼리가 실행되는 형태로 처리됐다
+- MySQL 5.6 버전까지는 `employees` 테이블을 읽어서  `employees` 테이블의 레코드마다 `salaries` 테이블을 읽는 서브쿼리가 실행되는 형태로 처리됐다
 - MySQL 5.7 버전부터는 서브쿼리의 내용을 임시 테이블로 구체화(materialization)한 후 임시 테이블과 `employees` 테이블을 조인하는 형태로 최적화되어 처리된다.
 
 
@@ -1256,11 +1267,11 @@ WHERE e.emp_no IN (SELECT emp_no FROM salaries WHERE salary BETWEEN 100 AND 1000
 
 - MySQL 서버의 실행 계획은 단위  `SELECT` 기준이 아니라 테이블 기준으로 표시된다.
 - `table` 칼럼엔 `<derived N>` 또는 `<union M,N>` 과 같은 이름이 `<>` 로 둘러 쌓인 이름은 임시 테이블을 의미한다.
-- 또한 N값은 단위 SELECT 쿼리의 id 값을 지칭한다.
+- 또한 N값은 단위 `SELECT` 쿼리의 id 값을 지칭한다.
 
 ![24](./images/real-mysql-8/24.png)
 
-- 여기에서  `<derived2>`는 단위 SELECT 쿼리의 id 값이 2인 실행 계획으로부터 만들어진 파생 테이블이라는 뜻이다.
+- 여기에서  `<derived2>`는 단위 `SELECT` 쿼리의 id 값이 2인 실행 계획으로부터 만들어진 파생 테이블이라는 뜻이다.
 
 `id 칼럼, select_type 칼럼, table 칼럼을 기반으로 위 실행계획 해석하기`
 
@@ -1279,7 +1290,7 @@ WHERE e.emp_no IN (SELECT emp_no FROM salaries WHERE salary BETWEEN 100 AND 1000
 - MySQL 5.7 버전까지는 옵티마이저가 사용하는 파티션들의 목록은 `EXPLAIN PARTITION` 명령을 이용해 확인 가능했다.
 - MySQL 8.0 버전부터는 `EXPLAIN` 명령으로 파티션 관련 실행 계획까지 모두 확인할 수 있게 변경됐다.
 
-```
+```sql
 CREATE TABLE employees_2 (
 	emp_no int NOT NULL,
   birth_date DATE NOT NULL,
@@ -1357,7 +1368,7 @@ EXPLAIN SELECT * FROM tb_dual;
 
 #### const
 
-- 테이블의 레코드 건수에 관계 없이 쿼리가 프라이머리 키나 유니크 키 칼럼을 이용하는 `WHERE` 조건절을 가지고 있으며 반드시 1건을 반환하는 쿼리의 처리 형식을 `contst`라고 한다.
+- 테이블의 레코드 건수에 관계 없이 쿼리가 프라이머리 키나 유니크 키 칼럼을 이용하는 `WHERE` 조건절을 가지고 있으며 반드시 1건을 반환하는 쿼리의 처리 형식을 `const`라고 한다.
 - 다른 DBMS에서는 이것을 유니크 인덱스 스캔이라고도 표현한다.
 
 ```sql
@@ -1394,7 +1405,7 @@ WHERE first_name='Jasminko' -- 사번이 100001인 사원의 first_name
 
 - `eq_ref` 접근 방법은 여러 테이블이 조인되는 쿼리의 실행 계획에서만 표시된다.
 - 조인에서 처음 읽은 테이블의 칼럼 값을, 그 다음 읽어야 할 테이블의 pk나 유니크 키 칼럼의 검색 조건에 사용할 때를 가리켜 `eq_ref` 라고 한다.
-- 이때 두번째 이후에 읽는 테이블의 `type` 칼럼에 `eq_ref`가 표시된다. 또한 두번째 이후에 읽히는 테이블을 유니크 키로 검색할 때 그 유니크 인덱스는 NOT NULL 이어야 하며 다중 칼럼으로 만들어진 pk나 유니크 인덱스라면 인덱스의 모든 칼럼이 비교 조건에 사용 되어야만 `eq_ref` 접근 방법이 사용될 수 있다.
+- 이때 두번째 이후에 읽는 테이블의 `type` 칼럼에 `eq_ref`가 표시된다. 또한 두번째 이후에 읽히는 테이블을 유니크 키로 검색할 때 그 유니크 인덱스는 `NOT NULL` 이어야 하며 다중 칼럼으로 만들어진 pk나 유니크 인덱스라면 인덱스의 모든 칼럼이 비교 조건에 사용 되어야만 `eq_ref` 접근 방법이 사용될 수 있다.
 - 즉 조인에서 두번째 이후에 읽는 테이블에서 반드시 1건만 존재한다는 보장이 있어야 사용할 수 있는 접근 방법이다.
 
 ```sql
@@ -1407,7 +1418,7 @@ WHERE e.emp_no=de.emp_no AND de.dept_no = 'd005';
 
 - `id` 가 같기 때문에 두 개의 테이블이 조인으로 실행된다는 것을 알 수 있다.
 - `dept_emp` 테이블이 실행계획 위쪽에 있기 때문에 먼저 읽고 `e.emp_no=de.emp_no` 조건을 통해 `employees` 테이블을 검색한다.
-- `employees` 테이블의 `emp_no` 는 pk라서 실행 계획의 두 번째 라인읜 `eq_ref` 로 표시된다.
+- `employees` 테이블의 `emp_no` 는 pk라서 실행 계획의 두 번째 라인은 `eq_ref` 로 표시된다.
 
 
 
@@ -1459,7 +1470,7 @@ WHERE emp_no=10001 -- emp_no 가 pk, 1건만 조회
 	AND emp_no BETWEEN 10001 AND 10005
 	AND MATCH(first_name, last_name) AGAINST('Facello' IN BOOLEAN MODE);
 
--- const 실행계획
+-- fulltext 실행계획
 EXPLAIN
 SELECT *
 FROM employee_name
@@ -1477,7 +1488,7 @@ WHERE emp_no BETWEEN 10001 AND 10005
 
 #### ref_or_null
 
-- 이 접근 방법은 `ref` 접근 방법과  같은데 NULL 비교가 추가된 형태다.
+- 이 접근 방법은 `ref` 접근 방법과  같은데 `NULL` 비교가 추가된 형태다.
 - 많이 활용되지 않지만, 사용된다면 나쁘지 않은 접근 방법 정도로 기억해두면 된다.
 
 ```sql
@@ -1532,7 +1543,12 @@ SET optimizer_switch='semijoin=off';
 - 일반적으로 애플리케이션 쿼리에서 가장 많이 사용되는 방식이고 우선순위가 아래에 있지만 `range` 까지만 나와줘도 최적의 성능이 보장된다고 볼 수 있다.
 - 위에서 언급한 `const`, `ref`, `range` 를 모두 통틀어 인덱스 레인지 스캔, 또는 레인지 스캔으로 언급할 때가 많으니 참고하자.
 
+```sql
+EXPLAIN
+SELECT * FROM employees WHERE emp_no BETWEEN 10002 AND 10004;
+```
 
+![35_](./images/real-mysql-8/35_.png)
 
 #### index_merge
 
@@ -1544,7 +1560,7 @@ SET optimizer_switch='semijoin=off';
 2. 전문 검색 인덱스를 사용하는 쿼리에서는 `index_merge`가 적용되지 않는다.
 3. `index_merge` 접근 방식으로 처리된 결과는 항상 2개 이상의 집합이 되기 때문에 그 두 집합의 교집합이나 합집합 또는 중복 제거와같은 부가적인 작업이 더필요하다.
 
-  
+ 
 
 ```sql
 EXPLAIN 
@@ -1561,7 +1577,7 @@ WHERE emp_no BETWEEN 10001 AND 11000
 
 - 접근 방법이 `index` 라서 익숙하지 않은 사람들은 오해할 수 있다.
 - 이 방법은 인덱스 풀 스캔을 의미한다.
-- 테이블 전체를 읽는건 풀 스캔과 동일하지만 인덱스를 사용하기 떄문에 훨씬 효율적이라고 할 수 있다.
+- 테이블 전체를 읽는건 풀 스캔과 동일하지만 인덱스를 사용하기 때문에 훨씬 효율적이라고 할 수 있다.
 
 `index 접근 방법 사용하기 (1 + 2 or 1 + 3)`
 
@@ -1581,11 +1597,11 @@ SELECT * FROM departments ORDER BY dept_no DESC LIMIT 10;
 - 풀 테이블 스캔 접근 방법은 가장 비효율적인 방법이다.
 - 일반적으로 `index`, `ALL` 접근 방법은 웹서비스, 온라인 트랜잭션 처리 환경에서는 적합하지 않다.
 - InnoDB도 다른 DBMS와 같이 풀 테이블 스캔, 인덱스 풀 스캔과 같은 대량의 디스크 I/O를 유발하는 작업을 위하 한꺼번에 많은 페이지를 읽어들이는 기능인 리드 어 헤드 (Read Ahead)를 제공한다. 이 방법은 잘못 튜닝된 쿼리보다 더 나은 접근 방법이 될 수 있다.
+- MySQL 인접한 페이지가 연속해서 몇 번 읽히면 백그라운드로 작동하는 읽기 스레드가 최대 64개의 페이지씩 한꺼번에 읽을 수 있다.
+- `innodb_read_ahead_threshold` 시스템 변수와 `innodb_random_read_ahead` 시스템 변수를 이용해 언제 리드 어헤드를 실행할지 제어할 수 있다.
 
 `MySQL 8.0의 병렬 쿼리`
 
-- MySQL 인접한 페이지가 연속해서 몇 번 읽히면 백그라운드로 작동하는 읽기 스레드가 최대 64개의 페이지씩 한꺼번에 읽을 수 있다.
-- `innodb_read_ahead_threshold` 시스템 변수와 `innodb_random_read_ahead` 시스템 변수를 이용해 언제 리드 어헤드를 실행할지 제어할 수 있다.
 - MySQL 8.0에서는 병렬 쿼리기능이 도입됐는데 아직은 초기 구현 상태여서 조건 없이 전체 테이블 건수를 가져오는 쿼리정도만 병렬로 실행할 수 있다.
 
 ```sql
@@ -1613,7 +1629,7 @@ SELECT /*+ SET_VAR(innodb_parallel_read_threads=32)*/ COUNT(*) FROM big_table;
 
 ![36](./images/real-mysql-8/36.png)
 
-- `type` 이 null 인 경우 인덱스를 사용하지 못했으므로 `key` 칼럼도 null로 표시된다.
+- `type` 이 `null` 인 경우 인덱스를 사용하지 못했으므로 `key` 칼럼도 `null`로 표시된다.
 
 
 
@@ -1630,7 +1646,7 @@ SELECT * FROM dept_emp WHERE dept_no='d005';
 ![38](./images/real-mysql-8/38.png)
 
 - `dept_no`와 `emp_no` 으로 구성된 pk에 `dept_no`로만 검색한 쿼리의 결과
-- `dept_no`의 칼럼 타입이 `CHAR(4)` 이기 때문에 프라이머리 키에서 앞쪽 16 바이트만 유효하게 사용했다는 의미다. (utf8mb4 문자 집합에서 하나의 문자는 고정적으로 4바이트로 계산 4*4 = 16)
+- `dept_no`의 칼럼 타입이 `CHAR(4)` 이기 때문에 프라이머리 키에서 앞쪽 16 바이트만 유효하게 사용했다는 의미다. (`utf8mb4` 문자 집합에서 하나의 문자는 고정적으로 4바이트로 계산 4*4 = 16)
 
 ```sql
 EXPLAIN
@@ -1647,7 +1663,6 @@ SELECT * FROM dept_emp WHERE dept_no='d005' AND emp_no=10001;
 
 - 접근 방법이 `ref` 면 참조 조건으로 어떤 값이 제공됐는지 보여준다.
 - 이 칼럼에 출력되는 내용은 크게 신경쓰지 않아도 무방하지만 산술 표현식을 넣거나 문자 집합이 일치하지 않는 경우 `func` 이라고 표시된다.
-- 문자 집합이 일치하지 않는 경우  MySQL 서버가 이런 변환을 내부적으로 실행하는데 가능하다면 MySQL  서버가 이런 변환을 하지 않아도 되게 조인의 칼럼의 타입은 일치시키는 편이 좋다.
 
 ```sql
 EXPLAIN
@@ -1657,7 +1672,7 @@ FROM employees e, dept_emp de WHERE e.emp_no=(de.emp_no-1)
 
 ![40](./images/real-mysql-8/40.png)
 
-
+- 문자 집합이 일치하지 않는 경우  MySQL 서버가 이런 변환을 내부적으로 실행하는데 가능하다면 MySQL  서버가 이런 변환을 하지 않아도 되게 조인의 칼럼의 타입은 일치시키는 편이 좋다.
 
 ### rows 칼럼
 
@@ -1692,7 +1707,7 @@ WHERE e.first_name = 'Matt' -- 인덱스 사용 가능
 
 - `employees` 테이블에서 인덱스 조건에만 일치하는 레코드는 대략 233건. 이중에서 16.03%만 인덱스를 사용하지 못하는 `e.hire_date BETWEEN '1990-01-01' AND '1991-01-01'`  조건에 일치한다는 것을 알 수 있다.
 - `filtered` 칼럼의 값은 필터링되어 버려지는 레코드의 비율이 아니라 필터링되고 남은 레코드의 비율을 말한다.
-- 따라서 `employees` 테이블에서 `salaries` 테이블로 조인을 수행한 레코드 건수는 대략 37건 (233 * 0.1603) 건이라는 것을 알 수 있다.
+- 따라서 `employees` 테이블에서 `salaries` 테이블로 조인을 수행한 레코드 건수는 대략 37건 (233 * 0.1663) 건이라는 것을 알 수 있다.
 - 옵티마이저는 조인의 횟수를 줄이고 그 과정에서 읽어온 데이터를 저장해둘 메모리 사용량을 낮추기 위해 대상 건수가 적은 테이블을 선행 테이블로 선택할 가능성이 높다.
 
 ```sql
@@ -1733,7 +1748,7 @@ WHERE e.first_name = 'Matt' -- 인덱스 사용 가능
 
 #### Deleting all rows
 
--  MyISAM 스토리지 엔진과 같이 스토리지 엔진의 핸들러 차원에서 테이블의 모든 레코드를 삭제하는 기능을 제공하는 스토리이 엔진 테이블인 경우 `Extra` 칼럼에 이 내용이 표시된다.
+-  MyISAM 스토리지 엔진과 같이 스토리지 엔진의 핸들러 차원에서 테이블의 모든 레코드를 삭제하는 기능을 제공하는 스토리지 엔진 테이블인 경우 `Extra` 칼럼에 이 내용이 표시된다.
 - 이 문구는 테이블의 모든 레코드를 삭제하는 핸들러 기능(api)을 한번 호출함으로써 처리됐다는 것을 의미한다.
 - 참고로 8.0 버전에서는 더 이상 `Deleting all rows` 가 표시되지 않는다. 테이블의 모든 레코드를 삭제하고싶다면 `TRUNCATE` 명령어를 사용하는게 좋다.
 
@@ -1756,6 +1771,8 @@ FROM departments d, dept_emp de WHERE de.dept_no=d.dept_no;
 ![44](./images/real-mysql-8/44.jpeg)
 
 #### FirstMatch
+
+- 세미조인의 여러 최적화중에서 FirstMatch 전략이 사용되면 해당 메시지를 출력한다.
 
 ```sql
 EXPLAIN
@@ -1931,7 +1948,7 @@ WHERE d.dept_no IS NULL;
 
 ![54](./images/real-mysql-8/54.png)
 
-- `Not exsists` 메시지는 옵티마이저가 `dept_emp` 테이블의 레코드를 이용해 `departments` 테이블을 조인할 때 `departments` 테이블을 조인할 때 `departments` 테이블의 레코드가 존재하는지 아닌지만 판단한다는 것을 의미한다.
+- `Not exsists` 메시지는 옵티마이저가 `dept_emp` 테이블의 레코드를 이용해 `departments` 테이블을 조인할 때 `departments` 테이블의 레코드가 존재하는지 아닌지만 판단한다는 것을 의미한다.
 
 
 
@@ -1971,7 +1988,8 @@ WHERE e2.emp_no >= e1.emp_no;
 ![55](./images/real-mysql-8/55.png)
 
 - `index map` 은 16진수로 표시되는데 해석을 위해 이진수로 바꿔야 한다.
-- `0x1`은 1이기 때문에 이 쿼리는 `e2 `테이블의 첫번쨰 인덱스를 사용할지, 아니면 테이블을 풀 스캔할지를 매 레코드 단위로 결정하면서 처리된다.
+- `0x1`은 1이기 때문에 이 쿼리는 `e2 `테이블의 첫번째 인덱스를 사용할지, 아니면 테이블을 풀 스캔할지를 매 레코드 단위로 결정하면서 처리된다.
+- 여기서 나오는 숫자는 `SHOW CREATE TABLE employees` 로 검색했을때 나오는 인덱스의 숫번을 의미한다.
 
 
 
@@ -2034,7 +2052,7 @@ WHERE e.first_name='Matt';
 ![57](./images/real-mysql-8/57.png)
 
 - 이 실행계획에서는 `employees` 테이블의 레코드마다 `salaries` 테이블에서 `emp_no`가 일치하는 레코드 중에서 `from_date` 칼럼의 역순으로 2건만 가져와 임시 테이블 `derived2`로 저장한다.
-- 그리고 employees 테이블과  `derived2` 테이블을 조인한다. 그런데 여기서  `derived2` 임시 테이블은 `employees`테이블의 레코드마다 새로 임시 테이블이 생성되는데 이렇게 매번 임시 테이블이 새로 생성되는 경우 `Rematerialize` 라는 메시지가 표시된다.
+- 그리고 `employees` 테이블과  `derived2` 테이블을 조인한다. 그런데 여기서  `derived2` 임시 테이블은 `employees`테이블의 레코드마다 새로 임시 테이블이 생성되는데 이렇게 매번 임시 테이블이 새로 생성되는 경우 `Rematerialize` 라는 메시지가 표시된다.
 
 
 
@@ -2071,7 +2089,7 @@ WHERE e.emp_no IN (SELECT s.emp_no FROM salaries s WHERE s.salary>150000);
 
 ![60](./images/real-mysql-8/60.png)
 
-- Duplicate Weed-out 최적화 전략은 불필요한 중복 건을 제거하기 위해서 내부 임시 테이블을 사용하는데 이때 종니되어 내부 임시테이블에 저장되는 테이블을 식별할 수 있게 해주는 조인의 첫 테이블에 `Start temporary`를. 조인이 끝나는 부분에 `End temporary` 문구를 표시하게 된다.
+- Duplicate Weed-out 최적화 전략은 불필요한 중복 건을 제거하기 위해서 내부 임시 테이블을 사용하는데 이때 조인되어 내부 임시테이블에 저장되는 테이블을 식별할 수 있게 해주는 조인의 첫 테이블에 `Start temporary`를. 조인이 끝나는 부분에 `End temporary` 문구를 표시하게 된다.
 - 위 예제에서는 `salaries` 테이블부터 시작해서 `employees` 테이블까지의 내용을 임시 테이블에 저장한다는 의미다.
 
 
@@ -2100,9 +2118,9 @@ FROM tb_test1 t1
 
 #### Using filesort
 
-- `ORDER BY`를 처리하기 위해 인덱스를 이용할 수 있지만 적절한 인덱스를 사용하지 못할떄는 MySQL 서버가 조회된 레코드를 다시 한번 정렬해야 한다.
+- `ORDER BY`를 처리하기 위해 인덱스를 이용할 수 있지만 적절한 인덱스를 사용하지 못할때는 MySQL 서버가 조회된 레코드를 다시 한번 정렬해야 한다.
 - `ORDER BY` 인덱스를 처리하지 못할 때만 `Using filesort` 코멘트가 표시된다.
-- 이느 조회된 레코드를 정렬용 메모리 버퍼에 복사해 퀵소트 또는 힙 소트 알고리즘을 이용해 정렬을 수행하게 된다는 의미다.
+- 이는 조회된 레코드를 정렬용 메모리 버퍼에 복사해 퀵소트 또는 힙 소트 알고리즘을 이용해 정렬을 수행하게 된다는 의미다.
 
 ```sql
 EXPLAIN
@@ -2246,7 +2264,7 @@ WHERE birth_date >= '1965-02-01';
 
 #### Using join buffer(Block Nested Loop), Using join buffer(Batched Key Access), Using join buffer(hash join)
 
--  일반적으로 빠른 쿼리 실행을 위해 조인되는 칼럼은 인덱스를 이용하는데 조인되는 두 테이블중 인덱스가 없는 테이블을 주로 드라이빙 테이블로 사용한다. 뒤에 읽는 드리븐 테이블은 검색 위주로 사용되기 떄문에 인덱스가 없으면 성능에 미치는 영향이 매우크기 때문이다.
+-  일반적으로 빠른 쿼리 실행을 위해 조인되는 칼럼은 인덱스를 이용하는데 조인되는 두 테이블중 인덱스가 없는 테이블을 주로 드라이빙 테이블로 사용한다. 뒤에 읽는 드리븐 테이블은 검색 위주로 사용되기 때문에 인덱스가 없으면 성능에 미치는 영향이 매우크기 때문이다.
 - 조인이 수행될 때 드리븐 테이블에 적절한 인덱스가 있으면 아무런 문제가 없다.
 - 드리븐 테이블에 검색을 위한 적절한 인덱스가 없으면 MySQL 서버는 블록 네스티드 루프 조인이나 해시 조인을 사용한다.
 - 블록 네스티드 루프 조인이나 해시 조인을 사용하는 경우 조인 버퍼를 사용하는데 이때 `Using join buffer` 문구가 표시된다.
@@ -2267,7 +2285,7 @@ WHERE de.from_date >'2005-01-01' AND e.emp_no<10904;
 #### Using MRR
 
 - MySQL 엔진은 실행 계획을 수립하고 그 실행 계획에 맞게 스토리지 엔진의 API를 호출해서 쿼리를 처리한다.
-- InnoDB를 포함한 스토리지 엔진 레벨에서는 쿼리 실행의 전체적인 부분을 알지 못하기 때문에 최적화에 한게가 있다.
+- InnoDB를 포함한 스토리지 엔진 레벨에서는 쿼리 실행의 전체적인 부분을 알지 못하기 때문에 최적화에 한계가 있다.
 - 이러한 이유로 아무리 많은 레코드를 읽는 과정이라 하더라도 스토리지 엔진은 MySQL 엔진이 넘겨주는 키 값을 기준으로 레코드 한 건 한 건 읽어서 반환하는 방식으로밖에 작동하지 못하는 한계점이 있다. 실제 매번 읽어서 반환하는 레코드가 동일 페이지에 있다고 하더라도 레코드 단위로 API 호출이 필요한 것이다.
 - MySQL 서버에서는 이 같은 단점을 보완하기 위해 MRR(Multi Range Read)라는 최적화를 도입했다.
 - 여러 개의 키 값을 한 번에 스트리지 엔진으로 전달하고, 스토리지 엔진은 넘겨받은 키 값들을 정렬해서 최소한의 페이지 접근만으로 필요한 레코드를 읽을 수 있게 최적화한다.
@@ -2364,7 +2382,7 @@ WHERE emp_no BETWEEN 10001 AND 10100
 
 #### Zero limit
 
-- 때떄로 MySQL 서버에서 데이터 값이 아닌 쿼리 결과값의 메타데이터만 필요한 경우 쿼리 마지막에 `LIMIT 0`을 사용한다.
+- 때때로 MySQL 서버에서 데이터 값이 아닌 쿼리 결과값의 메타데이터만 필요한 경우 쿼리 마지막에 `LIMIT 0`을 사용한다.
 - 이때 옵티마이저는 사용자의 의도를 파악하고 실제 테이블의 레코드는 전혀읽지 않고 결과값의 메타 정보만 전달한다. 이 경우에 해당 메시지가 표시된다.
 
 ```sql
