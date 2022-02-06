@@ -2175,31 +2175,204 @@ WHERE last_name='Acton' AND first_name LIKE '%sal';
 
 ##### 타이트 인덱스 스캔(인덱스 스캔)을 통한 GROUP BY 처리
 
+- 인덱스를 이용해 `GROUP BY` 를 처리할 수 있더라도 `AVG()`, `SUM()`, `COUNT()` 처럼 조회하려는 값이 모든 인덱스를 다 읽어야 하는 경우엔 `Using index for group-by` 메시지가 표시되지 않는다.
 
+```sql
+EXPLAIN
+SELECT first_name, COUNT(*) AS counter
+FROM employees GROUP BY first_name;
+```
+
+![65](./images/real-mysql-8/65.png)
 
 ##### 루스 인덱스 스캔을 통한 GROUP BY 처리
 
+- 단일 칼럼으로 구성된 인덱스에서는 그루핑 칼럼 말고는 아무것도 조회하지 않는 쿼리에서 루스 인덱스 스캔을 사용할 수 있다.
+- 다중 칼럼으로 만들어진 인덱스에서는 `GROUP BY` 절이 인덱스를 사용할 수 있어야 함은 물론이고 `MAX()` 나 `MIN()` 같이 조회하는 값이 인덱스의 첫 번째 또는 마지막 레코드만 읽어도 되는 쿼리는 루스 인덱스 스캔이 사용될 수 있다.
+
+```sql
+EXPLAIN
+SELECT emp_no, MIN(from_date) AS first_changed_date, MAX(from_date) AS last_changed_date FROM salaries
+GROUP BY emp_no;
+```
+
+![66](./images/real-mysql-8/66.png)
+
+- `WHERE` 절에서 사용하는 인덱스에 대해서도 `GROUP BY` 절의 인덱스 사용 여부가 영향을 받는다.
+
+`WHERE 조건절이 없는 경우`
+
+- `WHERE` 조건 절이 전혀 없는 쿼리는 `GROUP BY` 절의 칼럼과 `SELECT` 로 가져오는 칼럼이 루스 인덱스 스캔을 사용할 수 있는 조건만 갖추면 된다.
+
+`WHERE 조건절이 있지만 검색을 위해 인덱스를 사용하지 못하는 경우`
+
+- 이런 경우 먼저 `GROUP BY`를 위해 인덱스를 읽은 후, `WHERE` 조건의 비교를위해 데이터 레코드를 읽어야 한다.
+- 따라서 이 경우도 루스 인덱스 스캔을 사용할 수 없다.
+
+`WHERE 조건절이 있고, 검색을 위해 인덱스를 사용하는 경우`
+
+- `WHERE`절의 인덱스와 `GROUP BY` 절에 사용되는 인덱스가 같은 경우에만 루스 인덱스 스캔을 사용할 수 있다.
+- `WHERE`절이 사용할 수 있는 인덱스와 `GROUP BY` 절에 사용할 수 있는 인덱스가 다른 경우 옵티마이저는 주로 `WHERE` 절에 사용하는 인덱스를 사용하도록 실행 계획을 수립하는 경향이 있다.
+
+  
+
+- 만약 `WHERE` 조건에 의해 검색된 레코드 수가 적으면 루스 인덱스 스캔을 사용하지 않아도 매우 빠르게 처리될 수 있기 때문에 루스 인덱스 스캔을 사용할 수 있는 경우라도 옵티마이저는 적절하게 판단해서 루스 인덱스스캔을 사용하지 않는다.
+
+```sql
+EXPLAIN
+SELECT emp_no, MIN(from_date) AS first_changed_date, MAX(from_date) AS last_changed_date FROM salaries
+WHERE emp_no BETWEEN 10001 AND 10099
+GROUP BY emp_no;
+```
+
+![67](./images/real-mysql-8/67.png)
+
 #### Using index for skip scan
+
+- MySQL 8.0 부터 루스 인덱스 스캔 최적화를 확장한 인덱스 스킵 스캔 최적화가 도입됐다.
+- MySQL 옵티마이저가 인덱스 스킵 스캔 최적화를 사용하면 해당 문구가 표시된다.
+
+```sql
+ALTER TABLE employees
+ADD INDEX ix_gender_birthdate (gender, birth_date);
+
+EXPLAIN
+SELECT gender, birth_date
+FROM employees
+WHERE birth_date >= '1965-02-01';
+```
+
+![68](./images/real-mysql-8/68.png)
 
 #### Using join buffer(Block Nested Loop), Using join buffer(Batched Key Access), Using join buffer(hash join)
 
+-  일반적으로 빠른 쿼리 실행을 위해 조인되는 칼럼은 인덱스를 이용하는데 조인되는 두 테이블중 인덱스가 없는 테이블을 주로 드라이빙 테이블로 사용한다. 뒤에 읽는 드리븐 테이블은 검색 위주로 사용되기 떄문에 인덱스가 없으면 성능에 미치는 영향이 매우크기 때문이다.
+- 조인이 수행될 때 드리븐 테이블에 적절한 인덱스가 있으면 아무런 문제가 없다.
+- 드리븐 테이블에 검색을 위한 적절한 인덱스가 없으면 MySQL 서버는 블록 네스티드 루프 조인이나 해시 조인을 사용한다.
+- 블록 네스티드 루프 조인이나 해시 조인을 사용하는 경우 조인 버퍼를 사용하는데 이때 `Using join buffer` 문구가 표시된다.
+- 사용자는 `join_buffer_size` 라는 시스템 변수에 최대로 할당 가능한 조인 버퍼 크기를 설정할 수 있다.
+- 조인 버퍼를 너무 부족하거나 너무 과다하게 사용되지 않게 적절히 설정하는 것이 좋다. (일반적인 온라인 웹 서비스엔 1mb면 충분하다.)
+- MySQL 8.0 부터 도입된 해시 조인 역시 조인 버퍼를 사용하는데 데이터 웨어하우스처럼 대용량의 쿼리들을 실행해야 한다면 조인 버퍼를 더 크게 설정하는 것이 좋다.
+
+``` sql
+-- 조인 조건이 없는 카테시안 조인은 항상 조인 버퍼를 사용한다.
+EXPLAIN
+SELECT *
+FROM dept_emp de, employees e
+WHERE de.from_date >'2005-01-01' AND e.emp_no<10904;
+```
+
+![69](./images/real-mysql-8/69.png)
+
 #### Using MRR
+
+- MySQL 엔진은 실행 계획을 수립하고 그 실행 계획에 맞게 스토리지 엔진의 API를 호출해서 쿼리를 처리한다.
+- InnoDB를 포함한 스토리지 엔진 레벨에서는 쿼리 실행의 전체적인 부분을 알지 못하기 때문에 최적화에 한게가 있다.
+- 이러한 이유로 아무리 많은 레코드를 읽는 과정이라 하더라도 스토리지 엔진은 MySQL 엔진이 넘겨주는 키 값을 기준으로 레코드 한 건 한 건 읽어서 반환하는 방식으로밖에 작동하지 못하는 한계점이 있다. 실제 매번 읽어서 반환하는 레코드가 동일 페이지에 있다고 하더라도 레코드 단위로 API 호출이 필요한 것이다.
+- MySQL 서버에서는 이 같은 단점을 보완하기 위해 MRR(Multi Range Read)라는 최적화를 도입했다.
+- 여러 개의 키 값을 한 번에 스트리지 엔진으로 전달하고, 스토리지 엔진은 넘겨받은 키 값들을 정렬해서 최소한의 페이지 접근만으로 필요한 레코드를 읽을 수 있게 최적화한다.
+- MRR이 도입되면서 각 스토리지 엔진은 디스크 접근을 최소화할 수 있게 됐다.
+
+```sql
+EXPLAIN
+SELECT /*+ JOIN_ORDER(s, e)*/ *
+FROM employees e,
+	salaries s USE INDEX (ix_salary)
+WHERE e.first_name='Matt'
+	AND e.hire_date BETWEEN '1990-01-01' AND '1991-01-01'
+	AND s.emp_no=e.emp_no
+	AND s.from_date BETWEEN '1990-01-01' AND '1991-01-01'
+	AND s.salary BETWEEN 50000 AND 60000;
+```
+
+> 위 쿼리는 `Using where`  가 출력된다.
+
+
 
 #### Using sort_union(...), Using union(...),  Using intersect(...)
 
+- `index merge` 로 실행되는 경우에 두 인덱스로부터 읽은 결과를 어떻게 병합했는지 조금 더상세하게 설명하기 위해 다음 3개중에서 하나의 메시지를 선택적으로 출력한다.
+
+`Using intersect(...)`
+
+-  각각의 인덱스를 사용할 수 있는 조건이 `AND` 로 연결된 경우 각 처리 결과에서 교집합을 추출해내는 작업을 수행했다는 의미다.
+
+`Using union(...)`
+
+-  각 인덱스를 사용할 수 있는 조건이 `OR`로 연결된 경우 각 처리 결과에서 합집합을 추출해내는 작업을 수행했다는 의미다.
+
+`Using sort_union(...)`
+
+- `Using union`과 같은 작업을 수행하지만 `Using union` 으로 처리될 수 없는 경우 (`OR`로 연결된 상대적으로 대량의 `range`조건들 ) 이 방식으로 처리된다. `Using sort_union` 와 `Using union`의 차이점은 `Using sort_union` 은 프라이머리 키만 먼저 읽어서 정렬하고 병합한 이후 비로소 레코드를 읽어서 반환할 수 있다는 것이다.
+
+  
+
 #### Using temporary
+
+- MySQL 서버에서 쿼리를 처리하는 동안 중간 결과를 담아두기 위해 임시테이블을 사용하는데 임시 테이블은 메모리 또는 디스크상에 생성될 수 있다.
+- 임시 테이블이 사용되었다면 `Using temporary` 문구가 표시된다. 하지만 메모리에 생성되었는지, 디스크에 생성됐는지 판단할 수는 없다.
+
+```sql
+EXPLAIN 
+SELECT gender, MIN(emp_no)
+FROM employees
+GROUP BY gender
+ORDER BY MIN(emp_no);
+```
+
+![70](./images/real-mysql-8/70.png)
+
+- 하지만  `Using temporary` 가 표시되지 않더라도 아래의 경우 임시테이블을 사용한다.
+  - `FROM` 절에 사용된 서브쿼리는 무조건 임시 테이블을 생성한다. 이 테이블은 파생테이블이라고 부르지만 결국 실체는 임시 테이블이다.
+  - `COUNT(DISTINCT column1)`을 포함하는 쿼리도 인덱스를 사용할 수 없는 경우에는 임시 테이블이 만들어진다.
+  - `UNION` 이나 `UNION DISTINCT`가 사용된 쿼리도 항상 임시테이블을 사용해 결과를 병합한다. MySQL 8.0 부터 `UNION ALL` 은 임시테이블을 사용하지 않도록 개선되었다.
+  - 인덱스를 사용하지 못하는 정렬 작업 또한 임시 버퍼 공간을 사용하는데, 정렬해야 할 레코드가 많아지면 결국 디스크를 사용한다. 정렬에 사용되는 버퍼도 결국 실체는 임시 테이블과 같다. 쿼리가 정렬을 수행할 떄는 실행 계획의 `Extra` 칼럼에 `Using filesort` 라고 표시된다.
+
+  
+
+- 다음 쿼리를 통해 임시 테이블 현황을 살펴볼 수 있다.
+
+```sql
+SHOW STATUS LIKE 'Created_tmp%'
+```
+
+![71](./images/real-mysql-8/71.png)
+
+
 
 #### Using where
 
+- MySQL 서버는 MySQL엔진과 스토리지 엔진이라는 두 개의 레이어로 되어있다.
+- 각 스토리지 엔진은 디스크나 메모리상에서 필요한 레코드를 읽거나 저장하는 역할을 하고, MySQL 엔진은 스토리지 엔진으로부터 받은 레코드를 가공 또는 연산하는 작업을 수행한다.
+- MySQL 엔진 레이어에서 별도의 가공을해서 필터링 작업을 처리한 경우엔 `Using where` 코멘트가 표시된다.
+
+```sql
+EXPLAIN
+SELECT *
+FROM employees
+WHERE emp_no BETWEEN 10001 AND 10100
+	AND gender='F';
+```
+
+- 위 쿼리에서 작업 범위 결정은 `emp_no BETWEEN 10001 AND 10100` 에서하고 체크 조건은 `gender='F'` 에서 한다. 
+- 위 쿼리 결과는 총 37건인데 `emp_no BETWEEN 10001 AND 10100` 은 스토리지 엔진에서 100개의 레코드를 읽어오고 MySQL 엔진에서 `gender='F'` 로 63건의 레코드를 그냥 필터링해서 버렸다는 의미다.
+- `Using where`는 가장 흔히 표시되는 내용이다. 이 `Using where` 가 성능에 문제를 일으킬지 아닐지 직접 선별하는 능력이 필요한데 이는 실행계획의 `filterd`를 확인하면 된다.
+
+![72](./images/real-mysql-8/72.png)
+
+
+
 #### Zero limit
 
+- 때떄로 MySQL 서버에서 데이터 값이 아닌 쿼리 결과값의 메타데이터만 필요한 경우 쿼리 마지막에 `LIMIT 0`을 사용한다.
+- 이때 옵티마이저는 사용자의 의도를 파악하고 실제 테이블의 레코드는 전혀읽지 않고 결과값의 메타 정보만 전달한다. 이 경우에 해당 메시지가 표시된다.
 
+```sql
+EXPLAIN 
+SELECT * FROM employees LIMIT 0;
+```
 
-
-
-
-
-
+![73](./images/real-mysql-8/73.png)
 
 
 
