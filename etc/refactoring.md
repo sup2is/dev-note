@@ -1512,7 +1512,59 @@ to
 
 
 
+## 하위클래스를 필드로 전환 Replace Subclass with Fields
 
+- 여러 하위클래스가 상수 데이터를 반환하는 메서드르만 다를 땐 각 하위 클래스의 메서드를 상위클래스 필드로 전환하고 하위클래스는 전부 삭제하자.
+
+```java
+	abstract class Person {
+		abstract boolean isMale();
+		abstract char getCode();
+		...
+	}
+	class Male extends Person {
+			boolean isMale() {
+			return true;
+		}
+		char getCode() {
+			return 'M';
+		}
+	}
+	class Female extends Person {
+		boolean isMale() {
+			return false;
+		}
+		char getCode() {
+			return 'F';
+		}
+	}
+```
+
+to
+
+```java
+	class Person{
+		protected Person (boolean isMale, char code) {
+			_isMale = isMale;
+			_code = code;
+		}
+		boolean isMale() {
+			return _isMale;
+		}
+		static Person createMale(){
+			return new Person(true, 'M');
+		}
+		static Person createFemale(){
+			return new Person(false, 'F');
+		}
+	}
+```
+
+
+
+`동기`
+
+- 상수 메서드란 하드코딩된 값을 반환하는 메서드다.
 
 
 
