@@ -1254,5 +1254,267 @@ to
 
 
 
+## 클래스 양방향 연결을 단방향으로 전환 Change Bidirectional Association to Unidirectional
+
+`동기`
+
+- 양방향 연결은 객체 관리가 더 힘들어진다.
+- 양방향 연결로 인해 두 클래스는 서로 종속된다.
+- 양방향 연결은 꼭 필요할 때만 사용해야 한다.
+
+
+
+## 마법 숫자를 기호 상수로 전환 Replace Magic Number with Symbolic Constant
+
+- 특수 의미를 지닌 리터럴 숫자가 있을 땐 의미를 살린 이름의 상수를 작성한 후 리터럴 숫자를 그 상수로 교체하자 
+
+```java
+	double potentialEnergy(double mass, double height) {
+		return mass * 9.81 * height;
+	}
+```
+
+to
+
+```java
+	double potentialEnergy(double mass, double height) {
+		return mass * GRAVITATIONAL_CONSTANT * height;
+	}
+	static final double GRAVITATIONAL_CONSTANT = 9.81;
+```
+
+`동기`
+
+- 변경될 가능성이 있는 매직 넘버를 상수화해야한다.
+
+
+
+## 필드 캡슐화  Encapsulate Field
+
+- public 필드가 있을 땐 그 필드를 pr ivate로 만들고 필드용 읽기 메서드와 쓰기 메서드를 작성하자.
+
+```java
+	public String _name
+```
+
+to
+
+```java
+	private String _name;
+	public String getName() {return _name;}
+	public void setName(String arg) {_name = arg;}
+```
+
+`동기`
+
+-  데이터가 public 하게 공개되면 모르는사이에 다른 객체가 데이터 값을 읽고 변경할 수 있다.
+- 데이터와 데이터를 사용하는 기능이 한 곳에 모여 있으면 수정한 코드가 프로그램 여기저기에 흩어져 있지 않고 한 곳에 있어서 코드를 수정하기 쉽다.
+
+
+
+## 컬렉션 캡슐화 Excapsulate Collection
+
+- 메서드가 컬렉션을 반환할 땐 그 메서드가 읽기전용 뷰를 반환하게 수정하고 추가 메서드와 삭제 메서드를 작성하자.
+
+```java
+	class Person {
+		Person (String name){
+			HashSet set new HashSet()
+		}
+		Set getCourses(){}
+		void setCourses(:Set){}
+	}
+```
+
+to
+
+```java
+	class Person {
+		Person (String name){
+			HashSet set new HashSet()
+		}
+		Unmodifiable Set getCourses(){}
+		void addCourses(:Course){}
+		void removeCourses(:Course){}
+	}
+```
+
+`동기`
+
+- 읽기 메서드는 컬렉션 자체를 반환하면 안된다.
+- 컬렉션 조작이 불가능한 형태로 반환하고 불필요하게 자세한 컬렉션 구조는 감춰야한다.
+- 컬렉션도 적절하게 캡슐화 되어야 한다.
+
+
+
+## 레코드를 데이터 클래스로 전환 Replace Record with Data Class
+
+- 전통적인 프로그래밍 환경에서 레코드 구조를 이용한 인터페이스를 제공해야 할 땐 레코드 구조를 저장할 덤 데이터 객체를 작성하자.
+
+`동기`
+
+- 외부 레코드를 처리할 인터페이스 역할을 하는 클래스를 작성하는게 좋다.
+- dto?
+
+
+
+## 분류 부호를 클래스로 전환 Replace Type Code with Class
+
+- 기능에 영향을 미치는 숫자형 분류 부호가 든 클래스가 있을 땐 그 숫자를 새 클래스로 바꾸자
+
+```java
+	class Person{
+		O:Int;
+		A:Int;
+		B:Int;
+		AB:Int;
+		bloodGroup:Int;
+	}
+```
+
+
+
+to
+
+```java
+	class Person{
+		bloodGroup:BloodGroup;
+	}
+
+	class BloodGroup{
+		O:BloodGroup;
+		A:BloodGroup;
+		B:BloodGroup;
+		AB:BloodGroup;
+	}
+```
+
+`동기`
+
+- 숫자형 분류 부호를 클래스로 빼자
+
+
+
+## 분류 부호를 하위 클래스로 전환 Replace Type Code with Subclasses
+
+- 클래스 기능에 영향을 주는 변경불가 분류 부호가 있을 땐 분류 부호를 하위 클래스로 만들자
+
+```java
+	class Employee...
+		private int _type;
+
+		static final int ENGINEER = 0;
+		static final int SALESMAN = 1;
+		static final int MANAGER = 2;
+
+		Employee (int type) {
+			_type = type;
+		}
+	}
+```
+
+to
+
+```java
+	abstract int getType();
+	static Employee create(int type) {
+		switch (type) {
+			case ENGINEER:
+				return new Engineer();
+			case SALESMAN:
+				return new Salesman();
+			case MANAGER:
+				return new Manager();
+			default:
+				throw new IllegalArgumentException("Incorrect type code value");
+		}
+	}
+```
+
+`동기`
+
+-  분류 부호가 든 클래스 코드를 이용해 각 분류 부호별 하위 클래스를 작성하자
+
+
+
+## 분류 부호를 상태/전략 패턴으로 전환 Replace Type Code with State/Strategy
+
+- 분류 부호가 클래스의 기능에 영향을 주지만 하위클래스로 전환할 수 없을 땐 그 분류 부호를 상태 객체로 만들자.
+
+```java
+	class Employee {
+		private int _type;
+
+		static final int ENGINEER = 0;
+		static final int SALESMAN = 1;
+		static final int MANAGER = 2;
+
+		Employee (int type) {
+			_type = type;
+		}
+		int payAmount() {
+			switch (_type) {
+				case ENGINEER:
+					return _monthlySalary;
+				case SALESMAN:
+					return _monthlySalary + _commission;
+				case MANAGER:
+					return _monthlySalary + _bonus;
+				default:
+					throw new RuntimeException("Incorrect Employee");
+				}
+			}
+		}
+	}
+```
+
+to
+
+```java
+	class Employee...
+		static final int ENGINEER = 0;
+		static final int SALESMAN = 1;
+		static final int MANAGER = 2;
+
+		void setType(int arg) {
+			_type = EmployeeType.newType(arg);
+		}
+		class EmployeeType...
+			static EmployeeType newType(int code) {
+				switch (code) {
+					case ENGINEER:
+						return new Engineer();
+					case SALESMAN:
+						return new Salesman();
+					case MANAGER:
+						return new Manager();
+					default:
+						throw new IllegalArgumentException("Incorrect Employee Code");
+				}
+			}
+		}
+		int payAmount() {
+			switch (getType()) {
+				case EmployeeType.ENGINEER:
+					return _monthlySalary;
+				case EmployeeType.SALESMAN:
+					return _monthlySalary + _commission;
+				case EmployeeType.MANAGER:
+					return _monthlySalary + _bonus;
+				default:
+					throw new RuntimeException("Incorrect Employee");
+			}
+		}
+	}
+```
+
+`동기`
+
+
+
+
+
+
+
 
 
