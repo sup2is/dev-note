@@ -1570,3 +1570,302 @@ to
 
 
 
+# #9 조건문 간결화
+
+
+
+## 조건문 쪼개기  Decompose Conditional
+
+- 복잡한 조건문이 있을 땐  if, then, else 부분을 각 메서드로 빼내자
+
+```java
+	if (date.before (SUMMER_START) || date.after(SUMMER_END))
+		charge = quantity * _winterRate + _winterServiceCharge;
+	else charge = quantity * _summerRate;
+```
+
+to
+
+```java
+	if (notSummer(date))
+		charge = winterCharge(quantity);
+	else charge = summerCharge (quantity);
+```
+
+
+
+`동기`
+
+- 프로그램에서 가장 복잡한 부분은 주로 복잡한 조건문이다.
+- 큰 덩어리의 코드를 잘게 쪼개고 각 코드 조각을 용도에 맞는 이름의 메서드 호출로 바꾸면 코드의 용도가 분명히 드러난다. 
+
+
+
+## 중복 조건식 통합 Consolidate Conditional Expression
+
+- 여러 조건 검사식의 결과가 같을 땐 하나의 조건문으로 합친 후 메서드로 빼내자.
+
+```java
+	double disabilityAmount() {
+	if (_seniority < 2) return 0;
+	if (_monthsDisabled > 12) return 0;
+	if (_isPartTime) return 0;
+	// compute the disability amount
+```
+
+to
+
+```java
+	double disabilityAmount() {
+	if (isNotEligableForDisability()) return 0;
+	// compute the disability amount
+```
+
+`동기`
+
+- 서로 다른 여러 개의 조건 검사식의 결과가 모두 같을 때가 있다.
+- 조건식을 메서드로 빼내는 것은 코드를 알아보기 쉽게 만드는 최선의 방법이다.
+
+
+
+## 조건문의 공통 실행 코드 빼내기 Consolidate Duplicate Conditional Fragments
+
+- 조건문의 모든 절에 같은 실행 코드가 있을 땐 같은 부분을 조건문 밖으로 뺴자
+
+```java
+	if (isSpecialDeal()) {
+		total = price * 0.95;
+		send();
+	}
+	else {
+		total = price * 0.98;
+		send();
+	}
+```
+
+to
+
+```java
+	if (isSpecialDeal()) {
+		total = price * 0.95;
+	}
+	else {
+		total = price * 0.98;
+	}
+	send();
+```
+
+`동기`
+
+- 조건문의 절마다 같은 실행 코드가 들어있다면 그 부분을 조건문 밖으로 빼내자.
+
+
+
+## 제어 플래그 제거 Remove Control Flag
+
+- 논리 연산식의 제어 플래그 역할을 하는 변수가 있을 땐 그 변수를 break 문이나 return 문으로 바꾸자.
+
+```java
+	void checkSecurity(String[] people) {
+		boolean found = false;
+			for (int i = 0; i < people.length; i++) {
+				if (! found) {
+					if (people[i].equals ("Don")){
+						sendAlert();
+						found = true;
+					}
+					if (people[i].equals ("John")){
+						sendAlert();
+						found = true;
+					}
+				}
+		}
+	}
+```
+
+to
+
+```java
+	void checkSecurity(String[] people) {
+		for (int i = 0; i < people.length; i++) {
+			if (people[i].equals ("Don")){
+				sendAlert();
+				break; // or return
+			}
+			if (people[i].equals ("John")){
+				sendAlert();
+				break; // or return
+			}
+		}
+	}
+```
+
+`동기`
+
+- 이탈점을 하나만 사용하면 코드 안의 각종 특이한 플래그로 인해 조건문이 복잡해질 수 있다.
+- 제어 플래그는 제거하고 break, return, continue를 사용하자.
+
+
+
+## 여러 겹의 조건문을 감시 절로 전환 Replace Nested Conditional with Guard Clauses
+
+- 메서드에 조건문이 있어서 정상적인 실행 경로를 파악하기 힘들 땐 모든 특수한 경우에 감시 절을 사용하자.
+
+```java
+	double getPayAmount() {
+		double result;
+		if (_isDead) result = deadAmount();
+		else {
+			if (_isSeparated) result = separatedAmount();
+			else {
+				if (_isRetired) result = retiredAmount();
+				else result = normalPayAmount();
+			};
+		}
+		return result;
+	};
+```
+
+to
+
+```java
+	double getPayAmount() {
+		if (_isDead) return deadAmount();
+		if (_isSeparated) return separatedAmount();
+		if (_isRetired) return retiredAmount();
+		return normalPayAmount();
+	};
+```
+
+`동기`
+
+- 조건문의 의도는 코드에 반영되어 드러나야 한다.
+- 감시절은 값을 반환하거나 예외를 통지하는 부분이다.
+
+
+
+## 조건문을 재정의로 전환 Replace Conditional with PolyMorphism
+
+- 객체 타입에 따라 다른 기능을 실행하는 조건문이 있을 땐 조건문의 각 절의 하위 클래스의 재정의 메서드 안으로 옮기고 원본 메서드는  abstract 타입으로 수정하자.
+
+```java
+	class Employee {
+		private int _type;
+
+		static final int ENGINEER = 0;
+		static final int SALESMAN = 1;
+		static final int MANAGER = 2;
+
+		Employee (int type) {
+			_type = type;
+		}
+		int payAmount() {
+			switch (_type) {
+				case ENGINEER:
+					return _monthlySalary;
+				case SALESMAN:
+					return _monthlySalary + _commission;
+				case MANAGER:
+					return _monthlySalary + _bonus;
+				default:
+					throw new RuntimeException("Incorrect Employee");
+				}
+			}
+		}
+	}
+```
+
+to
+
+```java
+	class Employee...
+		static final int ENGINEER = 0;
+		static final int SALESMAN = 1;
+		static final int MANAGER = 2;
+
+		void setType(int arg) {
+			_type = EmployeeType.newType(arg);
+		}
+		int payAmount() {
+			return _type.payAmount(this);
+		}
+	}
+
+	class Engineer...
+		int payAmount(Employee emp) {
+			return emp.getMonthlySalary();
+		}
+	}
+```
+
+
+
+`동기`
+
+-  다형성을 통해 일일이 조건문을 작성하지 않아도 다형적으로 호출되게할 수 있다.
+
+
+
+
+
+## Null 검사를 널 객체에 위임 Introduce Null Object
+
+- null 값을 검사하는 코드가 계속 나올 땐 null 값을 널 객체로 만들자
+
+- ```java
+  	if (customer == null) plan = BillingPlan.basic();
+  	else plan = customer.getPlan();
+  ```
+
+  to
+
+  ```java
+  	class Customer {}
+  
+  	class NullCusomer extends Customer {}
+  ```
+
+`동기`
+
+- Objects.isNull()은 어떨까?
+
+
+
+## 어설션 넣기 Introduce Assertion
+
+- 일부 코드가 프로그램의 어떤 상태를 전제할 땐 어설션을 넣어서 그 전제를 확실하게 코드로 작성하자.
+
+```java
+	double getExpenseLimit() {
+		// should have either expense limit or a primary project
+		return (_expenseLimit != NULL_EXPENSE) ?
+			_expenseLimit:
+			_primaryProject.getMemberExpenseLimit();
+	}
+```
+
+to
+
+```java
+	double getExpenseLimit() {
+		Assert.isTrue (_expenseLimit != NULL_EXPENSE || _primaryProject	!= null);
+		return (_expenseLimit != NULL_EXPENSE) ?
+			_expenseLimit:
+			_primaryProject.getMemberExpenseLimit();
+	}
+```
+
+- 어설션이랑 항상 참으로 전제되는 조건문을 뜻한다.
+- 어설션이 실패하면 그건 프로그래머가 오류를 범한 것이다.
+- 어설션은 대개 제품화 단계에서 삭제한다.
+- 어설션은 시스템에 영향을 미치지 않는다.
+- 어설션은 의사소통과 디버깅에 도움을 주고 좀 더 근원적인 버그를 잡아낼 수 있다.
+
+
+
+
+
+
+
+
+
