@@ -1973,7 +1973,170 @@ to
 
 `동기`
 
+- 기능은 비슷하지만 몇가지 값에 따라 결과가 달라지는 메서드가 여러개 있을 때 각 메서드를 전달된 매개변수에 따라 다른 작업을 처리하는 하나의 메서드로 만들면 편리하다.
 
+
+
+## 매개변수를 메서드로 전환 Replace Parameter with Explicit Methods
+
+- 매개변수로 전달된 값에 따라 메서드가 다른 코드를 실행할 땐 그 매개변수로 전달될 수 있는 모든 값에 대응하는 메서드를 각각 작성하자.
+
+```java
+	void setValue (String name, int value) {
+		if (name.equals("height")){}
+			_height = value;
+			return;
+		}
+		if (name.equals("width")){
+			_width = value;
+			return;
+		}
+		Assert.shouldNeverReachHere();
+	}
+```
+
+to
+
+```java
+	void setHeight(int arg) {
+		_height = arg;
+	}
+	void setWidth (int arg) {
+		_width = arg;
+	}
+```
+
+`동기`
+
+- 일반적으로 한 매개변수의 값이 여러 개가 될 수 있을때 조건문 안에서 각 값을 검사하여 다른 기능을 수행하는 메서드에 적용 가능하다.
+- 인터페이스의 명료성은 언제나 큰 장점이다.
+
+
+
+## 객체를 통째로 전달 Preserve Whole Object
+
+- 객체에서 가져온 여러 값을 메서드 호출에서 매개변수로 전달할 땐 그 객체를 통째로 전달하게 수정하자.
+
+```java
+	int low = daysTempRange().getLow();
+	int high = daysTempRange().getHigh();
+	withinPlan = plan.withinRange(low, high);
+```
+
+to
+
+```java
+	withinPlan = plan.withinRange(daysTempRange());
+```
+
+`동기 `
+
+- 한 객체에 든 여러 값을 메서드 호출할 때
+- 매개변수 세트의 변경의 편의성뿐 아니라 코드를 알아보기도 쉬워진다.
+
+
+
+## 매개변수 세트를 메서드로 전환 Replace Parameter with Method
+
+- 객체가 A 메서드를 호출해서 그 결과를 B 메서드에 매개변수로 전달하는데, 결과를 매개변수로 받는 B 메서드도 직접 A메서드로 호출할 수 있을 땐 매개변수를 없애고 A 메서드를 B 메서드가 호출하게 하자.
+
+```java
+	int basePrice = _quantity * _itemPrice;
+	discountLevel = getDiscountLevel();
+	double finalPrice = discountedPrice (basePrice, discountLevel);
+```
+
+to
+
+```java
+	int basePrice = _quantity * _itemPrice;
+	double finalPrice = discountedPrice (basePrice);
+```
+
+`동기`
+
+- 메서드가 매개변수로 전달받는 값을 다른 방법으로 가져올 수 있다면 그 방법을 택해야 한다.
+- 매개변수가 많아지면 코드가 복잡해지므로 가능하면 매개변수를 줄여야 한다.
+
+
+
+## 매개변수 세트를 객체로 전환 Introduce Parameter Object
+
+- 여러 개의 매개변수가 항상 붙어 다닐 땐 그 매개변수들을 객체로 바꾸자
+
+```java
+	class Customer{
+		amountInvoicedIn (start : Date, end : Date)
+		amountReceivedIn (start : Date, end : Date)
+		amountOverdueIn (start : Date, end : Date)
+	}
+```
+
+
+
+to
+
+```java
+	class Customer{
+		amountInvoicedIn (: DateRange)
+		amountReceivedIn (: DateRange)
+		amountOverdueIn (: DateRange)
+	}
+```
+
+`동기`
+
+- 특정 매개변수들이 늘 함께 전달되는 경우 데이터 그룹으로 묶으려면 이 매개변수들을 객체로 바꾸는 것이 좋다.
+
+
+
+## 쓰기 메서드 제거 Remove Setting Method
+
+- 생성할 때 지정한 필드 값이 절대로 변경되지 말아야 할 땐 그 필드를 설정하는 모든 쓰기 메서드를 삭제하자.
+
+```java
+	class Employee{
+		setImmutableValue()
+	}
+```
+
+to
+
+```java
+	class Employee{
+		¯\_(ツ)_/¯
+	}
+```
+
+`동기`
+
+- 필드가 불변이어야 한다면 쓰기 메서드를 삭제하자.
+
+
+
+## 메서드 은폐 Hide Method
+
+- 메서드가 다른 클래스에 사용되지 않을 땐 그 메서드의 반환 타입을 private로 만들자
+
+```java
+	class Employee{
+		public method()
+	}
+```
+
+to
+
+```java
+	class Employee{
+		private method()
+	}
+```
+
+
+
+`동기`
+
+-  다른 클래스가 그 메서드를 사용한다면 개방도를 높이고 사용하지 않는다면 개방도를 낮추자.
 
 
 
