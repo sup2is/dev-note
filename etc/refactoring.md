@@ -2253,3 +2253,364 @@ to
 
 - 예외 처리는 예외적 기능, 즉 예기치 못한 에러에 사용해야 한다. 예외 처리를 조건문 대용으로 사용해선 안된다.
 
+
+
+
+
+# #11 일반화 처리
+
+## 필드 상향 Pull Up Field
+
+- 두 하위클래스에 같은 필드가 들어 있을 땐 필드를 상위클래스로 옮기자.
+
+*Move the field to the superclass*
+
+```java
+	class Salesman extends Employee{
+		String name;
+	}
+	class Engineer extends Employee{
+		String name;
+	}
+```
+
+to
+
+```java
+	class Employee{
+		String name;
+	}
+	class Salesman extends Employee{}
+	class Engineer extends Employee{}
+```
+
+`동기`
+
+- 중복된 필드가 하위 클래스에 존재한다면 상위 클래스로 옮기자.
+
+
+
+## 메서드 상향 Pull Up Method
+
+- 기능이 같은 메서드가 여러 하위 클래스에 들어 있을 땐 그 메서드를 상위 클래스 옮기자.
+
+```java
+	class Salesman extends Employee{
+		String getName();
+	}
+	class Engineer extends Employee{
+		String getName();
+	}
+```
+
+to
+
+```java
+	class Employee{
+		String getName();
+	}
+	class Salesman extends Employee{}
+	class Engineer extends Employee{}
+```
+
+`동기`
+
+-  하위클래스의 메서드가 상위클래스 메서드를 재정의함에도 불구하고 기능이 같을 때 이 방법을 사용하자.
+
+
+
+## 생성자 내용 상향 Pull Up Constructor Body
+
+- 하위클래스마다 거의 비슷한 내용의 생성자가 있을 땐 상위 클래스에 생성자를 작성하고, 그 생성자를 하위클래스의 메서드에서 호출하자
+
+```java
+	class Manager extends Employee...
+		public Manager (String name, String id, int grade) {
+		_name = name;
+		_id = id;
+		_grade = grade;
+	}
+```
+
+to
+
+```java
+	public Manager (String name, String id, int grade) {
+		super (name, id);
+		_grade = grade;
+	}
+```
+
+`동기`
+
+
+
+## 메서드 하향 Push Dwon Method
+
+- 상위 클래스에 있는 기능을 일부 하위클래스만 사용할 땐 그 기능을 관련된 하위 클래스 안으로 옮기자.
+
+```java
+	class Employee{
+		int getQuota();
+	}
+	class Salesman extends Employee{}
+	class Engineer extends Employee{}
+```
+
+to
+
+```java
+	class Salesman extends Employee{
+		int getQuota();
+	}
+	class Engineer extends Employee{}
+```
+
+`동기`
+
+
+
+## 필드 하향 Push Down Field
+
+- 일부 하위클래스만이 사용하는 필드가 있을 땐 그 필드를 사용하는 하위클래스로 옮기자.
+
+```java
+	class Employee{
+		int quota;
+	}
+	class Salesman extends Employee{}
+	class Engineer extends Employee{}
+```
+
+
+
+to
+
+```java
+	class Salesman extends Employee{
+		int quota;
+	}
+	class Engineer extends Employee{}
+```
+
+
+
+
+
+## 하위클래스 추출 Extract Subclass
+
+- 일부 인스턴스에만 사용되는 기능이 든 클래스가 있을 땐 그 기능 부분을 전담하는 하위클래스를 작성하자.
+
+```java
+	class JobItem	{
+		getTotalPrices()
+		getUnitPrice()
+		getEmployee()
+	}
+```
+
+
+
+to
+
+```java
+	class JobItem	{
+		getTotalPrices()
+		getUnitPrice()
+	}
+	class class LabotItem extends JobItem	{
+		getUnitPrice()
+		getEmployee()
+	}
+```
+
+
+
+
+
+## 상위클래스 추출 Extract Superclass
+
+- 기능이 비슷한 두 클래스가 있을 땐 상위 클래스를 작성하고 공통된 기능들을 그 상위 클래스로 옮기자.
+
+```java
+	class Department{
+		getTotalAnnualCost()
+		getName()
+		getHeadCount
+	}
+	class Employee{
+		getAnnualCost()
+		getName()
+		getId
+	}
+```
+
+to
+
+```java
+	class Party{
+		getAnnualCost()
+		getName()
+	}
+	class Department {
+		getAnnualCost()
+		getHeadCount
+	}
+	class Employee {
+		getAnnualCost()
+		getId
+	}
+```
+
+ 
+
+## 인터페이스 추출
+
+- 클래스 인터페이스의 같은 부분을 여러 클라이언트가 사용하거나 두 클래스에 인터페이스의 일부분이 공통으로 들어 있을 땐 곹오 부분을 인터페이스로 빼내자.
+
+```java
+	class Employee {
+		getRate()
+		hasSpecialSkill()
+		getName()
+		getDepartment()
+	}
+```
+
+to
+
+```java
+	interface Billable	{
+		getRate()
+		hasSpecialSkill()
+	}
+	class Employee implements Billable	{
+		getRate
+		hasSpecialSkill()
+		getName()
+		getDepartment()
+	}
+```
+
+`동기`
+
+
+
+## 계층 병합 Collapse Hierarchy
+
+- 상위클래스와 하위클래스가 거의 다르지 않을 땐 둘을 합치자
+
+```java
+	class Employee{	}
+	class Salesman extends Employee{	}
+```
+
+
+
+to
+
+```java
+	class Employee{	}
+```
+
+
+
+
+
+## 템플릿 메서드 형성 Form Template Method
+
+- 하위클래스 안의 두 메서드가 거의 비슷한 단계들을 같은 순서로 수행할 떈 그 단계들을 시그니처가 같은 두 개의 메서드로 만들어서 두 원본 메서드를 같게 만든 후, 두 메서드를 상위클래스로 옮기자.
+
+```java
+	class Site{}
+	class ResidentialSite extends Site{
+		getBillableAmount()
+	}
+	class LifelineSite extends Site{
+		getBillableAmount()
+	}
+```
+
+to
+
+```java
+	class Site{ 	
+		getBillableAmount()
+		getBaseAmount()
+		getTaxAmount()
+	}
+	class ResidentialSite extends Site{
+		getBaseAmount()
+		getTaxAmount()
+	}
+	class LifelineSite extends Site{
+		getBaseAmount()
+		getTaxAmount()
+	}
+```
+
+`동기`
+
+- 템플릿 메서드 패턴을 확인하자.
+
+
+
+## 상속을 위임으로 전환 Replace Inheritance with Delegation 
+
+- 하위클래스가 상위클래스 인터페이스의 일부만 사용할 때나 데이터를 상속받지 않게 해야 할 땐 상위클래스에 필드를 작성하고, 모든 메서드가 그 상위클래스에 위임하게 수정한 후 하위클래스를 없애자.
+
+```java
+	class Vector{
+		isEmpty()
+	}
+
+	class Stack extends Vector {}
+```
+
+to
+
+```java
+	class Vector {
+		isEmpty()
+	}
+
+	class Stack {
+		Vector vector
+		isEmpty(){
+			return vector.isEmpty()
+		}
+	}
+```
+
+
+
+## 위임을 상속으로 전환 Replace Delegation with Inheritance
+
+- 위임을 이용 중인데 인터페이스 전반에 간단한 위임으로 도배하게 될 땐 위임 클래스를 대리 객체의 하위클래스로 만들자.
+
+```java
+	class Person {
+		getName()
+	}
+
+	class Employee {
+		Person person
+		getName(){
+			return person.getName()
+		}
+	}
+```
+
+
+
+to
+
+```java
+	class Person{
+		getName()
+	}
+	class Employee extends Person{}
+```
+
+
+
