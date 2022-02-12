@@ -2140,5 +2140,116 @@ to
 
 
 
+## 생성자를 팩토리 메서드로 전환 Replace Constructor with Factory Method
 
+- 객체를 생성할 때 단순한 생성만 수행하게 해야 할 땐 생성자를 팩토리 메서드로 교체하자.
+
+```java
+	Employee (int type) {
+		_type = type;
+	}
+```
+
+to
+
+```java
+	static Employee create(int type) {
+		return new Employee(type);
+	}
+```
+
+`동기`
+
+
+
+## 하향 타입 변환을 캡슐화 Encapsulate Downcase
+
+- 메서드가 반환하는 객체를 호출 부분에서 하향 타입 변환해야할 땐 하향 타입 변환 기능을 메서드 안으로 옮기자.
+
+```java
+	Object lastReading() {
+		return readings.lastElement();
+	}
+```
+
+
+
+to
+
+```java
+	Reading lastReading() {
+		return (Reading) readings.lastElement();
+	}
+```
+
+`동기`
+
+- 클라이언트가 하향 타입을 변환하게 하지 말고 가능하면 항상 가장 구체적인 타입을 제공해야 한다.
+
+
+
+## 에러 부호를 예외 통지로 교체 Replace Error Code with Exception
+
+- 메서드가 에러를 나타내는 특수한 부호를 반환할 땐 그 부호 반환 코드를 에외 통지 코드로 바꾸자.
+
+```java
+	int withdraw(int amount) {
+		if (amount > _balance)
+			return -1;
+		else {
+			_balance -= amount;
+			return 0;
+		}
+	}
+```
+
+
+
+to
+
+```java
+	void withdraw(int amount) throws BalanceException {
+		if (amount > _balance)
+			throw new BalanceException();
+		_balance -= amount;
+	}
+```
+
+`동기`
+
+- 예외는 에러 처리를 일반적인 처리와 확실히 분리시키기 때문에 좋다.
+
+
+
+## 예외 처리를 테스트로 교체 Replace Exception with Test
+
+- 호출 부분에 사전 검사 코드를 넣으면 될 상황인데 예외 통지를 사용했을 땐 호출 부분이 사전 검사를 실시하게 수정하자.
+
+```java
+	double getValueForPeriod (int periodNumber) {
+		try {
+			return _values[periodNumber];
+		} catch (ArrayIndexOutOfBoundsException e) {
+			return 0;
+		}
+	}
+```
+
+
+
+to
+
+```java
+	double getValueForPeriod (int periodNumber) {
+		if (periodNumber >= _values.length)
+			return 0;
+		return _values[periodNumber];
+}
+```
+
+
+
+`동기`
+
+- 예외 처리는 예외적 기능, 즉 예기치 못한 에러에 사용해야 한다. 예외 처리를 조건문 대용으로 사용해선 안된다.
 
