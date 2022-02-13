@@ -2614,3 +2614,102 @@ to
 
 
 
+
+
+# #12 복합 리팩토링
+
+##  상속 구조 정리 Tease Apart Inheritance
+
+- 하나의 상속 계층이 두 작업을 동시에 수행할 땐 상속 계층을 하나 더 만들어서 위임을 통해 다른 계층을 호출하자.
+
+```java
+	class Deal{}
+	class ActiveDeal extends Deal{}
+	class PassiveDeal extends Deal{}
+	class TabularActiveDeal extends ActiveDeal{}
+	class TabularPassiveDeal extends PassiveDeal{}
+```
+
+to
+
+```java
+	class Deal{
+		PresentationStyle presettationStyle;
+	}
+	class ActiveDeal extends Deal{}
+	class PassiveDeal extends Deal{}
+
+	class PresentationStyle{}
+	class TabularPresentationStyle extends PresentationStyle{}
+	class SinglePresentationStyle extends PresentationStyle{}
+```
+
+`동기`
+
+
+
+## 절차 코드를 객체로 전환 Convert Procedural Design to Object
+
+- 코드가 절차식으로 작성되어 있을 땐 데이터 레코드를 객체로 바꾸고, 기능을 쪼개서 각각의 객체로 옮기자.
+
+```java
+	class OrderCalculator{
+		determinePrice(Order)
+		determineTaxes(Order)
+	}
+	class Order{}
+	class OrderLine{}
+```
+
+to
+
+```java
+	class Order{
+		getPrice()
+		getTaxes()
+	}
+	class OrderLine{
+		getPrice()
+		getTaxes()
+	}
+```
+
+
+
+## 도메인 로직을 표현과 분리 Separate Domain from Presentation
+
+- 도메인 로직이 들어 있는 GUI 클래스가 있을 땐 도메인 로직을 별도의 도메인 클래스로 떼어내자.
+
+```java
+	class OrderWindow{}
+```
+
+to
+
+```java
+	class OrderWindow{
+		Order order;
+}
+```
+
+
+
+## 계층구조 추출 Extract Hierarchy
+
+- 한 클래스에 기능이 너무 많고 일부분에라도 조건문이 많을 땐 각 조건에 해당하는 하위클래스를 작성해서 계층 구조를 만들자.
+
+```java
+	class BillingScheme{}
+```
+
+to
+
+```java
+	class BillingScheme{}
+	class BusinessBillingScheme extends BillingScheme{}
+	class ResidentialBillingScheme extends BillingScheme{}
+	class DisabilityBillingScheme extends BillingScheme{}
+```
+
+
+
