@@ -2564,15 +2564,168 @@ CALL sp_selectEmployees(10001);
 #### 스토어드 프로시저 딕셔너리
 
 - MySQL 8.0 이전 버전까지는 스토어드 프로시저는 `mysql` 데이터베이스의 `proc` 테이블에 저장됐지만 MySQL 8.0 부터는 사용자에게 보이지 않는 시스템 테이블로 저장된다.
-- 사용자는 단지 `information_schema` 데이터 베이스의 `ROUNTINES` 뷰를 통해 스토어드 프로시저의 정보를 조회할 수만 있다.
+- 사용자는 단지 `information_schema` 데이터 베이스의 `ROUTINES` 뷰를 통해 스토어드 프로시저의 정보를 조회할 수만 있다.
+
+```sql
+SELECT ROUTINE_SCHEMA, ROUTINE_NAME, ROUTINE_TYPE
+FROM information_schema.ROUTINES
+WHERE routine_schema='employees';
+```
 
 
+
+![76](./images/real-mysql-8/76.png)
 
 
 
 ### 스토어드 함수
 
+- 스토어드 함수는 하나의 SQL 문장으로 작성이 불가능한 기능을 하나의 SQL 문장으로 구현해야 할 때 사용한다.
+- 스토어드 함수는 상대적으로 스토어드 프로시저보다 제약 사항이 많기 때문에  SQL문장과 관계 없이 별도로 실행되는 기능이라면 스토어드 프로시저를 사용하는게 좋다.
+- 스토어드 함수의 유일한 장점은 SQL문장의 일부로 사용할 수 있는 것이다.
+
+`예제`
+
+- 부서별로 가장 최근에 배속된 사원을 2명씩 가져오는 기능
+- `dept_emp` 테이블의 데이터를 부서별로 그루핑하는 것 까지는 가능하지만 해당 부서 그룹별로 최근 2명씩만 잘라서 가져오는 방법이 없다.
+- 이럴 때 부서 코드를 인자로 입력받아 최근 2명의 사원 번호만 `SELECT` 하고 문자열로 결합해서 반환하는 함수를 만들어서 사용하면 된다.
+
+```sql
+SELECT dept_no, sf_getRecentEmp(dept_no)
+FROM dept_emp
+GROUP BY dept_no;
+```
+
+- MySQL 5.7 이전까지는 특정 그룹별로 몇 건씩만 레코드를 조회하는 기능은 위와 같이 스토어드 함수로만 구현 가능했지만 8.0 부터 레터럴 조인과 윈도우 함수를 이용해서 구현할 수 있다.
+
+#### 스토어드 함수 생성 및 삭제
+
+`스토어드 함수 생성`
+
+```sql
+DELIMITER ;;
+
+CREATE FUNCTION sf_sum(param1 INTEGER, param2 INTEGER)
+	RETURNS INTEGER
+BEGIN
+	DECLARE param3 INTEGER DEFAULT 0;
+	SET param3 = param1 + param2;
+	RETURN param3;
+END;;
+
+DELIMITER ;
+
+
+-- 버전이 올라가면서 아래 설정 기본값이 OFF로 되어있는데 ON으로 바꿔주면 스토어드 함수를 생성할 수 있다.
+SET GLOBAL log_bin_trust_function_creators = 1;
+```
+
+- 스토어드 함수는 `CREATE FUNCTION` 명령으로 생성한다.
+- 모든 입력 파라미터는 읽기 전용이라서 `IN` 또는 `OUT` 같은 타입을 지정할 수 없다.
+- 스토어드 함수는 반드시 정의부에 `RETURNS` 키워드를 이용해 반환되는 값의 타입을 명시하고 `RUTURN` 명령어로 반환해야 한다.
+
+`스토어드 프로시저와 비교했을 때 스토어드 함수의 BEGIN...END 사이 제약사항`
+
+- PREPARE와 EXECUTE 명령을 이용한 프리페어 스테이트먼트를 사용할 수 없다.
+- 명시적 또는 묵시적인 ROLLBACK/COMMIT을 유발하는 SQL 문장을 사용할 수 없다.
+- 재귀 호출을 사용할 수 없다.
+- 스토어드 함수 내에서 프로시저를 호출할 수 없다.
+- 결과 셋을 반환하는 SQL 문장을 사용할 수 없다.
+- 스토어드 함수 내에서 커서를 정의하면 반드시 오픈해야하고 스토어드 프로시저와 달리 `SELECT ... INTO` 가 아닌 단순히  `SELECT` 쿼리만 실행하면 오류가 발생한다. 단순 SELECT 쿼리가 실행되는 것은 결과적으로 클라이언트로 쿼리의 결과 셋을 반환하는 것과 같기 때문이다. 
+
+```sql
+DELIMITER ;;
+
+CREATE FUNCTION sf_resultset_test()
+	RETURNS INTEGER
+BEGIN
+	DECLARE param3 INTEGER DEFAULT 0;
+	SELECT 'Start stored function' AS debug_message;
+  RETURN param3;
+END;;
+  
+DELIMITER ;
+```
+
+ ![77](./images/real-mysql-8/77.png)
+
+`스토어드 함수 수정`
+
+```sql
+ALTER FUNCTION sf_sum SQL SECURITY DEFINER; -- 보안 관련 설정
+```
+
+- 스토어드 프로시저와 마찬가지로 스토어드 함수의 입력 파라미터나 본문은 변경이 불가능하고 특성만 변경할 수 있다.
+
+`스토어드 함수 삭제`
+
+```sql
+DROP FUNCTION sf_sum;
+```
+
+- 스토어드 프로시저와 마찬가지로 본문이나 입력 파라미터를 변경하려면 삭제 후 다시 생성해야 한다.
+
+
+
+#### 스토어드 함수 실행
+
+- 스토어드 함수는 스토어드 프로시저와 달리 `CALL` 명령으로 실행할 수 없고 반드시 `SELECT` 문장으로 실행해야 한다.
+
+```sql
+SELECT sf_sum(1, 1) AS sum;
+```
+
+![78](./images/real-mysql-8/78.png)
+
+
+
 ### 트리거
+
+- 트리거는 테이블의 레코드가 저장되거나 변경될 때 미리 정의해둔 작업을 자동으로 실행해주는 스토어드 프로그램이다.
+- MySQL 트리거는 테이블의 레코드가 `INSERT`, `UPDATE`, `DELETE` 될 때 시작되도록 설정할 수 있다.
+- 대표적으로 칼럼의 유효성 체크, 다른 테이블로의 복사나 백업, 계산된 결과를 다른 테이블에 함께 업데이트 하는 등의 작업을 위해 트러기를 자주 사용한다.
+- 트리거는 스토어드 함수나 프로시저보다는 필요성이 떨어지는 편이다. 트리거가 없어도 애플리케이션의 개발이 크게 어렵지 않고 트리거가 적용된 테이블에 칼럼을 추가하거나 삭제하는 작업은 임시 테이블에 데이터를 복사하는 작업이 필요한데 이때 레코드마다 트리거를 한 번씩 실행해야 하기 때문에 성능상 좋지 않다.
+- MySQL 5.7 버전 이후부터는 하나의 테이블에 대해서 동일 이벤트에 2개 이상의 트리거를 생성할 수 있게 됐다.
+- MySQL 서버가 ROW 포맷의 바이너리 로그를 이용해서 복제를 하는 경우 트리거는 복제 소스 서버에서만 실행되고 레플리카 서버에서는 별도로 트리거를 기동하지 않는다. 하지만 이미 복제 소스 서버에서 트리거에 의해 발생된 데이터는 모두 바이너리 로그에 기록되기 때문에 실제 레플리카 서버에서도 트리거를 실행한 것과 동일한 효과를 낸다.
+
+
+
+#### 트리거 생성
+
+```sql
+CREATE TRIGGER on_delete BEFORE DELETE ON employees
+	FOR EACH ROW
+BEGIN
+	DELETE FROM salaries WHERE emp_no=OLD.emp;
+END ;;
+```
+
+- 트리거의 생성은 `CREATE TRIGGER` 명령으로 한다.
+- 트리거 이름 뒤에는 [`BEFORE` | AFTER`]` [`INSERT` | `UPDATE` | `DELETE`] 의 6가지 조합이 가능하다.
+  - `BEFORE` 트리거는 대상 레코드가 변경되기 전에 실행되고 `AFTER` 트리거는 대상 레코드의 내용이 변경된 후 실행된다.
+- 테이블명 뒤에는 트리거가 실행될 단위를 명시하는데 `FOR EACH ROW`만 가능하므로 모든 트리거는 항상 레코드 단위로 실행된다.
+- 예제 트리거에서 사용된 `OLD` 키워드는 `employees` 테이블의 변경되기 전 레코드를 지칭한다. `employees` 테이블의 변경될 레코드를 지칭하고자 할 때는 `NEW` 키워드를 사용하면 된다.
+- 위 트리거는 `employees` 테이블의 레코드를 삭제하는 쿼리가 실행되면 해당 레코드가 삭제되기 전에 `on_delete` 라는 트리거가 실행되고 트리거가 완료된 이후 테이블의 레코드가 삭제된다.
+- 참고로 테이블에 DROP이나 TRUNCATE가 실행되는 경우에는 트리거 이벤트는 발생하지 않는다.
+
+`대표적인 쿼리에 대해 어떤 트리거 이벤트가 발생하는지 정리한 표`
+
+| SQL 종류                               | 발생 트리거 이벤트 ==> 는 발생하는 이벤트의 순서를 의미      |
+| -------------------------------------- | ------------------------------------------------------------ |
+| INSERT                                 | BEFORE INSERT ==> AFTER INSERT                               |
+| LOAD DATA                              | BEFORE INSERT ==> AFTER INSERT                               |
+| REPLACE                                | 중복 레코드가 없을 때:  <br />  - BEFORE INSERT ==> AFTER INSERT <br />중복 레코드가 있을 때: <br />  - BEFORE DELETE ==> AFTER DELETE ==> BEFORE INSERT ==> AFTER INSERT |
+| INSERT INTO ... <br />ON DUPLICATE SET | 중복 레코드가 없을 때:  <br />  - BEFORE INSERT ==> AFTER INSERT <br />중복 레코드가 있을 때: <br />  - BEFORE UPDATE ==> AFTER UPDATE |
+| UPDATE                                 | BEFORE UPDATE ==> AFTER UPDATE                               |
+| DELETE                                 | BEFORE DELETE ==> AFTER DELETE                               |
+| TRUNCATE                               | 이벤트 발생하지 않음                                         |
+| DROP TABLE                             | 이벤트 발생하지 않음                                         |
+
+
+
+
+
+
 
 ### 이벤트
 
