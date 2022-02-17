@@ -2721,15 +2721,208 @@ END ;;
 | TRUNCATE                               | 이벤트 발생하지 않음                                         |
 | DROP TABLE                             | 이벤트 발생하지 않음                                         |
 
+`트리거의 BEGIN ... END 의 코드블록 제약 사항`
+
+- 트리거는 외래키 관계에 의해 자동으로 변경되는 경우 호출되지 않는다.
+- 복제에 의해 레플리카 서버에 업데이트 되는 데이터는 레코드 기반의 복제 (Row based replication) 에서는 레플리카 서버의 트리거를 기동시키지 않지만 문장 기반의 복제(Statement based replication) 에서는 레플리카 서버에서도 트리거를 기동시킨다.
+- 명시적 또는 묵시적인 `ROLLBACK/COMMIT`을 유발하는 SQL 문장을 사용할 수 없다.
+- `RETURN` 문장을 사용할 수 없고 트리거를 종료할 때는 `LEAVE` 명령을 사용한다.
+- `mysql`과 `information_schema.performance_schema` 데이터베이스에 존재하는 테이블에 대해서는 트리거를 생성할 수 없다.
 
 
 
+#### 트리거 실행
+
+- 트리거는 스토어드 프로시저와 함수와 같이 작동을 확인하기 위해 명시적으로 실행해볼 수 있는 방법이 없다.
+- 트리거가 등록된 테이블에 직접 레코드를 `INSERT`, `DELETE`, `UPDATE`를 수행해서 작동을 확인해야 한다.
+
+#### 트리거 딕셔너리
+
+- MySQL 8.0 이전 버전까지 트리거는 해당 데이터베이스 디렉터리의 `*.TRG` 라는 파일로 기록됐지만 8.0버전부터는 딕셔너리 정보가 InnoDB 스토리지 엔진을 사용하는 시스템 테이블로 통합 저장되면서 더이상 `*.TRG` 파일로 저장되지 않는다. 
+- MySQL 8.0부터는 `mysql` 데이터베이스의 보이지 않는 시스템 테이블로 저장되고 사용자는 `information_schema` 데이터베이스의 `TIRGGERS` 뷰를 통해 조회만 할 수 있다.
+
+```sql
+SELECT trigger_schema, trigger_name, event_manipulation, action_timing
+FROM information_schema.TRIGGERS
+WHERE trigger_schema='employees';
+```
+
+![79](./images/real-mysql-8/79.png)
 
 
 
 ### 이벤트
 
+- 주어진 특정한 시간에 스토어드 프로그램을 실행할 수 있는 스케줄러 기능을 이벤트라고 한다.
+- MySQL 서버의 이벤트는 스케쥴링을 전담하는 스레드가 있는데 이 스레드가 활성화된 경우에만 이벤트가 실행된다.
+
+```sql
+SHOW GLOBAL VARIABLES LIKE 'event_scheduler'; -- 이 설정값이 ON 으로 되어 있어야 한다.
+```
+
+![80](./images/real-mysql-8/80.png)
+
+```sql
+SHOW PROCESSLIST;
+```
+
+![81](./images/real-mysql-8/81.png)
+
+- MySQL의 이벤트는 전체 실행 이력을 보관하지 않고 가장 최근에 실행된 정보만 information_schema 데이터베이스의 EVENTS 뷰에서 확인할 수 있다.
+- 실행 이력이 필요한 경우 직접 사용자 테이블을 생성하고 기록해둬야하는데 필요가 없다고 생각해도 기록해두는게 좋다고 한다.
+
+
+
+#### 이벤트 생성
+
+- 이벤트는 반복 실행 여부에 따라 크게 일회성 이벤트와 반복성 이벤트로 나눌 수 있다.
+
+`일회성 이벤트`
+
+```sql
+CREATE EVENT onetime_job
+	ON SCHEDULE AT CURRENT_TIMESTAMP + INTERVAL 1 HOUR
+DO
+	INSERT INTO daily_rank_log VALUES (NOW(), 'Done');
+```
+
+- 현재 시점부터 1시간 뒤에 실행될 이벤트를 등록
+
+ `반복성 이벤트`
+
+```sql
+CREATE EVENT daily_rank
+	ON SCHEDULE EVERY 1 DAY STARTS '2022-01-01 00:00:00' ENDS '2023-01-01 00:00:00'
+DO
+	INSERT INTO daily_rank_log VALUES (NOW(), 'Done');
+```
+
+- `2022-01-01 00:00:00` 마다 매일 실행되는 이벤트를 등록
+- 이벤트 생성 명령의 `EVERY` 절에는 `YEAR`, `MONTH`, `DAY`, `QUARTER`, `HOUR`, `MINUTE`, `WEEK`, `SECOND` 등등 반복 주기를 사용할 수있다.
+
+<br/>
+
+- 반복성, 일회성과 관계없이 이벤트의 처리 내용을 작성하는 DO 절은 여러 가지 방식으로 사용할 수 있다.
+- DO절에는 단순히 하나의 쿼리나 스토어드 프로시저를 호출하는 명령을 사용하거나 `BEGIN ... END` 로 구성되는 복합 절을 사용하 수있다. 단일 SQL의 경우 `BEGIN ... END` 를 사용하지 않아도 무방하다.
+
+```sql
+CREATE EVENT daily_rank
+	ON SCHEDULE EVERY 1 DAY STARTS '2022-01-01 00:00:00' ENDS '2023-01-01 00:00:00'
+DO BEGIN
+	INSERT INTO daily_rank_log VALUES (NOW(), 'Start');
+	-- // 랭킹 정보 수집 & 처리
+	INSERT INTO daily_rank_log VALUES (NOW(), 'Done');
+END ;;
+```
+
+- 이벤트의 반복성 여부와 관계 없이 `ON COMPLETION` 절을 이용해 완전히 종료된 이벤트를 삭제할지, 그대로 유지할지 선택할 수 있다. 기본적으로 완전히 종료된 이벤트는 자동으로 삭제된다.
+- `ON COMPLETION PRESERVE` 옵션을 주면 자동으로 삭제되지 않는다.
+- 이벤트는 생성할 때 ENABLE, DISABLE DISBLE ON SLAVE 3가지 상태로 생성할 수 있다. 기본적으로 생성되면서 복제 소스 서버에서는 ENABLE 되며, 복제된 레플리카 서버에서는 SLAVESIED_DISABLED 상태로 생성된다.
+- 복제 소스 서버에서는 실행된 이벤트가 만들어낸 데이터 변경 사항은 자동으로 레플리카 서버로 복제되기 때문에 레플리카 서버에서는 이벤트를 중복해서 실행할 필요는 없다. 다만 레플리카 서버가 소스 서버로 승격되면 수동으로 이벤트의 상태를 ENABLE 상태로 변경해야 한다.
+
+`레플리카 서버에서만 DISABLE된 이벤트 목록 조회`
+
+```sql
+SELECT event_schema, event_name
+FROM information_schema.EVENTS
+WHERE STATUS = 'SLAVESIED_DISBLED';
+```
+
+<br/>
+
+#### 이벤트 실행 및 결과 확인
+
+- 이벤트 또한 트리거와 같이 특정한 사건이 발생해야 실행되는 스토어드 프로그램이라서 테스트를 위해 강제로 실행시켜볼 수는 없다.
+
+```sql
+DELIMITER ;;
+CREATE TABLE daily_rank_log (exec_dttm DATETIME, exec_msg VARCHAR(50));
+
+CREATE EVENT daily_rank
+	ON SCHEDULE AT CURRENT_TIMESTAMP + INTERVAL 1 MINUTE
+	ON COMPLETION PRESERVE
+DO BEGIN
+	INSERT INTO daily_rank_log VALUES (NOW(), 'Done');
+END ;;
+	
+DELIMITER ;
+```
+
+`이벤트 확인하기`
+
+```sql
+SELECT * FROM information_schema.EVENTS
+```
+
+![82](./images/real-mysql-8/82.png)
+
+```sql
+SELECT * FROM daily_rank_log;
+```
+
+![83](./images/real-mysql-8/83.png)
+
+- `information_schema` 데이터베이스의 EVENTS 뷰는 항상 마지막 실행 로그만 가지고 있기 때문에 전체 실행 로그가 필요한 경우에는 위와 같이 별도의 로그 테이블이 필요하다.
+
+#### 이벤트 딕셔너리
+
+- MySQL 8.0 이전 버전까지 생성된 이벤트의 딕셔너리 정보는 `mysql` 데이터베이스의 `events` 테이블에서 관리됐다.
+- MySQL 8.0 버전부터는 다른 스토어드 프로그램과 마찬가지로 `information_schema` 데이터베이스의 `EVENTS` 뷰를 통해 이벤트의 목록과 상세 내용을 확인할 수 있다.
+
+
+
 ### 스토어드 프로그램 본문(Body) 작성
+
+- 지금까지 살펴본 스토어드 프로그램은 생성하고 실해아는 방법에 조금씩 차이가 있지만 본문부(`BEGIN ... END 블록`)는 모두 똑같은 문법을 사용한다.
+
+#### BEGIN ... END 블록과 트랜잭션
+
+- 스토어드 프로그램의 본문은 `BEGIN` 으로 시작해서 `END` 로 끝나며 하나의 `BEGIN ... END ` 블록은 또 다른 여러 개의 `BEGIN ... END ` 블록을 중첩해서 포함할 수 있다.
+- `BEGIN ... END `  내에서 주의해야 할 것은 트랜잭션 처리다. MySQL에서 트랜잭션을 시작하는 명령은 `BEGIN`과 `START TRANSACTION` 인데 `BEGIN ... END ` 안에서 `BEGIN` 은 `BEGIN ... END ` 으로 인식한다. 따라서 스토어드 프로그램 본문에서 트랜잭션 시작은 반드시 `START TRANSACTION` 을 사용해야 한다.
+- 트랜잭션은 스토어드 프로시저, 이벤트의 본문에서만 사용 가능하고 스토어드 함수나 트리거에서는 트랜잭션을 사용할 수 없다.
+- 스토어드 프로시저에서 트랜잭션을 완료하면 이 스토어드 프로시저를 호출한 애플리케이션이나 SQL 클라이언트 도구에서는 트랜잭션을 조절할 수 없다. 따라서 어떤 부분에서 트랜잭션을 완료해야할지 명확하게 정의해야 한다.
+
+
+
+#### 변수
+
+- 스토어드 프로그램의 `BEGIN ... END ` 블록 사이에서 사용하는 변수는 사용자 변수와는 다르므로 혼동하지 않도록 주의해야 한다.
+- 여기서 언급하는 변수(로컬 변수)는 `BEGIN ... END ` 블록 내에서만 사용할 수 있다.
+- 스토어드 프로그램에서 사용자 변수와 로컬 변수는 거의 혼용해서 제한 없이 사용할 수 있지만 프로시저 내부에서 프리페어 스테이트먼트를 사용하려면 반드시 사용자 변수를 사용해야 한다.
+- 스토어드 프로그램에서 사용자 변수를 적절히 용도에 맞게 사용하여 스토어드 프로그램 내부, 외부 간의 데이터 전달용도로 사용할 수 있지만 너무 남용하면 악영향을 미칠수 있다. 로컬 변수가 빠르게 처리되기 때문에 프로그램 내부에서는 가능하면 로컬 변수를 사용하는게 좋다.
+
+`로컬 변수`
+
+```sql
+-- // 로컬 변수 정의
+DECLARE v_name VARCHAR(50) DEFAULT 'Matt';
+DECLARE v_email VARCHAR(50) DEFAULT 'matt@email.com';
+
+-- // 로컬 변수에 값을 할당
+SET v_name = 'Kim', v_email = 'kim@email.com';
+
+-- // SELECT .. INTO 구문을 이용한 값의 할당
+SELECT emp_no, first_name, last_name INTO v_empno, v_firstname, v_lastname
+FROM employees
+WHERE emp_no = 10001;
+LIMIT 1;
+```
+
+- 로컬 변수는 `DECLARE` 명령으로 정의되고 반드시 타입이 함께 명시되어야 한다.
+- 로컬 변수에 값을 할당하는 방법은 `SET` 또는 `SELECT ... INTO ...` 문장으로 가능하다.`SELECT ... INTO ...` 는 반드시 1개의 레코드를 반환하는 SQL 이어야 한다. 따라서 `LIMIT 1;` 과 같은 조건을 추가해서 사용하는 것이 좋다.
+- 로컬변수는 `BEGIN ... END ` 블록 내에서만 유효하다.
+- 로컬 변수는 초기 디폴트값을 설정할 수 있고 명시하지 않으면 `NULL` 로 초기화 된다.
+- 스토어드 프로그램의 `BEGIN ... END ` 블록에서는 스토어드 프로그램의 입력 파라미터와 `DECLARE` 에 의해 생성된 로컬 변수, 테이블의 칼럼명 모두 같은 이름을 가질 수 있다. 이 때 다음과 같은 우선순위를 가진다.
+  1. DECLARE로 정의한 로컬 변수
+  2. 스토어드 프로그램의 입력 파라미터
+  3. 테이블 칼럼
+
+- 위와 같은 경우 스토어드 프로그램이 복잡해지기 때문에 입력 파라미터는 `p_` 의 접두사, 로컬변수는 `v_` 접두사를 사용하는것도 좋은 방법이다.
+- 중첩된 `BEGIN ... END ` 블록은 각각 똑같은 이름의 로컬 변수를 정의할 수 있는데 외부 블록에서는 내부 블록에 정의된 로컬 변수를 참조할 수 없다. 반대로 내부 블록에서 외부 블록의 로컬 변수를 참조할 때는 가장 가까운 외부 블록에 정의된 로컬 변수를 참조한다. 이는 일반적인 프로그래밍 언어의 변수 적용 범위와 동일한 방식이다.
+
+
+
+
 
 ## 스토어드 프로그램의 보안 옵션
 
