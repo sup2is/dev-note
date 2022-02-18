@@ -2920,6 +2920,197 @@ LIMIT 1;
 - 위와 같은 경우 스토어드 프로그램이 복잡해지기 때문에 입력 파라미터는 `p_` 의 접두사, 로컬변수는 `v_` 접두사를 사용하는것도 좋은 방법이다.
 - 중첩된 `BEGIN ... END ` 블록은 각각 똑같은 이름의 로컬 변수를 정의할 수 있는데 외부 블록에서는 내부 블록에 정의된 로컬 변수를 참조할 수 없다. 반대로 내부 블록에서 외부 블록의 로컬 변수를 참조할 때는 가장 가까운 외부 블록에 정의된 로컬 변수를 참조한다. 이는 일반적인 프로그래밍 언어의 변수 적용 범위와 동일한 방식이다.
 
+#### 제어문
+
+- 스토어드 프로그램은 SQL문과 달리 조건 비교 및 반복과 같은 절차적인 처리를 위해 여러 가지 제어 문장을 이용할 수 있다.
+- 여기서 소개하는 제어문은 역시 `BEGIN ... END ` 안에서만 사용할 수 있다.
+
+
+
+##### IF .. ELSEIF ... ELSE ... END IF
+
+```sql
+DELIMITER ;;
+
+CREATE FUNCTION sf_greatest(p_value1 INT, p_value2 INT)
+	RETURNS INT
+BEGIN
+	IF p_value1 IS NULL THEN
+		RETURN p_value2;
+	ELSEIF p_value2 IS NULL THEN
+		RETURN p_value1;
+	ELSEIF p_value >= p_value2 THEN
+		RETURN p_value1;
+	ELSE
+		RETURN p_value2;
+	END IF;
+END;;
+
+DELIMITER ;
+
+-- 버전이 올라가면서 아래 설정 기본값이 OFF로 되어있는데 ON으로 바꿔주면 스토어드 함수를 생성할 수 있다.
+SET GLOBAL log_bin_trust_function_creators = 1;
+```
+
+- 일반적인 프로그래밍 언어의 포맷과 동일하게 사용할 수 있다.
+
+##### CASE WHEN ... THEN ... ELSE ... END CASE
+
+```sql
+DELIMITER ;;
+
+CREATE FUNCTION sf_greatest1 (p_value1 INT, p_value2 INT)
+	RETURNS INT
+BEGIN
+	CASE 
+		WHEN p_value1 IS NULL THEN
+      RETURN p_value2;
+    WHEN p_value2 IS NULL THEN
+      RETURN p_value1;
+    WHEN p_value >= p_value2 THEN
+      RETURN p_value1;
+    ELSE
+      RETURN p_value2;
+  END CASE;
+END;;
+
+DELIMITER ;
+```
+
+- `CASE WHEN` 또한 일반적인 프로그래밍 언어의 포맷과 동일하게 사용 가능하다.
+
+
+
+
+
+##### 반복 루프
+
+- 반복 루프 처리를 위해서 LOOP, REPEAT, WHILE 구문을 사용할 수 있다.
+
+`LOOP`
+
+```sql
+DELIMITER ;;
+
+CREATE FUNCTION sf_factorial1 (p_max INT)
+	RETURNS INT
+BEGIN
+	DECLARE v_factorial INT DEFAULT 1;
+	
+	factorial_loop : LOOP
+		SET v_factorial = v_factorial * p_max;
+		SET p_max = p_max - 1;
+		IF p_max <= 1 THEN
+			LEAVE factorial_loop;
+		END IF;
+	END LOOP;
+	
+	RETURN v_factorial;
+END ;;
+
+DELIMITER ;
+
+```
+
+- `LOOP` 문장 자체는 비교 조건이 없고 무한 루프를 실행한다는 점에 주의해야 한다.
+- `LOOP` 를 벗어나고자 할 떄는 `LEAVE` 명령을 사용해서 벗어나야 한다.
+
+`REPEAT`
+
+```sql
+DELIMITER ;;
+
+CREATE FUNCTION sf_factorial2 (p_max INT)
+	RETURNS INT
+BEGIN
+	DECLARE v_factorial INT DEFAULT 1;
+	
+	REPEAT
+		SET v_factorial = v_factorial * p_max;
+		SET p_max = p_max - 1;
+	UNTIL p_max<=1 END REPEAT;
+	
+	RETURN v_factorial;
+END ;;
+
+DELIMITER ;
+
+```
+
+- 반복문을 최소 한번 수행하는 `REPEAT`
+- `do-while` 문이랑 비슷하다.
+
+`WHILE`
+
+```sql
+DELIMITER ;;
+
+CREATE FUNCTION sf_factorial3 (p_max INT)
+	RETURNS INT
+BEGIN
+	DECLARE v_factorial INT DEFAULT 1;
+	
+	WHILE p_max>1 DO
+		SET v_factorial = v_factorial * p_max;
+		SET p_max = p_max - 1;
+	END WHILE;
+	
+	RETURN v_factorial;
+END ;;
+
+DELIMITER ;
+```
+
+- 일반적인 프로그래밍 언어의 `while` 문과 동일하다.
+
+#### 핸들러와 컨디션을 이용한 에러 핸들링
+
+- 안정적이고 견고한 스토어드 프로그램을 작성하려면 반드시 핸들러를 이용해 예외를 처리해야 한다.
+- 핸들러가 없다면 `try-catch`가 없는 자바 프로그램과 같다고 볼 수 있다.
+- 핸들러는 이미 정의한 컨디션 또는 사용자가 정의한 컨디션을 어떻게 처리할지 정의하는 기능이다.
+- 핸들러를 이해하려면 MySQL에서 사용하는 SQLSTATE와 에러 번호의 의미와 관계를 알고 있어야 한다.
+
+##### SQLSTATE와 에러 번호(Error NO)
+
+```sql
+mysql> SELECT * FROM not_found_table;
+ERROR 1146 (42S02): Table 'employees.not_found_table' doesn't exist
+
+-- ERROR (ERROR-NO) (SQL-STATE) : (ERROR-MSG) 형태
+```
+
+`ERROR-NO`
+
+- 4자리(현재까지는) 숫자값으로 구성된 에러 코드
+- MySQL에서만 유효한 에러 식별 번호
+- `1146` 이라는 코드는 '테이블이 존재하지 않는다' 라는 것을 의미하지만 다른 DBMS와 호환되는 에러 코드는 아니다.
+- 그외 기타 다양한 에러코드들은 공홈에서 확인 가능하다 [https://dev.mysql.com/doc/mysql-errors/8.0/en/server-error-reference.html](https://dev.mysql.com/doc/mysql-errors/8.0/en/server-error-reference.html)
+
+`SQL-STATE`
+
+- 다섯 글자의 알파벳과 숫자로 구성되고 에러 뿐만 아니라 여러 가지 상태를 의미하는 코드다.
+- 이 값은 DBMS 종류가 다르더라도 ANSI SQL 표준을 준수하는 DBMS에서는 모두 똑같은 값과 의미를 가진다.
+- 대부분의 MySQL 에러 번호는 특정 `SQL STATE` 값과 매핑되어 있고 매핑되지 않은 `Error No`는 `SQL STATE` 값이 `HY000` 으로 설정된다.
+- SQLSTATE 값의 뒤 2글자 의미
+  - `00`: 정상 처리됨(에러 아님)
+  - `01`: 경고 메시지
+  - `02`: Not Found (`SELECT`나 CURSOR에서 결과가 없는 경우에만)
+  - 그 이외의 값은 DBMS별로 할당된 각자의 에러 케이스를 의미한다.
+- 수많은 SQL STATE는 [https://en.wikipedia.org/wiki/SQLSTATE](https://en.wikipedia.org/wiki/SQLSTATE) 에서 확인 가능하다.
+
+`예외 핸들링에서 주의해야할사항`
+
+| ERROR NO | SQL STATE | ERROR NAME    | 설명                                                   |
+| -------- | --------- | ------------- | ------------------------------------------------------ |
+| 1022     | 23000     | ER_DUP_KEY    | 프라이머리 키 또는 유니크 키 중복 에러 (NDB 클러스터)  |
+| 1062     | 23000     | ER_DUP_ENTRY  | 프라이머리 키 또는 유니크 키 중복 에러(InnoDB, MyISAM) |
+| 1169     | 23000     | ER_DUP_UNIQUE | 유니크 키 중복 에러(NDB 클러스터)                      |
+
+- 똑같은 에러라고 해도 스토리지 엔진 별로 다른 에러 번호를 가질 수 있다.
+- 똑같은 원인에 대해 여러 개의 에러 번호를 가지는 경우 에러 번호 중 하나라도 빠뜨리면 제대로 에러 핸들링을 못할 수 있다.
+- 이 경우 `SQL STATE` 값을 사용해서 한번에 핸들링할 수 있다.
+- 이뿐만 아니라 다른 에러도 이렇게 중복된 에러 번호를 갖는 경우가 있기 때문에 에러 번호보다는 `SQL STATE`를 핸들러에 사용하는게 좋다.
+
 
 
 
