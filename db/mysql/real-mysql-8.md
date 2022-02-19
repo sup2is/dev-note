@@ -3111,6 +3111,118 @@ ERROR 1146 (42S02): Table 'employees.not_found_table' doesn't exist
 - 이 경우 `SQL STATE` 값을 사용해서 한번에 핸들링할 수 있다.
 - 이뿐만 아니라 다른 에러도 이렇게 중복된 에러 번호를 갖는 경우가 있기 때문에 에러 번호보다는 `SQL STATE`를 핸들러에 사용하는게 좋다.
 
+##### 핸들러
+
+- 스토어드 프로그램 또한 다른 프로그래밍 언어와 같이 여러 가지 에러나 예외 상황에 대한 핸들링이 필수적이다.
+- MySQL 스토어드 프로그램에서는 `DECLARE ... HANDLER` 구문을 이용해 예외를 핸들링한다.
+
+```sql
+DECLARE handler_type HANDLER
+FOR condition_value [, condition_value] ... handelr_statements
+```
+
+
+
+`handler_type`
+
+- `handler_type`이 `CONTINUE`로 정의되면 `handelr_statements` 를 실행하고 스토어드 프로그램의 마지막 실행 지점으로 다시 돌아가서 나머지 코드를 처리한다.
+- `handler_type`이 EXIT으로 정의되면 `handelr_statements` 을 실행하고 `BEGIN ... END` 블록을 벗어난다. `EXIT` 핸들러가 정의된다면 이 핸들러의 `handelr_statements` 부분에 함수의 반환 타입에 맞는 적절한 값을 반환하는 코드가 반드시 포함되어 있어야 한다.
+
+`condition_value`
+
+- `condition_value` 에 `SQLSTATE` 로 정의되면 스토어드 프로그램이 실행되는 도중 어떤 이벤트가 발생했을 때 해당 이벤트의 SQLSTATE값이 일치할 때 실행되는 핸들러를 정의할 때 사용한다.
+- `condition_value` 에 `SQLWARNING` 로 정의되면 스토어드 프로그램에서 코드를 실행하던 중 경고가 발생했을 때 실행되는 핸들러를 정의할 때 사용한다. `SQLWARNING` 키워드는 `SQLSTATE` 값이 "01"로 시작하는 이벤트를 의미한다.
+- `condition_value` 에 `NOT FOUND` 로 정의되면 `SELECT` 쿼리 문의 결과 건수가 1건도 없거나 `CURSOR`의 레코드를 마지막까지 읽은 뒤에 실행하는 핸들러를 정의할 때 사용한다. `NOT FOUND` 키워드는 `SQLSTATE` 값이 "02"로 시작하는 이벤트를 의미한다.
+- `condition_value` 에 `SQLEXCEPTION` 로 정의되면 경고와 `NOT FOUND`, "00"(정상처리)로 시작하는 `SQLSTATE` 이외의 모든 케이스를 의미하는 키워드다
+- MySQL의 에러 코드 값을 직접 명시할 때도 있다. 코드 실행 중 어떤 이벤트가 발생했을 때 `SQLSTATE` 값이 아닌 MySQL의 에러 번호 값을 비교해서 실행되는 핸들러를 정의할 때 사용된다.
+- 사용자 정의 `CONDITION`을 생성하고 그 `CONDITION`의 이름을 명시할 수도 있다. 이때는 스토어드 프로그램에서 발생한 이벤트가 정의된 컨디션과 일치하면 핸들러의  처리 내용이 수행된다.
+- `condition_value`는 구분자를 이용해 여러 개를 동시에 나열할 수도 있다.
+- 값이 "00000"인 `SQLSTATE`와 에러 번호 "0"은 모두 정상적으로 처리됐음을 의미하는 값이라서 `condition_value`에 사용해서는 안된다.
+
+`handelr_statements`
+
+- `handelr_statements`에는 특정 이벤트가 발생했을 때 그 이벤트에 대한 처리 코드를 정의한다.
+- `handelr_statements`에는 단순히 명령문 하나만 사용할 수도 있고 `BEGIN ... END`로 감싸서 여러 명령문이 포함된 블록으로 작성할 수도 있다.
+
+
+
+<br/>
+
+```sql
+DECLARE CONTINUE HANDLER FOR SQLEXCEPTION SET error_flag = 1;
+```
+
+- 위 핸들러는 `SQLEXCEPTION`(SQLSTATE가 "00", "01", "02" 이외의 값으로 시작되는 에러)이 발생했을 때 `error_flag` 로컨 변수의 값을 1로 설정하고 마지막으로 실행했던 스토어드 프로그램의 코드로 돌아가서 계속 실행하게 하는 핸들러다.
+
+```sql
+DECLARE EXIT HANDLER FOR SQLEXCEPTION
+	BEGIN
+		ROLLBACK;
+		SELECT 'Error occurred - terminating';
+	END ;;
+```
+
+- 위 핸들러는 `SQLEXCEPTION` 이 발생했을 때  `BEGIN ... END` 을 실행하고 에러가 발생한 코드가 포함된  `BEGIN ... END`을 벗어난다.
+- 에러가 발생한 코드가 스토어드 프로그램의 최상위  `BEGIN ... END`이라면 스토어드 프로그램은 종료된다.
+- 특별히 스토어드 프로시저에는 위의 예쩨처럼 결과를 읽거나 사용하지 않는 SELECT 쿼리가 실행되면 MySQL 서버가 이 결과를 즉시 클라이언트로 전송하기 떄문에 디버깅 용도로 사용할 수 있지만 스토어드 함수, 트리거, 이벤트에서는 이런 기능을 사용할 수 없다.
+
+```sql
+DECLARE CONTINUE HANDLER FOR 1022, 1062 SELECT 'Duplicate ky in index' -- ERROR NO
+
+DECLARE CONTINUE HANDLER FOR 23000 SELECT 'Duplicate ky in index' -- SQLSTATE
+```
+
+- 위 핸들러는 에러 번호가 1022나 1062인 예외가 발생했을 때 클라이언트로 'Duplicate ky in index' 메시지를 출력하고 스토어드 프로그램의 원래 실행 지점으로 돌아가서 나머지 코드를 실행한다.
+- 하지만 에러 번호보다는 아래와 같이 SQLSTATE 값을 명시하는 핸들러를 사용하는 것이 좀 더 견고한 스토어드 프로그램을 만드는 방법이다.
+
+
+
+##### 컨디션
+
+- MySQL의 핸들러는 어떤 조건이 발생했을 때 실행할지를 명시하는 여러가지 방법이 있는데 그 중 하나가 컨디션이다.
+- 단순히 에러 번호나 `SQLSTATE` 값 만으로 어떤 조건을 의미하는지 이해하기 어렵기 때문에 이 숫자들이 어떤 의미인지 예측할 수 있는 이름을 만들어 두면 훨씬 더 쉽게 코드를 이해할 수 있다.
+- 바로 이러한 조건의 이름을 등록하는 것이 컨디션이다. 위에서 본 `SQLWARNING`이나 `SQLEXCEPTION` 등등 모두 MySQL 서버가 내부적으로 미리 정의해둔 컨디션이라고 볼 수 있다.
+
+```sql
+DECLARE condition_name CONDITION FOR condition_value
+```
+
+`condition_name`
+
+- `condition_name` 사용자가 부여하려는 이름을 단순 문자열로 입력하면 된다.
+
+`condition_value`
+
+- `condition_value`에 MySQL의 에러 번호를 사용할 때는 `condition_value`에 바로 MySQL의 에러 번호를 입력하면 된다. 에러 코드의 값을 여러개 동시에 명시할 수 없다.
+- `condition_value` 에 `SQLSTATE`를 명시하는 경우에는 `SQLSTATE` 키워드를 입력하고 그 뒤에 `SQLSTATE` 값을 입력하면 된다.
+
+```sql
+DECLARE no_such_table CONDITION FOR 1051; -- ERROR NO
+
+DECLARE no_such_table CONDITION FOR SQLSTATE '42S02'; -- SQLSTATE
+```
+
+
+
+##### 컨디션을 사용하는 핸들러 정의
+
+```sql
+CREATE FUNCTION sf_testfunc()
+	RETURNS BIGINT
+BEGIN
+	DECLARE dup_key CONDITION FOR 1062;
+	DECLARE EXIT HANDLER FOR dup_key
+		BEGIN
+			RETURN -1;
+		END;
+		
+	INSERT INTO tb_test VALUES (1);
+	RETURN 1;
+END ;;
+```
+
+ 
+
 
 
 
