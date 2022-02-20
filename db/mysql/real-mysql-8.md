@@ -3223,13 +3223,311 @@ END ;;
 
  
 
+#### 시그널을 이용한 예외 발생
 
+- MySQL의 스토어드 프로그램에서 사용자가 직접 예외나 에러를 발생시키려면 시그널명령을 사용해야 한다.
+- 자바와 비교한다면 핸들러는 `catch` 구문, 시그널은 `throw` 구문에 해당하는 기능 정도로 볼 수 있다.
+- 시그널 구분은 MySQL 5.5부터 지원된 기능인데 이전에는 아래와 같이 존재하지 않는 테이블을 `SELECT` 한다거나 존재하지 않는 스토어드 프로그램을 호출하는 형태로 작성해서 사용했다.
+
+```sql
+CREATE FUNCTION sf_divide_old_style (p_dividend INT, p_divisor INT)
+	RETURNS INT
+BEGIN
+	IF p_divisor IS NULL THEN
+		CALL __undef_procedure_divisor_isnull(); -- 에러를 강제로 발생시켜 스토어드 프로그램을 종료
+	ELSEIF p_divisor = 0 THEN
+		CALL __undef_procedure_divisor_is_0(); -- 에러를 강제로 발생시켜 스토어드 프로그램을 종료
+	ELSEIF p_dividend IS NULL THEN
+		RETURN 0;
+	END IF;
+	
+	RETURN FLOOR(p_dividend / p_divisor);
+END ;;
+```
+
+
+
+##### 스토어드 프로그램의 BEGIN ... END 블록에서 SIGNAL 사용
+
+```sql
+DELIMITER ;;
+
+CREATE FUNCTION sf_divide (p_dividend INT, p_divisor INT) 
+         RETURNS INT
+         DETERMINISTIC
+         SQL SECURITY INVOKER
+       BEGIN
+         DECLARE null_divisor CONDITION FOR SQLSTATE '45000';
+         
+         IF p_divisor IS NULL THEN
+           SIGNAL null_divisor 
+               SET MESSAGE_TEXT='Divisor can not be null', MYSQL_ERRNO=9999;
+         ELSEIF p_divisor=0 THEN
+           SIGNAL SQLSTATE '45000' 
+               SET MESSAGE_TEXT='Divisor can not be 0', MYSQL_ERRNO=9998;
+         ELSEIF p_dividend IS NULL THEN
+           SIGNAL SQLSTATE '01000' 
+               SET MESSAGE_TEXT='Dividend is null, so regarding dividend as 0', MYSQL_ERRNO=9997; 
+         END IF;
+         
+         RETURN FLOOR(p_dividend / p_divisor); 
+       END;;
+
+DELIMITER ;
+
+DELIMITER $$
+
+CREATE FUNCTION `f`() RETURNS INT(11)
+BEGIN
+	SIGNAL SQLSTATE '01234';  -- signal a warning
+	RETURN 5;
+END$$
+
+CREATE PROCEDURE `p`()
+BEGIN
+	SIGNAL SQLSTATE '01234';
+END$$
+
+CREATE PROCEDURE `p2`()
+BEGIN
+	SIGNAL SQLSTATE '01234';
+	SELECT RAND() INTO @unused;
+END$$
+
+DELIMITER ;
+
+```
+
+![84](./images/real-mysql-8/84.png)
+
+> `SELECT sf_divide(NULL, 1);` 의 경우 warning이 나와야 정상인데(책에는 나와있음) 안나와서 검색해보니 아래 글 내용이 있었다. [https://bugs.mysql.com/bug.php?id=87442](https://bugs.mysql.com/bug.php?id=87442)
+>
+> 결론부터 말하면 MySQL 5.5 에서는 위 예제에서 warning이 정상적으로 동작하지만 5.6 이상 버전부터는 `RETURN` 문이 진단영역?(warning 영역?)을 지우기 때문에 스토어드 함수에서는 warning을 받을 수 없다는 내용이 있는 것 같다.
+>
+> 스토어드 프로시저는 warning이 잘 표시된다.
+>
+> ```sql
+> DELIMITER $$
+> 
+> CREATE FUNCTION `f`() RETURNS INT(11)
+> BEGIN
+> 	SIGNAL SQLSTATE '01234';  -- signal a warning
+> 	RETURN 5;
+> END$$
+> 
+> CREATE PROCEDURE `p`()
+> BEGIN
+> 	SIGNAL SQLSTATE '01234';
+> END$$
+> 
+> CREATE PROCEDURE `p2`()
+> BEGIN
+> 	SIGNAL SQLSTATE '01234';
+> 	SELECT RAND() INTO @unused;
+> END$$
+> 
+> DELIMITER ;
+> 
+> -- 함수 call, warning이 안나옴
+> mysql> SELECT f();
+> +------+
+> | f()  |
+> +------+
+> |    5 |
+> +------+
+> 1 row in set (0.00 sec)
+> 
+> 
+> -- 프로시저 call, SHOW WARNINGS; 로 경고메시지 확인 가능
+> mysql> CALL p(0);
+> Query OK, 0 rows affected, 1 warning (0.01 sec)
+> 
+> mysql> SHOW WARNINGS;
+> +---------+------+------------------------------------------+
+> | Level   | Code | Message                                  |
+> +---------+------+------------------------------------------+
+> | Warning | 1642 | Unhandled user-defined warning condition |
+> +---------+------+------------------------------------------+
+> 1 row in set (0.00 sec)
+> 
+> 
+> ```
+
+- `SIGNAL` 명령은 직접 `SQLSTATE` 값을 가질수도 있고 간접적으로 `SQLSTATE`를 가지는 컨디션을 참조해서 에러나 경고를 발생시킬 수도 있다.
+- 중요한 것은 항상 `SIGNAL` 명령은 `SQLSTATE`와 직접 또는 간접적으로 연결돼야 한다는 점이다.
+- `null_divisor` 의 경우 미리 위에서 정의된 컨디션을 사용해서 간접적으로 `SQLSTATE`와 연결되었다.
+- 마지막 `SIGNAL SQLSTATE '01000'` 은 에러가아닌 경고를 나타내는 시그널이다. 경고를 발생시키면 경고 메시지만 출력하고 `RETURN` 문에 해당하는 값이 호출자에게 반환된다.
+- `SIGNAL` 명령은 위에서 확인한 것과 같이 에러나 경고가 문법상 아무런 차이가 없다. `SQLSTATE` 값이 에러가 될지 경고가 될지 구분된다. 
+
+`SQLSTATE의 종류`
+
+| SQLSTATE 클래스(앞 두글자) | 의미              |
+| -------------------------- | ----------------- |
+| "00"                       | 정상 처리됨       |
+| "01"                       | 처리 중 경고 발생 |
+| 그 밖의 값                 | 처리중 오류 발생  |
+
+- 일반적으로 사용하는 `SIGNAL`  명령은 대부분 유저 에러나 예외일 것이므로 그에 해당하는 "45" 로 시작하는 `SQLSTATE` 를 사용할 것을 권장한다.
+
+
+
+##### 핸들러 코드에서 SIGNAL 사용
+
+```sql
+DELIMITER ;;
+
+CREATE PROCEDURE sp_remove_user (IN p_userid INT) 
+         DETERMINISTIC
+         SQL SECURITY INVOKER
+       BEGIN
+         DECLARE v_affectedrowcount INT DEFAULT 0;
+         DECLARE EXIT HANDLER FOR SQLEXCEPTION
+           BEGIN
+             SIGNAL SQLSTATE '45000'
+               SET MESSAGE_TEXT='Can not remove user information', MYSQL_ERRNO=9999;
+           END;
+
+         -- // 사용자의 정보를 삭제
+         DELETE FROM tb_user WHERE user_id=p_userid;
+         -- // 위에서 실행된 DELETE 쿼리로 삭제된 레코드 건수를 확인 
+         SELECT ROW_COUNT() INTO v_affectedrowcount;
+         -- // 삭제된 레코드 건수가 1건이 아닌 경우에는 에러 발생 
+         IF v_affectedrowcount<>1 THEN
+           SIGNAL SQLSTATE '45000'; 
+         END IF;
+       END;;
+       
+DELIMITER ;
+
+
+mysql> CALL sp_remove_user(12);
+ERROR 9999 (45000): Can not remove user information
+```
+
+- 이 스토어드 프로시저는 `tb_user` 테이블에서 레코드를 삭제하는 프로시저다. `DELETE` 문을 실행했는데 한 건도 삭제되지 않으면 에러를 발생시키기 위해 핸들러를 사용하고 있다. `SQLEXCEPTION`에 대해 `EXIT HANDLER`가 정의되어 있고 이 핸들러는 발생한 에러의 내용을 무시하고 `SQLSTATE`가 "45000"인 에러를 다시 발생시킨다.
+- 이 스토어드 프로그램은 예외가 발생하면 항상 SQLSTATE 값("45000") 을 리턴한다.
+
+<br>
+
+- 스토어드 프로그램의 `SIGNAL`이나 `HANDLER` 기능은 프로그램의 가독성을 높이고 예외에 대한 핸들링을 깔끔하게 처리해줄 것이기 때문에 잘 사용한다면 유지보수 측면에서 많은 도움을 줄 수 있다.
+
+
+
+#### 커서
+
+- 스토어드 프로그램의 커서는 JDBC 프로그램에서 자주 사용하는 결과 셋(Result Set)이다.
+- 하지만 스토어드 프로그램에서 사용하는 커서는 JDBC의 ResultSet에 비해 기능이 상당히 제약적이다.
+  - 스토어드 프로그램의 커서는 전(전진) 방향 읽기만 가능하다.
+  - 스토어드 프로그램에서는 커서의 칼럼을 바로 업데이트하는 것이 불가능하다.
+
+
+
+`DBMS의 센서티브 커서와 인센서티브 커서`
+
+- 센서티브 커서(Sensitive Cursor)
+  - 일치하는 레코드에 대한 정보를 실제 레코드의 포인터만으로 유지하는 형태.
+  - 센서티브 커서는 커서를 이용해 칼럼의 데이터를 변경하거나 삭제하는 것이 가능하다.
+  - 칼럼의 값이 변경돼서 커서를 생성한 `SELECT` 쿼리의 조건에 더는 일치하지 않거나 레코드가 삭제되면 커서에서도 즉시 반영된다.
+  - 센서티브 커서는 별도로 임시테이블로 레코드를 복사하지 않기 때문에 커서의 오픈이 빠르다.
+- 인센서티 커서(Insensitive Cursor)
+  - 일치하는 레코드를 별도의 임시 테이블로 복사해서 가지고 있는 형태다.
+  - SELECT쿼리에 부합되는 결과를 우선적으로 임시 테이블로 복사해야 하기 때문에 느리다.
+  - 임시테이블로 복사된 데이터를 조회하는 것이라 커서를 통해 칼럼의 값을 변경하거나 레코드를 삭제하는 작업이 불가능하다.
+  - 하지만 다른 트랜잭션과의 충돌은 발생하지 않는다.
+
+
+
+<br>
+
+- MySQL의 스토어드 프로그램에서 정의되는 커서는 어센서티브(Asensitive) 커서인데 어센서티브(Asensitive) 커서는 센서티브 커서와 인센서티브 커서를 혼용하는 방식이다.
+- MySQL에서 실제 어떤 커서를 사용하는지 알 수 없으므로 커서를 통해 칼럼을 삭제하거나 변경하는 것이 불가능하다.
+- 커서는 일반적인 프로그래밍 언어에서 `SELECT` 쿼리의 결과를 사용하는 방법과 흡사하다.
+- 스토어드 프로그램에서도 `SELECT` 쿼리 문장으로 커서를 정의하고, 정의된 커서를 OPEN 하면 실제로 쿼리가 MySQL 서버에서 실행되고 결과를 가져온다. 이렇게 오픈된 커서는 FETCH 명령으로 레코드 단위로 읽어서 사용할 수 있고 사용이 완료된 후에 CLOSE 명령으로 커서를 닫으면 관련 자원이 모두 해제된다.
+
+```sql
+CREATE FUNCTION sf_emp_count(p_dept_no VARCHAR(10)) 
+         RETURNS BIGINT
+         DETERMINISTIC
+         SQL SECURITY INVOKER
+       BEGIN
+         /* 사원 번호가 20000보다 큰 사원의 수를 누적하기 위한 변수 */
+         DECLARE v_total_count INT DEFAULT 0;
+         /* 커서에 더 읽어야 할 레코드가 남아 있는지 여부를 위한 플래그 변수 */ 
+         DECLARE v_no_more_data TINYINT DEFAULT 0;
+         /* 커서를 통해 SELECT된 사원 번호를 임시로 담아 둘 변수 */
+         DECLARE v_emp_no INTEGER;
+         /* 커서를 통해 SELECT된 사원의 입사 일자를 임시로 담아 둘 변수 */ 
+         DECLARE v_from_date DATE;
+         /* v_emp_list라는 이름으로 커서 정의 */ 
+         DECLARE v_emp_list CURSOR FOR
+
+         SELECT emp_no, from_date FROM dept_emp WHERE dept_no=p_dept_no;
+         /* 커서로부터 더 읽을 데이터가 있는지를 나타내는 플래그 변경을 위한 핸들러 */ 
+         DECLARE CONTINUE HANDLER FOR NOT FOUND SET v_no_more_data = 1;
+
+         /* 정의된 v_emp_list 커서를 오픈 */ 
+         OPEN v_emp_list;
+         REPEAT
+           /* 커서로부터 레코드를 한 개씩 읽어서 변수에 저장 */ 
+           FETCH v_emp_list INTO v_emp_no, v_from_date;
+           IF v_emp_no > 20000 THEN
+             SET v_total_count = v_total_count + 1; 
+           END IF;
+         UNTIL v_no_more_data END REPEAT;
+
+         /* v_emp_list 커서를 닫고 관련 자원을 반납 */ 
+         CLOSE v_emp_list;
+
+         RETURN v_total_count; 
+       END ;;
+```
+
+- 위 스토어드 함수는 인자로 전달한 부서의 사원 중에서 사원 번호가 20000보다 큰 사원의 수만 `employees` 테이블에서 카운트해서 반환한다. 
+- 예제에서 가장 중요한 부분은 `DECLARE`명령으로 `v_emp_list`라는 커서를 정의하고 커서를 사용하기 위해 `OPEN`과 `FETCH`를 사용하고 커서의 사용이 완료되면 `CLOSE`로 커서를 닫는 부분이다.
+- 추가로 커서로부터 더 읽을 데이터가 남아있는지 판단하기 위해 `HANDLER`를 사용한 점이다. 커서로부터 더 읽을 데이터가 없으면 `NOT FOUND` 이벤트가 발생하고 핸들러가 실행되면서 `v_no_more_data` 변수의 값을 1로 변경하고 원래의 위치로 다시 되돌아온다. 반복문 부분에서 `v_no_more_data`를 확인하고 1이되는 경우 `TRUE`이므로 반복문을 종료한다.
+- `DECLARE` 명령으로 `CONTINUE`나 `HANDLER`, `CURSOR` 를 정의할때는 반드시 아래 순서로 정의해야 한다.
+  - 로컬 변수와 `CONDITION`
+  - `CURSOR`
+  - `HANDLER`
 
 
 
 ## 스토어드 프로그램의 보안 옵션
 
+- MySQL 이전 버전까지는 `SUPER`라는 권한이 스토어드 프로그램의 생성, 변경, 삭제 권한과 많이 연결되어 있었지만 8.0부터는 `SUPER` 권한을 오브젝트별 권한으로 세분화 했다.
+- 8.0 버전부터는 스토어드 프로그램의 생성 및 변경 권한이 `CREATE ROUTING`, `ALTER ROUTING`, `EXECUTE`로 분리되고 트리거나 이벤트의 경우 `TRIGGER`, `EVENT` 권한으로 분리됐다.
+- 아래는 많은 사용자가 쉽게 지나치지만 스토어드 프로그램에서 상당히 주의할 옵션에 대해 설명한다.
+
 ### DEFINER와 SQL SECURITY 옵션
+
+- 각 스토어드 프로그램을 생성하고 실행하는 권한을 살펴보려면 우선 스토어드 프로그램의 `DEFINER`와 `SQL SECURITY` 옵션을 이해해야 한다.
+- 위 옵션들을 놓치고 그냥 지나간다면 보안 관련 문제에 대한 대응 뿐 아니라 스토어드 프로그램의 실행이 제대로 되지 않을 수도 있다.
+
+`DEFINER`
+
+- 스토어드 프로그램이 기본적으로 가지는 옵션
+- 해당 스토어드 프로그램의 소유권과 같은 의미를 지닌다.
+
+`SQL SECURTY`
+
+- 이 옵션은 스토어드 프로그램을 실행할 떄 누구의 권한으로 실행할지 결정하는 옵션이다.
+- `INVOKER` 또는 `DEFINER` 둘 중 하나로 선택할 수 있다.
+- `DEFINER` 는 스토어드 프로그램을 생성한 사용자를 의미하고 `INVOKER`는 그 스토어드 프로그램을 호출한 사용자를 의미한다.
+
+<br>
+
+|                                          | SQL SECURITY=DEFINER                                         | SQL SECURITY=INVOKER                                         |
+| ---------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
+| 스토어드 프로그램을 실행하는 사용자 계정 | 'user1'@'%'                                                  | 'user2'@'%'                                                  |
+| 실행에 필요한 권한                       | user1에 스토어드 프로그램을 실행할 권한이 있어야 하며, 스토어드 프로그램 내의 각 SQL 문장이 사용하는 테이블에 대해서도 권한을 가지고 있어야 한다. | user2에 스토어드 프로그램을 실행할 권한이 있어야 하며, 스토어드 프로그램 내의 각 SQL 문장이 사용하는 테이블에 대해서도 권한을 가지고 있어야 한다. |
+
+- `DEFINER`는 모든 스토어드 프로그램이 기본적으로 가지는 옵션이지만 `SQL SECURITY` 옵션은 스토어드 프로시저, 스토어드 함수, 뷰만 가질 수 있다.
+- 트리거나 이벤트는 자동으로 `DEFINER` 로 설정되므로 항상 `DEFINER` 에 명시된 사용자의 권한으로 항상 실행된다.
+- 스토어드 프로그램의 `DEFINER`와 `SQL SECURTY`를 조합해서 복잡한 권한 문제를 어느정도 해결할 수도 있다.
+  - 보안이 필요한 db에서 일반사용자에게 꼭 필요한 기능은 스토어드 프로그램으로 개발하고 `DEFINER` 와 `SQL SECURTY`를 적절하게 조절하면 된다. 그럼 일반 사용자는 권한이 전혀 없지만 `DEFINER` 설정으로 인해 사실은 관리자 계정의 권한으로 스토어드 프로그램을 실행할 수 있다.
+- 스토어드 프로그램은 위와 같이 보안취약점도 될 수 있기 때문에 `SQL SECURTY`는 `DEFINER` 보다는 `INVOKER`로 설정하는게 좋다.
+
+
 
 ### DETERMINISTIC과 NOT DETERMINISTIC 옵션
 
