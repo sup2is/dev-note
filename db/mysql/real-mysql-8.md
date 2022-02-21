@@ -3531,21 +3531,253 @@ CREATE FUNCTION sf_emp_count(p_dept_no VARCHAR(10))
 
 ### DETERMINISTIC과 NOT DETERMINISTIC 옵션
 
+- 위 옵션은 보안과 관련된 옵션이 아니라 성능과 관련된 옵션이다.
+
+`DETERMINISTIC`
+
+- 스토어드 프로그램의 입력이 같다면 시점이나 상황에 관계없이 결과가 항상 같다를 의미하는 키워드
+
+`NOT DETERMINISTIC`
+
+- 입력이 같아도 시점에 따라 결과가 달라질 수도 있음을 의미하는 키워드
+
+<br>
+
+- 일반적으로 일회성으로 실행되는 스토어드 프로시저는 이 옵션의 영향을 거의 받지 않지만 SQL문장에서 반복적으로 호출될 수 있는 스토어드 함수는 이 영향을 많이 받으며 쿼리의 성능을 급격하게 떨어뜨리기도 한다.
+
+```sql
+DELIMITER ;;
+
+CREATE FUNCTION sf_getdate1()
+	RETURNS DATETIME
+	NOT DETERMINISTIC
+BEGIN
+	RETURN NOW();
+END ;;
+
+CREATE FUNCTION sf_getdate2()
+	RETURNS DATETIME
+	DETERMINISTIC
+BEGIN
+	RETURN NOW();
+END ;;
+
+DELIMITER ;
+
+
+-- demt_emp의 from_date는 인덱스가 걸려 있다.
+EXPLAIN SELECT * FROM dept_emp WHERE from_date > sf_getdate1();
+EXPLAIN SELECT * FROM dept_emp WHERE from_date > sf_getdate2();
+```
+
+![85](./images/real-mysql-8/85.png)
+
+![](./images/real-mysql-8/86.png)
+
+- `DETERMINISTIC`으로 정의된 `sf_getdate2()` 함수는 쿼리를 실행하기 위해 딱 한 번만 스토어드 함수를 호출하고 함수의 결과값을 상수화해서 쿼리를 실행한다.
+- `NOT DETERMINISTIC` 으로 정의된 `sf_getdate1()` 함수는 `WHERE` 절이 비교를 수행하는 레코드마다 매번 값이 재평가돼야 한다. 이 경우 스토어드 함수는 절대 상수가 될 수 없다.
+- 중요한 점은 `NOT DETERMINISTIC`이 스토어드 함수의 디폴트 옵션이라는 것이다. 따라서 이부분을 꼭 인지하고 스토어드 함수를 사용할 때는 `DETERMINISTIC`옵션을 주어야 한다.
+- 위에서 본것같은 `sf_getdate1()` 처럼 레코드를 매번 새로운값으로 비교해야 하는 경우는 일반적인 애플리케이션에서 거의 없는 상황이다.
+
+
+
 ## 스토어드 프로그램의 참고 및 주의사항
 
 ### 한글 처리
 
+- 스토어드 프로그램의 소스코드에 한글 문자열 값을 사용해야 한다면 스토어드 프로그램을 생성하는 클라이언트 프로그램이 어떤 문자 집합으로 MySQL 서버에 접속돼 있는지가 중요해진다.
+
+```sql
+SHOW VARIABLES LIKE 'character%';
+
++--------------------------+------------------------------------------------------+
+| Variable_name            | Value                                                |
++--------------------------+------------------------------------------------------+
+| character_set_client     | utf8mb4                                              |
+| character_set_connection | utf8mb4                                              |
+| character_set_database   | utf8mb4                                              |
+| character_set_filesystem | binary                                               |
+| character_set_results    | utf8mb4                                              |
+| character_set_server     | utf8mb4                                              |
+| character_set_system     | utf8mb3                                              |
+| character_sets_dir       | /usr/local/Cellar/mysql/8.0.28/share/mysql/charsets/ |
++--------------------------+------------------------------------------------------+
+8 rows in set (0.02 sec)
+
+```
+
+- 스토어드 프로그램이 관여하는 부분은 `character_set_client`과 `character_set_connection` 이다.
+- 이 값들이 `latin1` 처럼 다른 값이라면 `utf8mb4` 라는 값으로 설정해주면 된다.
+
+```sql
+SET character_set_client = 'utf8mb4'
+SET character_set_connection = 'utf8mb4'
+SET character_set_results = 'utf8mb4'
+
+-- 위 세개를 한방에! 하지만 커넥션 재접속했을 때는 리셋된다.
+SET NAMES 'utf8mb4';
+
+-- 위 세개를 한방에! 하지만 MySQL 클라이언트가 종료되었을 때는 리셋된다.
+CHARSET 'utf8mb4';
+
+-- 이런 방법도 있다
+CREATE FUNCTION sf_getstring()
+	RETURNS VARCHAR(20) CHARACTER SET utf8mb4
+BEGIN
+	RETURN '한글 테스트';
+END ;;
+
+```
+
+- 참고로 MySQL 설정 파일에서 기본 문자셋을 지정할 수 있고 MySQL 8.0 부터는 기본값이 `utf8mb4` 이다.
+
 ### 스토어드 프로그램과 세션 변수
+
+- 스토어드 프로그램에서 로컬변수와 세션변수는 둘 다 사용이 가능하다.
+
+```sql
+CREATE FUNCTION sf_getsum(p_arg1 INT, p_arg2 INT)
+	RETURNS INT
+BEGIN
+	DECLARE v_sum INT DEFAULT 0;
+	SET v_sum = p_arg1 + p_arg2;
+	SET @v_sum = v_sum;
+	
+	RETURN v_sum;
+END;;
+```
+
+- 세션 변수는 타입이 없기 때문에 데이터 타입에 안전하지 않고 영향을 미치는 범위가 로컬 변수보다 높다. 또한 세션에서 계속 남아 있기 때문에 사용하기 전에 적절하게 초기화하고 사용해야한다.
+- 이런 이유때문에 가능하다면 사용자 변수보다는 스토어드 프로그램의 로컬 변수를 사용하는게 좋다.
+- 스토어드 프로그램에서 프리페어 스테이트먼트를 실행하려면 세션 변수를 사용할 수밖에 없는데 이런 경우가 아니라면 가능한 한 세션 변수보다는 스토어드 프로그램의 로컬 변수를 사용하자.
+
+
 
 ### 스토어드 프로시저와 재귀 호출
 
+- 스토어드 프로그램에서도 재귀호출을 사용할 수 있는데 이는 스토어드 프로시저에서만 사용 가능하며 스토어드 함수, 트리거, 이벤트에서는 사용할 수 없다.
+- 프로그래밍 언어에서 발생할 수 있는 문제처럼 무한 반복된다면 스택오버플로우가 발생할 수도 있다.
+- MySQL에서는 이러한 재귀 호출의 문제를 막기 위해 최대 몇 번까지 재귀 호출을 허용할지를 설정하는 `max_sp_recursion_depth` 라는 시스템 변수가 있다. (기본값 0) 이 값을 변경하지 않으면 MySQL에서 재귀호출을 사용할 수 없다.
+- 아래 프로시저와 같이 필요한 설정 값을 스토어드 프로시저의 내부에서 변경하는 것도 좋은 방법이다.
+
+```sql
+CREATE PROCEDURE sp_getfactorial(IN p_max INT, OUT p_sum INT)
+BEGIN
+	SET max_sp_recursion_depth=50; -- 최대 재귀 호출 횟수 50회
+	
+	...
+	
+END ;;
+```
+
+
+
 ### 중첩된 커서 사용
 
+- 일반적으로는 하나의 커서를 열고 사용이 끝나면 닫고 다시 필요하다면 새로운 커서를 여는 방식을 많이 사용하지만 중첩된 루프 안에서 두 개의 커서를 동시에 열어서 사용할 때도 있다.
 
+```sql
+CREATE PROCEDURE sp_updateemployeehiredate() 
+         DETERMINISTIC
+         SQL SECURITY INVOKER
+       BEGIN
+         -- // 첫 번째 커서로부터 읽은 부서 번호를 저장 
+         DECLARE v_dept_no CHAR(4);
+         -- // 두 번째 커서로부터 읽은 사원 번호를 저장 
+         DECLARE v_emp_no INT;
+         -- // 커서를 끝까지 읽었는지 여부를 나타내는 플래그를 저장 
+         DECLARE v_no_more_rows BOOLEAN DEFAULT FALSE;
+         -- // 부서 정보를 읽는 첫 번째 커서 
+         DECLARE v_dept_list CURSOR FOR SELECT dept_no FROM departments;
 
+         -- // 부서별 사원 1명을 읽는 두 번째 커서 
+         DECLARE v_emp_list CURSOR FOR SELECT emp_no 
+                                       FROM dept_emp 
+                                       WHERE dept_no=v_dept_no LIMIT 1;
 
+         -- // 커서의 레코드를 끝까지 다 읽은 경우에 대한 핸들러
+         DECLARE CONTINUE HANDLER FOR NOT FOUND SET v_no_more_rows := TRUE;
 
+         OPEN v_dept_list;
+         LOOP_OUTER: LOOP 
+           -- // 외부 루프 시작 ❶ 
+           FETCH v_dept_list INTO v_dept_no;
+           IF v_no_more_rows THEN 
+             CLOSE v_dept_list; 
+             LEAVE loop_outer;
+           END IF;
 
+           OPEN v_emp_list;
+           LOOP_INNER: LOOP
+             FETCH v_emp_list INTO v_emp_no;
+             -- // 레코드를 모두 읽었으면 커서 종료 및 내부 루프를 종료 
+             IF v_no_more_rows THEN
+               -- // 반드시 no_more_rows를 FALSE로 다시 변경해야 한다.
+               -- // 그렇지 않으면 내부 루프 때문에 외부 루프까지 종료돼 버린다. 
+               SET v_no_more_rows := FALSE;
+               CLOSE v_emp_list;
+               LEAVE loop_inner;
+             END IF;
+           END LOOP loop_inner;
+         END LOOP loop_outer; 
+       END;;
+```
+
+- `no_more_rows` 라는 로컬 변수로 두 개의 반복 루프를 제어하다보니 이런 이해하기 힘든 로직이 나올 수 있다.
+- 이처럼 반복 루프가 여러번 중첩되어 커서가 사용될 때는 `LOOP_OUTER` 와 `LOOP_INNER`를 서로 다른 `BEGIN ... END` 블록으로 구분해서 작성하면 쉽고 깔끔하게 해결할 수 있다.
+
+```sql
+CREATE PROCEDURE sp_updateemployeehiredate1()
+         DETERMINISTIC
+         SQL SECURITY INVOKER
+       BEGIN
+         -- // 첫 번째 커서로부터 읽은 부서 번호를 저장 
+         DECLARE v_dept_no CHAR(4);
+         -- // 커서를 끝까지 읽었는지를 나타내는 플래그를 저장 
+         DECLARE v_no_more_depts BOOLEAN DEFAULT FALSE;
+         -- // 부서 정보를 읽는 첫 번째 커서 
+         DECLARE v_dept_list CURSOR FOR SELECT dept_no FROM departments;
+         -- // 부서 커서의 레코드를 끝까지 다 읽은 경우에 대한 핸들러 
+         DECLARE CONTINUE HANDLER FOR NOT FOUND SET v_no_more_depts := TRUE;
+       
+         OPEN v_dept_list;
+         LOOP_OUTER: LOOP                    -- // 외부 루프 시작
+           FETCH v_dept_list INTO v_dept_no;
+           IF v_no_more_depts THEN 
+              -- // 레코드를 모두 읽었으면 커서 종료 및 외부 루프 종료
+             CLOSE v_dept_list;
+             LEAVE loop_outer; 
+           END IF;
+       
+           BLOCK_INNER: BEGIN -- // 내부 프로시저 블록 시작
+             -- // -----------------------------------------------------------------
+             -- // 두 번째 커서로부터 읽은 사원 번호 저장 
+             DECLARE v_emp_no INT;
+             -- // 사원 커서를 끝까지 읽었는지 여부를 위한 플래그 저장 
+             DECLARE v_no_more_employees BOOLEAN DEFAULT FALSE;
+             -- // 부서별 사원 1명을 읽는 두 번째 커서 
+             DECLARE v_emp_list CURSOR FOR SELECT emp_no 
+                                           FROM dept_emp 
+                                           WHERE dept_no=v_dept_no LIMIT 1;
+             -- // 사원 커서의 레코드를 끝까지 다 읽은 경우에 대한 핸들러
+             DECLARE CONTINUE HANDLER FOR NOT FOUND SET v_no_more_employees := TRUE;
+
+             OPEN v_emp_list;
+             LOOP_INNER: LOOP              -- // 내부 루프 시작
+               FETCH v_emp_list INTO v_emp_no;
+               -- // 레코드를 모두 읽었으면 커서 종료 및 내부 루프를 종료 
+               IF v_no_more_employees THEN
+                 CLOSE v_emp_list;
+                 LEAVE loop_inner; 
+               END IF;
+             END LOOP loop_inner;          -- // 내부 루프 종료
+           -- // ----------------------------------------------------------------- 
+           END block_inner;                -- // 내부 프로시저 블록 종료
+         END LOOP loop_outer;              -- // 외부 루프 종료 
+       END;;
+```
+
+- 중첩된 커서를 각 프로시저 블록으로 작성하면 커서별로 이벤트 핸들러를 생성해서 사용할 수 있다.
 
 
 
