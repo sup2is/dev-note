@@ -1170,7 +1170,7 @@ WHERE e.first_name='Matt';
 - MySQL 5.5 버전까지는 서브쿼리가 `FROM` 절에 사용된 경우 항상  `select_type` 이 `DERIVED`인 실행계획을 만든다.
 - MySQL 5.6 버전부터는 옵티마이저 옵션에 따라 `FROM`절의 서브쿼리를 외부 쿼리와 통합하는 형태의 최적화가 수행되기도 한다.
 - `DERIVED` 는 단위  `SELECT`  쿼리의 실행 결과로 메모리나 디스크에 임시 테이블을 생성하는 것을 의미한다.
-- MYSQL 5.5 버전까지는 파생 테이블에 인덱스가 전혀 없었으므로 다른 테이블과 조인할 떄 성능상 불리했지만 MySQL 5.6 버전부터 옵티마이저 옵션에 따라 쿼리의 특성에 맞게 임시 테이블에도 인덱스를 추가해서 만들 수 있게 최적화 됐다.
+- MYSQL 5.5 버전까지는 파생 테이블에 인덱스가 전혀 없었으므로 다른 테이블과 조인할 때 성능상 불리했지만 MySQL 5.6 버전부터 옵티마이저 옵션에 따라 쿼리의 특성에 맞게 임시 테이블에도 인덱스를 추가해서 만들 수 있게 최적화 됐다.
 
 ```sql
 EXPLAIN
@@ -2344,7 +2344,7 @@ ORDER BY MIN(emp_no);
   - `FROM` 절에 사용된 서브쿼리는 무조건 임시 테이블을 생성한다. 이 테이블은 파생테이블이라고 부르지만 결국 실체는 임시 테이블이다.
   - `COUNT(DISTINCT column1)`을 포함하는 쿼리도 인덱스를 사용할 수 없는 경우에는 임시 테이블이 만들어진다.
   - `UNION` 이나 `UNION DISTINCT`가 사용된 쿼리도 항상 임시테이블을 사용해 결과를 병합한다. MySQL 8.0 부터 `UNION ALL` 은 임시테이블을 사용하지 않도록 개선되었다.
-  - 인덱스를 사용하지 못하는 정렬 작업 또한 임시 버퍼 공간을 사용하는데, 정렬해야 할 레코드가 많아지면 결국 디스크를 사용한다. 정렬에 사용되는 버퍼도 결국 실체는 임시 테이블과 같다. 쿼리가 정렬을 수행할 떄는 실행 계획의 `Extra` 칼럼에 `Using filesort` 라고 표시된다.
+  - 인덱스를 사용하지 못하는 정렬 작업 또한 임시 버퍼 공간을 사용하는데, 정렬해야 할 레코드가 많아지면 결국 디스크를 사용한다. 정렬에 사용되는 버퍼도 결국 실체는 임시 테이블과 같다. 쿼리가 정렬을 수행할 때는 실행 계획의 `Extra` 칼럼에 `Using filesort` 라고 표시된다.
 
   
 
@@ -2451,6 +2451,8 @@ SELECT * FROM employees LIMIT 0;
 
 - 애플리케이션 코드가 스토어드 프로그램과 분산된다면 유지보수가 어려워질 수 있다.
 
+<br>
+
 ## 스토어드 프로그램의 문법
 
 - 스토어드 프로그램도 헤더 부분과 본문 부분으로 나눌 수 있다.
@@ -2478,7 +2480,7 @@ END;; -- 스토어드 프로시저 본문 종료지점
 DELIMITER ;
 ```
 
-- param1 + param2의 결과값을 param3에 저장하는 프로시저
+- `param1` + `param2`의 결과값을 `param3`에 저장하는 프로시저
 
 `프로시저 생성시 주의사항`
 
@@ -2495,8 +2497,8 @@ DELIMITER ;
   - `INOUT` 타입
     - `INOUT` 으로 정의된 파라미터는 입력 및 출력 용도로 모두 사용할 수 있다.
 - 일반적으로 MySQL 클라이언트 프로그램에서는 `;` 문자가 쿼리의 끝을 의미하는데 스토어드 프로그램 내부에서 무수히 많은 `;` 문자를 포함하므로 MySQL 클라이언트가 `CREATE PROCEDURE` 명령의 끝을 정확히 찾을 수 없다. 따라서 `DELIMITER` 명령을 통해 `CREATE` 명령의 끝을 정확하게 판별할 수 있도록 문자를 변경해줘야한다.
-- 일반적으로 `;;` 또는 `//`을 사용한다. 그 외에도 스토어드 프로그램에서 사용되지 않는 문자열은 전부 사용 가능하다.
-- 위에서 변경한 `DELIMITER`는 `SELECT` , `INSERT` 와 같은 일반적인 SQL 문장에도 영향을 주므로 다시 기본 종료 문자인 `;` 로 변경하는 것이 좋다.
+- 일반적으로 `DELIMITER`는 `;;` 또는 `//`을 사용한다. 그 외에도 스토어드 프로그램에서 사용되지 않는 문자열은 전부 사용 가능하다.
+- 위에서 변경한 `DELIMITER`는 `SELECT` , `INSERT` 와 같은 일반적인 SQL 문장에도 영향을 주므로 다시 기본 종료 문자인 `;` 로 변경해야 한다.
 
 <br/>
 
@@ -2514,7 +2516,7 @@ ALTER PROCEDURE sp_sum SQL SECURITY DEFINER; -- 보안 관련 설정
 DROP PROCEDURE sp_sum;
 ```
 
-
+<br>
 
 #### 스토어드 프로시저 실행
 
@@ -2576,7 +2578,7 @@ WHERE routine_schema='employees';
 
 ![76](./images/real-mysql-8/76.png)
 
-
+<br>
 
 ### 스토어드 함수
 
@@ -2626,12 +2628,12 @@ SET GLOBAL log_bin_trust_function_creators = 1;
 
 `스토어드 프로시저와 비교했을 때 스토어드 함수의 BEGIN...END 사이 제약사항`
 
-- PREPARE와 EXECUTE 명령을 이용한 프리페어 스테이트먼트를 사용할 수 없다.
-- 명시적 또는 묵시적인 ROLLBACK/COMMIT을 유발하는 SQL 문장을 사용할 수 없다.
+- `PREPARE`와 `EXECUTE` 명령을 이용한 프리페어 스테이트먼트를 사용할 수 없다.
+- 명시적 또는 묵시적인 `ROLLBACK/COMMIT`을 유발하는 SQL 문장을 사용할 수 없다.
 - 재귀 호출을 사용할 수 없다.
 - 스토어드 함수 내에서 프로시저를 호출할 수 없다.
 - 결과 셋을 반환하는 SQL 문장을 사용할 수 없다.
-- 스토어드 함수 내에서 커서를 정의하면 반드시 오픈해야하고 스토어드 프로시저와 달리 `SELECT ... INTO` 가 아닌 단순히  `SELECT` 쿼리만 실행하면 오류가 발생한다. 단순 SELECT 쿼리가 실행되는 것은 결과적으로 클라이언트로 쿼리의 결과 셋을 반환하는 것과 같기 때문이다. 
+- 스토어드 함수 내에서 커서를 정의하면 반드시 오픈해야하고 스토어드 프로시저와 달리 `SELECT ... INTO` 가 아닌 단순히  `SELECT` 쿼리만 실행하면 오류가 발생한다. 단순 `SELECT` 쿼리가 실행되는 것은 결과적으로 클라이언트로 쿼리의 결과 셋을 반환하는 것과 같기 때문이다. 
 
 ```sql
 DELIMITER ;;
@@ -2683,7 +2685,7 @@ SELECT sf_sum(1, 1) AS sum;
 
 - 트리거는 테이블의 레코드가 저장되거나 변경될 때 미리 정의해둔 작업을 자동으로 실행해주는 스토어드 프로그램이다.
 - MySQL 트리거는 테이블의 레코드가 `INSERT`, `UPDATE`, `DELETE` 될 때 시작되도록 설정할 수 있다.
-- 대표적으로 칼럼의 유효성 체크, 다른 테이블로의 복사나 백업, 계산된 결과를 다른 테이블에 함께 업데이트 하는 등의 작업을 위해 트러기를 자주 사용한다.
+- 대표적으로 칼럼의 유효성 체크, 다른 테이블로의 복사나 백업, 계산된 결과를 다른 테이블에 함께 업데이트 하는 등의 작업을 위해 트리거를 자주 사용한다.
 - 트리거는 스토어드 함수나 프로시저보다는 필요성이 떨어지는 편이다. 트리거가 없어도 애플리케이션의 개발이 크게 어렵지 않고 트리거가 적용된 테이블에 칼럼을 추가하거나 삭제하는 작업은 임시 테이블에 데이터를 복사하는 작업이 필요한데 이때 레코드마다 트리거를 한 번씩 실행해야 하기 때문에 성능상 좋지 않다.
 - MySQL 5.7 버전 이후부터는 하나의 테이블에 대해서 동일 이벤트에 2개 이상의 트리거를 생성할 수 있게 됐다.
 - MySQL 서버가 ROW 포맷의 바이너리 로그를 이용해서 복제를 하는 경우 트리거는 복제 소스 서버에서만 실행되고 레플리카 서버에서는 별도로 트리거를 기동하지 않는다. 하지만 이미 복제 소스 서버에서 트리거에 의해 발생된 데이터는 모두 바이너리 로그에 기록되기 때문에 실제 레플리카 서버에서도 트리거를 실행한 것과 동일한 효과를 낸다.
@@ -2701,23 +2703,23 @@ END ;;
 ```
 
 - 트리거의 생성은 `CREATE TRIGGER` 명령으로 한다.
-- 트리거 이름 뒤에는 [`BEFORE` | AFTER`]` [`INSERT` | `UPDATE` | `DELETE`] 의 6가지 조합이 가능하다.
+- 트리거 이름 뒤에는 [`BEFORE` | `AFTER` ] [`INSERT` | `UPDATE` | `DELETE`] 의 6가지 조합이 가능하다.
   - `BEFORE` 트리거는 대상 레코드가 변경되기 전에 실행되고 `AFTER` 트리거는 대상 레코드의 내용이 변경된 후 실행된다.
 - 테이블명 뒤에는 트리거가 실행될 단위를 명시하는데 `FOR EACH ROW`만 가능하므로 모든 트리거는 항상 레코드 단위로 실행된다.
 - 예제 트리거에서 사용된 `OLD` 키워드는 `employees` 테이블의 변경되기 전 레코드를 지칭한다. `employees` 테이블의 변경될 레코드를 지칭하고자 할 때는 `NEW` 키워드를 사용하면 된다.
 - 위 트리거는 `employees` 테이블의 레코드를 삭제하는 쿼리가 실행되면 해당 레코드가 삭제되기 전에 `on_delete` 라는 트리거가 실행되고 트리거가 완료된 이후 테이블의 레코드가 삭제된다.
-- 참고로 테이블에 DROP이나 TRUNCATE가 실행되는 경우에는 트리거 이벤트는 발생하지 않는다.
+- 참고로 테이블에 `DROP`이나 `TRUNCATE`가 실행되는 경우에는 트리거 이벤트는 발생하지 않는다.
 
 `대표적인 쿼리에 대해 어떤 트리거 이벤트가 발생하는지 정리한 표`
 
 | SQL 종류                               | 발생 트리거 이벤트 ==> 는 발생하는 이벤트의 순서를 의미      |
 | -------------------------------------- | ------------------------------------------------------------ |
-| INSERT                                 | BEFORE INSERT ==> AFTER INSERT                               |
-| LOAD DATA                              | BEFORE INSERT ==> AFTER INSERT                               |
-| REPLACE                                | 중복 레코드가 없을 때:  <br />  - BEFORE INSERT ==> AFTER INSERT <br />중복 레코드가 있을 때: <br />  - BEFORE DELETE ==> AFTER DELETE ==> BEFORE INSERT ==> AFTER INSERT |
-| INSERT INTO ... <br />ON DUPLICATE SET | 중복 레코드가 없을 때:  <br />  - BEFORE INSERT ==> AFTER INSERT <br />중복 레코드가 있을 때: <br />  - BEFORE UPDATE ==> AFTER UPDATE |
-| UPDATE                                 | BEFORE UPDATE ==> AFTER UPDATE                               |
-| DELETE                                 | BEFORE DELETE ==> AFTER DELETE                               |
+| INSERT                                 | `BEFORE INSERT` ==> `AFTER INSERT`                           |
+| LOAD DATA                              | `BEFORE INSERT` ==> `AFTER INSERT`                           |
+| REPLACE                                | 중복 레코드가 없을 때:  <br />  - `BEFORE INSERT` ==> `AFTER INSERT` <br />중복 레코드가 있을 때: <br />  - `BEFORE DELETE` ==> `AFTER DELETE` ==> `BEFORE INSERT` ==> `AFTER INSERT` |
+| INSERT INTO ... <br />ON DUPLICATE SET | 중복 레코드가 없을 때:  <br />  - `BEFORE INSERT` ==> `AFTER INSERT` <br />중복 레코드가 있을 때: <br />  - `BEFORE UPDATE` ==> `AFTER UPDATE` |
+| UPDATE                                 | `BEFORE UPDATE` ==> `AFTER UPDATE`                           |
+| DELETE                                 | `BEFORE DELETE` ==> `AFTER DELETE`                           |
 | TRUNCATE                               | 이벤트 발생하지 않음                                         |
 | DROP TABLE                             | 이벤트 발생하지 않음                                         |
 
@@ -2768,7 +2770,7 @@ SHOW PROCESSLIST;
 
 ![81](./images/real-mysql-8/81.png)
 
-- MySQL의 이벤트는 전체 실행 이력을 보관하지 않고 가장 최근에 실행된 정보만 information_schema 데이터베이스의 EVENTS 뷰에서 확인할 수 있다.
+- MySQL의 이벤트는 전체 실행 이력을 보관하지 않고 가장 최근에 실행된 정보만 `information_schema` 데이터베이스의 EVENTS 뷰에서 확인할 수 있다.
 - 실행 이력이 필요한 경우 직접 사용자 테이블을 생성하고 기록해둬야하는데 필요가 없다고 생각해도 기록해두는게 좋다고 한다.
 
 
@@ -2802,8 +2804,8 @@ DO
 
 <br/>
 
-- 반복성, 일회성과 관계없이 이벤트의 처리 내용을 작성하는 DO 절은 여러 가지 방식으로 사용할 수 있다.
-- DO절에는 단순히 하나의 쿼리나 스토어드 프로시저를 호출하는 명령을 사용하거나 `BEGIN ... END` 로 구성되는 복합 절을 사용하 수있다. 단일 SQL의 경우 `BEGIN ... END` 를 사용하지 않아도 무방하다.
+- 반복성, 일회성과 관계없이 이벤트의 처리 내용을 작성하는 `DO` 절은 여러 가지 방식으로 사용할 수 있다.
+- `DO`절에는 단순히 하나의 쿼리나 스토어드 프로시저를 호출하는 명령을 사용하거나 `BEGIN ... END` 로 구성되는 복합 절을 사용하 수있다. 단일 SQL의 경우 `BEGIN ... END` 를 사용하지 않아도 무방하다.
 
 ```sql
 CREATE EVENT daily_rank
@@ -2817,15 +2819,15 @@ END ;;
 
 - 이벤트의 반복성 여부와 관계 없이 `ON COMPLETION` 절을 이용해 완전히 종료된 이벤트를 삭제할지, 그대로 유지할지 선택할 수 있다. 기본적으로 완전히 종료된 이벤트는 자동으로 삭제된다.
 - `ON COMPLETION PRESERVE` 옵션을 주면 자동으로 삭제되지 않는다.
-- 이벤트는 생성할 때 ENABLE, DISABLE DISBLE ON SLAVE 3가지 상태로 생성할 수 있다. 기본적으로 생성되면서 복제 소스 서버에서는 ENABLE 되며, 복제된 레플리카 서버에서는 SLAVESIED_DISABLED 상태로 생성된다.
-- 복제 소스 서버에서는 실행된 이벤트가 만들어낸 데이터 변경 사항은 자동으로 레플리카 서버로 복제되기 때문에 레플리카 서버에서는 이벤트를 중복해서 실행할 필요는 없다. 다만 레플리카 서버가 소스 서버로 승격되면 수동으로 이벤트의 상태를 ENABLE 상태로 변경해야 한다.
+- 이벤트는 생성할 때 `ENABLE`, `DISABLE`, `DISABLE ON SLAVE` 3가지 상태로 생성할 수 있다. 기본적으로 생성되면서 복제 소스 서버에서는 `ENABLE` 되며, 복제된 레플리카 서버에서는 `SLAVESIDE_DISABLED` 상태(`DISBLE ON SLAVE` 옵션)로 생성된다.
+- 복제 소스 서버에서는 실행된 이벤트가 만들어낸 데이터 변경 사항은 자동으로 레플리카 서버로 복제되기 때문에 레플리카 서버에서는 이벤트를 중복해서 실행할 필요는 없다. 다만 레플리카 서버가 소스 서버로 승격되면 수동으로 이벤트의 상태를 `ENABLE` 상태로 변경해야 한다.
 
 `레플리카 서버에서만 DISABLE된 이벤트 목록 조회`
 
 ```sql
 SELECT event_schema, event_name
 FROM information_schema.EVENTS
-WHERE STATUS = 'SLAVESIED_DISBLED';
+WHERE STATUS = 'SLAVESIDE_DISABLED';
 ```
 
 <br/>
@@ -2862,7 +2864,7 @@ SELECT * FROM daily_rank_log;
 
 ![83](./images/real-mysql-8/83.png)
 
-- `information_schema` 데이터베이스의 EVENTS 뷰는 항상 마지막 실행 로그만 가지고 있기 때문에 전체 실행 로그가 필요한 경우에는 위와 같이 별도의 로그 테이블이 필요하다.
+- `information_schema` 데이터베이스의 `EVENTS` 뷰는 항상 마지막 실행 로그만 가지고 있기 때문에 전체 실행 로그가 필요한 경우에는 위와 같이 별도의 로그 테이블이 필요하다.
 
 #### 이벤트 딕셔너리
 
@@ -2913,7 +2915,7 @@ LIMIT 1;
 - 로컬변수는 `BEGIN ... END ` 블록 내에서만 유효하다.
 - 로컬 변수는 초기 디폴트값을 설정할 수 있고 명시하지 않으면 `NULL` 로 초기화 된다.
 - 스토어드 프로그램의 `BEGIN ... END ` 블록에서는 스토어드 프로그램의 입력 파라미터와 `DECLARE` 에 의해 생성된 로컬 변수, 테이블의 칼럼명 모두 같은 이름을 가질 수 있다. 이 때 다음과 같은 우선순위를 가진다.
-  1. DECLARE로 정의한 로컬 변수
+  1. `DECLARE`로 정의한 로컬 변수
   2. 스토어드 프로그램의 입력 파라미터
   3. 테이블 칼럼
 
@@ -2985,7 +2987,7 @@ DELIMITER ;
 
 ##### 반복 루프
 
-- 반복 루프 처리를 위해서 LOOP, REPEAT, WHILE 구문을 사용할 수 있다.
+- 반복 루프 처리를 위해서 `LOOP`, `REPEAT`, `WHILE` 구문을 사용할 수 있다.
 
 `LOOP`
 
@@ -3013,7 +3015,7 @@ DELIMITER ;
 ```
 
 - `LOOP` 문장 자체는 비교 조건이 없고 무한 루프를 실행한다는 점에 주의해야 한다.
-- `LOOP` 를 벗어나고자 할 떄는 `LEAVE` 명령을 사용해서 벗어나야 한다.
+- `LOOP` 를 벗어나고자 할 때는 `LEAVE` 명령을 사용해서 벗어나야 한다.
 
 `REPEAT`
 
@@ -3068,7 +3070,7 @@ DELIMITER ;
 - 안정적이고 견고한 스토어드 프로그램을 작성하려면 반드시 핸들러를 이용해 예외를 처리해야 한다.
 - 핸들러가 없다면 `try-catch`가 없는 자바 프로그램과 같다고 볼 수 있다.
 - 핸들러는 이미 정의한 컨디션 또는 사용자가 정의한 컨디션을 어떻게 처리할지 정의하는 기능이다.
-- 핸들러를 이해하려면 MySQL에서 사용하는 SQLSTATE와 에러 번호의 의미와 관계를 알고 있어야 한다.
+- 핸들러를 이해하려면 MySQL에서 사용하는 `SQLSTATE`와 에러 번호의 의미와 관계를 알고 있어야 한다.
 
 ##### SQLSTATE와 에러 번호(Error NO)
 
@@ -3091,12 +3093,12 @@ ERROR 1146 (42S02): Table 'employees.not_found_table' doesn't exist
 - 다섯 글자의 알파벳과 숫자로 구성되고 에러 뿐만 아니라 여러 가지 상태를 의미하는 코드다.
 - 이 값은 DBMS 종류가 다르더라도 ANSI SQL 표준을 준수하는 DBMS에서는 모두 똑같은 값과 의미를 가진다.
 - 대부분의 MySQL 에러 번호는 특정 `SQL STATE` 값과 매핑되어 있고 매핑되지 않은 `Error No`는 `SQL STATE` 값이 `HY000` 으로 설정된다.
-- SQLSTATE 값의 뒤 2글자 의미
+- `SQLSTATE` 값의 앞 2글자 의미
   - `00`: 정상 처리됨(에러 아님)
   - `01`: 경고 메시지
-  - `02`: Not Found (`SELECT`나 CURSOR에서 결과가 없는 경우에만)
+  - `02`: Not Found (`SELECT`나 `CURSOR`에서 결과가 없는 경우에만)
   - 그 이외의 값은 DBMS별로 할당된 각자의 에러 케이스를 의미한다.
-- 수많은 SQL STATE는 [https://en.wikipedia.org/wiki/SQLSTATE](https://en.wikipedia.org/wiki/SQLSTATE) 에서 확인 가능하다.
+- 수많은 `SQL STATE`는 [https://en.wikipedia.org/wiki/SQLSTATE](https://en.wikipedia.org/wiki/SQLSTATE) 에서 확인 가능하다.
 
 `예외 핸들링에서 주의해야할사항`
 
@@ -3126,11 +3128,11 @@ FOR condition_value [, condition_value] ... handelr_statements
 `handler_type`
 
 - `handler_type`이 `CONTINUE`로 정의되면 `handelr_statements` 를 실행하고 스토어드 프로그램의 마지막 실행 지점으로 다시 돌아가서 나머지 코드를 처리한다.
-- `handler_type`이 EXIT으로 정의되면 `handelr_statements` 을 실행하고 `BEGIN ... END` 블록을 벗어난다. `EXIT` 핸들러가 정의된다면 이 핸들러의 `handelr_statements` 부분에 함수의 반환 타입에 맞는 적절한 값을 반환하는 코드가 반드시 포함되어 있어야 한다.
+- `handler_type`이 `EXIT`으로 정의되면 `handelr_statements` 을 실행하고 `BEGIN ... END` 블록을 벗어난다. `EXIT` 핸들러가 정의된다면 이 핸들러의 `handelr_statements` 부분에 함수의 반환 타입에 맞는 적절한 값을 반환하는 코드가 반드시 포함되어 있어야 한다.
 
 `condition_value`
 
-- `condition_value` 에 `SQLSTATE` 로 정의되면 스토어드 프로그램이 실행되는 도중 어떤 이벤트가 발생했을 때 해당 이벤트의 SQLSTATE값이 일치할 때 실행되는 핸들러를 정의할 때 사용한다.
+- `condition_value` 에 `SQLSTATE` 로 정의되면 스토어드 프로그램이 실행되는 도중 어떤 이벤트가 발생했을 때 해당 이벤트의 `SQLSTATE`값이 일치할 때 실행되는 핸들러를 정의할 때 사용한다.
 - `condition_value` 에 `SQLWARNING` 로 정의되면 스토어드 프로그램에서 코드를 실행하던 중 경고가 발생했을 때 실행되는 핸들러를 정의할 때 사용한다. `SQLWARNING` 키워드는 `SQLSTATE` 값이 "01"로 시작하는 이벤트를 의미한다.
 - `condition_value` 에 `NOT FOUND` 로 정의되면 `SELECT` 쿼리 문의 결과 건수가 1건도 없거나 `CURSOR`의 레코드를 마지막까지 읽은 뒤에 실행하는 핸들러를 정의할 때 사용한다. `NOT FOUND` 키워드는 `SQLSTATE` 값이 "02"로 시작하는 이벤트를 의미한다.
 - `condition_value` 에 `SQLEXCEPTION` 로 정의되면 경고와 `NOT FOUND`, "00"(정상처리)로 시작하는 `SQLSTATE` 이외의 모든 케이스를 의미하는 키워드다
@@ -3152,7 +3154,7 @@ FOR condition_value [, condition_value] ... handelr_statements
 DECLARE CONTINUE HANDLER FOR SQLEXCEPTION SET error_flag = 1;
 ```
 
-- 위 핸들러는 `SQLEXCEPTION`(SQLSTATE가 "00", "01", "02" 이외의 값으로 시작되는 에러)이 발생했을 때 `error_flag` 로컨 변수의 값을 1로 설정하고 마지막으로 실행했던 스토어드 프로그램의 코드로 돌아가서 계속 실행하게 하는 핸들러다.
+- 위 핸들러는 `SQLEXCEPTION`(SQLSTATE가 "00", "01", "02" 이외의 값으로 시작되는 에러)이 발생했을 때 `error_flag` 로컬 변수의 값을 1로 설정하고 마지막으로 실행했던 스토어드 프로그램의 코드로 돌아가서 계속 실행하게 하는 핸들러다.
 
 ```sql
 DECLARE EXIT HANDLER FOR SQLEXCEPTION
@@ -3164,7 +3166,7 @@ DECLARE EXIT HANDLER FOR SQLEXCEPTION
 
 - 위 핸들러는 `SQLEXCEPTION` 이 발생했을 때  `BEGIN ... END` 을 실행하고 에러가 발생한 코드가 포함된  `BEGIN ... END`을 벗어난다.
 - 에러가 발생한 코드가 스토어드 프로그램의 최상위  `BEGIN ... END`이라면 스토어드 프로그램은 종료된다.
-- 특별히 스토어드 프로시저에는 위의 예쩨처럼 결과를 읽거나 사용하지 않는 SELECT 쿼리가 실행되면 MySQL 서버가 이 결과를 즉시 클라이언트로 전송하기 떄문에 디버깅 용도로 사용할 수 있지만 스토어드 함수, 트리거, 이벤트에서는 이런 기능을 사용할 수 없다.
+- 특별히 스토어드 프로시저에는 위의 예제처럼 결과를 읽거나 사용하지 않는 SELECT 쿼리가 실행되면 MySQL 서버가 이 결과를 즉시 클라이언트로 전송하기 때문에 디버깅 용도로 사용할 수 있지만 스토어드 함수, 트리거, 이벤트에서는 이런 기능을 사용할 수 없다.
 
 ```sql
 DECLARE CONTINUE HANDLER FOR 1022, 1062 SELECT 'Duplicate ky in index' -- ERROR NO
@@ -3273,34 +3275,20 @@ CREATE FUNCTION sf_divide (p_dividend INT, p_divisor INT)
          RETURN FLOOR(p_dividend / p_divisor); 
        END;;
 
-DELIMITER ;
-
-DELIMITER $$
-
-CREATE FUNCTION `f`() RETURNS INT(11)
-BEGIN
-	SIGNAL SQLSTATE '01234';  -- signal a warning
-	RETURN 5;
-END$$
-
-CREATE PROCEDURE `p`()
-BEGIN
-	SIGNAL SQLSTATE '01234';
-END$$
-
-CREATE PROCEDURE `p2`()
-BEGIN
-	SIGNAL SQLSTATE '01234';
-	SELECT RAND() INTO @unused;
-END$$
-
-DELIMITER ;
-
+DELIMITER 
 ```
+
+- `SIGNAL` 명령은 직접 `SQLSTATE` 값을 가질수도 있고 간접적으로 `SQLSTATE`를 가지는 컨디션을 참조해서 에러나 경고를 발생시킬 수도 있다.
+- 중요한 것은 항상 `SIGNAL` 명령은 `SQLSTATE`와 직접 또는 간접적으로 연결돼야 한다는 점이다.
+- `null_divisor` 의 경우 미리 위에서 정의된 컨디션을 사용해서 간접적으로 `SQLSTATE`와 연결되었다.
+- 마지막 `SIGNAL SQLSTATE '01000'` 은 에러가아닌 경고를 나타내는 시그널이다. 경고를 발생시키면 경고 메시지만 출력하고 `RETURN` 문에 해당하는 값이 호출자에게 반환된다.
+- `SIGNAL` 명령은 위에서 확인한 것과 같이 에러나 경고가 문법상 아무런 차이가 없다. `SQLSTATE` 값이 에러가 될지 경고가 될지 구분된다. 
 
 ![84](./images/real-mysql-8/84.png)
 
-> `SELECT sf_divide(NULL, 1);` 의 경우 warning이 나와야 정상인데(책에는 나와있음) 안나와서 검색해보니 아래 글 내용이 있었다. [https://bugs.mysql.com/bug.php?id=87442](https://bugs.mysql.com/bug.php?id=87442)
+> `SELECT sf_divide(NULL, 1);` 의 경우 `SQLSTATE`값이  '01000' 이기 때문에 쿼리가 끝나면 결과와 함께 warning이 나와야 정상인데(책에는 나와있음) 안나와서 검색해보니 아래 글 내용이 있었다. 
+>
+> [https://bugs.mysql.com/bug.php?id=87442](https://bugs.mysql.com/bug.php?id=87442)
 >
 > 결론부터 말하면 MySQL 5.5 에서는 위 예제에서 warning이 정상적으로 동작하지만 5.6 이상 버전부터는 `RETURN` 문이 진단영역?(warning 영역?)을 지우기 때문에 스토어드 함수에서는 warning을 받을 수 없다는 내용이 있는 것 같다.
 >
@@ -3350,14 +3338,9 @@ DELIMITER ;
 > +---------+------+------------------------------------------+
 > 1 row in set (0.00 sec)
 > 
-> 
 > ```
 
-- `SIGNAL` 명령은 직접 `SQLSTATE` 값을 가질수도 있고 간접적으로 `SQLSTATE`를 가지는 컨디션을 참조해서 에러나 경고를 발생시킬 수도 있다.
-- 중요한 것은 항상 `SIGNAL` 명령은 `SQLSTATE`와 직접 또는 간접적으로 연결돼야 한다는 점이다.
-- `null_divisor` 의 경우 미리 위에서 정의된 컨디션을 사용해서 간접적으로 `SQLSTATE`와 연결되었다.
-- 마지막 `SIGNAL SQLSTATE '01000'` 은 에러가아닌 경고를 나타내는 시그널이다. 경고를 발생시키면 경고 메시지만 출력하고 `RETURN` 문에 해당하는 값이 호출자에게 반환된다.
-- `SIGNAL` 명령은 위에서 확인한 것과 같이 에러나 경고가 문법상 아무런 차이가 없다. `SQLSTATE` 값이 에러가 될지 경고가 될지 구분된다. 
+
 
 `SQLSTATE의 종류`
 
@@ -3365,7 +3348,7 @@ DELIMITER ;
 | -------------------------- | ----------------- |
 | "00"                       | 정상 처리됨       |
 | "01"                       | 처리 중 경고 발생 |
-| 그 밖의 값                 | 처리중 오류 발생  |
+| 그 밖의 값                 | 처리 중 오류 발생 |
 
 - 일반적으로 사용하는 `SIGNAL`  명령은 대부분 유저 에러나 예외일 것이므로 그에 해당하는 "45" 로 시작하는 `SQLSTATE` 를 사용할 것을 권장한다.
 
@@ -3389,7 +3372,8 @@ CREATE PROCEDURE sp_remove_user (IN p_userid INT)
 
          -- // 사용자의 정보를 삭제
          DELETE FROM tb_user WHERE user_id=p_userid;
-         -- // 위에서 실행된 DELETE 쿼리로 삭제된 레코드 건수를 확인 
+         -- // 위에서 실행된 DELETE 쿼리로 삭제된 레코드 건수를 확인
+         -- // ROW_COUNT()는 INSERT, DELETE, UPDATE 쿼리를 통해 수행된 row를 알려줌
          SELECT ROW_COUNT() INTO v_affectedrowcount;
          -- // 삭제된 레코드 건수가 1건이 아닌 경우에는 에러 발생 
          IF v_affectedrowcount<>1 THEN
@@ -3405,7 +3389,7 @@ ERROR 9999 (45000): Can not remove user information
 ```
 
 - 이 스토어드 프로시저는 `tb_user` 테이블에서 레코드를 삭제하는 프로시저다. `DELETE` 문을 실행했는데 한 건도 삭제되지 않으면 에러를 발생시키기 위해 핸들러를 사용하고 있다. `SQLEXCEPTION`에 대해 `EXIT HANDLER`가 정의되어 있고 이 핸들러는 발생한 에러의 내용을 무시하고 `SQLSTATE`가 "45000"인 에러를 다시 발생시킨다.
-- 이 스토어드 프로그램은 예외가 발생하면 항상 SQLSTATE 값("45000") 을 리턴한다.
+- 이 스토어드 프로그램은 예외가 발생하면 항상 `SQLSTATE` 값("45000") 을 리턴한다.
 
 <br>
 
@@ -3431,7 +3415,7 @@ ERROR 9999 (45000): Can not remove user information
   - 센서티브 커서는 별도로 임시테이블로 레코드를 복사하지 않기 때문에 커서의 오픈이 빠르다.
 - 인센서티 커서(Insensitive Cursor)
   - 일치하는 레코드를 별도의 임시 테이블로 복사해서 가지고 있는 형태다.
-  - SELECT쿼리에 부합되는 결과를 우선적으로 임시 테이블로 복사해야 하기 때문에 느리다.
+  - `SELECT`쿼리에 부합되는 결과를 우선적으로 임시 테이블로 복사해야 하기 때문에 느리다.
   - 임시테이블로 복사된 데이터를 조회하는 것이라 커서를 통해 칼럼의 값을 변경하거나 레코드를 삭제하는 작업이 불가능하다.
   - 하지만 다른 트랜잭션과의 충돌은 발생하지 않는다.
 
@@ -3442,7 +3426,7 @@ ERROR 9999 (45000): Can not remove user information
 - MySQL의 스토어드 프로그램에서 정의되는 커서는 어센서티브(Asensitive) 커서인데 어센서티브(Asensitive) 커서는 센서티브 커서와 인센서티브 커서를 혼용하는 방식이다.
 - MySQL에서 실제 어떤 커서를 사용하는지 알 수 없으므로 커서를 통해 칼럼을 삭제하거나 변경하는 것이 불가능하다.
 - 커서는 일반적인 프로그래밍 언어에서 `SELECT` 쿼리의 결과를 사용하는 방법과 흡사하다.
-- 스토어드 프로그램에서도 `SELECT` 쿼리 문장으로 커서를 정의하고, 정의된 커서를 OPEN 하면 실제로 쿼리가 MySQL 서버에서 실행되고 결과를 가져온다. 이렇게 오픈된 커서는 FETCH 명령으로 레코드 단위로 읽어서 사용할 수 있고 사용이 완료된 후에 CLOSE 명령으로 커서를 닫으면 관련 자원이 모두 해제된다.
+- 스토어드 프로그램에서도 `SELECT` 쿼리 문장으로 커서를 정의하고, 정의된 커서를 `OPEN` 하면 실제로 쿼리가 MySQL 서버에서 실행되고 결과를 가져온다. 이렇게 오픈된 커서는 `FETCH` 명령으로 레코드 단위로 읽어서 사용할 수 있고 사용이 완료된 후에 CLOSE 명령으로 커서를 닫으면 관련 자원이 모두 해제된다.
 
 ```sql
 CREATE FUNCTION sf_emp_count(p_dept_no VARCHAR(10)) 
@@ -3460,7 +3444,6 @@ CREATE FUNCTION sf_emp_count(p_dept_no VARCHAR(10))
          DECLARE v_from_date DATE;
          /* v_emp_list라는 이름으로 커서 정의 */ 
          DECLARE v_emp_list CURSOR FOR
-
          SELECT emp_no, from_date FROM dept_emp WHERE dept_no=p_dept_no;
          /* 커서로부터 더 읽을 데이터가 있는지를 나타내는 플래그 변경을 위한 핸들러 */ 
          DECLARE CONTINUE HANDLER FOR NOT FOUND SET v_no_more_data = 1;
@@ -3495,7 +3478,7 @@ CREATE FUNCTION sf_emp_count(p_dept_no VARCHAR(10))
 ## 스토어드 프로그램의 보안 옵션
 
 - MySQL 이전 버전까지는 `SUPER`라는 권한이 스토어드 프로그램의 생성, 변경, 삭제 권한과 많이 연결되어 있었지만 8.0부터는 `SUPER` 권한을 오브젝트별 권한으로 세분화 했다.
-- 8.0 버전부터는 스토어드 프로그램의 생성 및 변경 권한이 `CREATE ROUTING`, `ALTER ROUTING`, `EXECUTE`로 분리되고 트리거나 이벤트의 경우 `TRIGGER`, `EVENT` 권한으로 분리됐다.
+- 8.0 버전부터는 스토어드 프로그램의 생성 및 변경 권한이 `CREATE ROUTINE`, `ALTER ROUTINE`, `EXECUTE`로 분리되고 트리거나 이벤트의 경우 `TRIGGER`, `EVENT` 권한으로 분리됐다.
 - 아래는 많은 사용자가 쉽게 지나치지만 스토어드 프로그램에서 상당히 주의할 옵션에 대해 설명한다.
 
 ### DEFINER와 SQL SECURITY 옵션
@@ -3510,15 +3493,17 @@ CREATE FUNCTION sf_emp_count(p_dept_no VARCHAR(10))
 
 `SQL SECURTY`
 
-- 이 옵션은 스토어드 프로그램을 실행할 떄 누구의 권한으로 실행할지 결정하는 옵션이다.
+- 이 옵션은 스토어드 프로그램을 실행할 때 누구의 권한으로 실행할지 결정하는 옵션이다.
 - `INVOKER` 또는 `DEFINER` 둘 중 하나로 선택할 수 있다.
 - `DEFINER` 는 스토어드 프로그램을 생성한 사용자를 의미하고 `INVOKER`는 그 스토어드 프로그램을 호출한 사용자를 의미한다.
 
 <br>
 
+- 예제: `DEFINER`가 'user1'@'%'로 생성된 스토어드 프로그램을 'user2'@'%' 사용자가 실행한다고 가정했을때
+
 |                                          | SQL SECURITY=DEFINER                                         | SQL SECURITY=INVOKER                                         |
 | ---------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
-| 스토어드 프로그램을 실행하는 사용자 계정 | 'user1'@'%'                                                  | 'user2'@'%'                                                  |
+| 스토어드 프로그램을 실행하는 사용자 계정 | 'user1'@'%'                                                  | 'user2'@'%' <- 실제로 스토어드 프로그램을 실행하는 사용자    |
 | 실행에 필요한 권한                       | user1에 스토어드 프로그램을 실행할 권한이 있어야 하며, 스토어드 프로그램 내의 각 SQL 문장이 사용하는 테이블에 대해서도 권한을 가지고 있어야 한다. | user2에 스토어드 프로그램을 실행할 권한이 있어야 하며, 스토어드 프로그램 내의 각 SQL 문장이 사용하는 테이블에 대해서도 권한을 가지고 있어야 한다. |
 
 - `DEFINER`는 모든 스토어드 프로그램이 기본적으로 가지는 옵션이지만 `SQL SECURITY` 옵션은 스토어드 프로시저, 스토어드 함수, 뷰만 가질 수 있다.
