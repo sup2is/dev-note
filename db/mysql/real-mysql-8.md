@@ -4266,9 +4266,43 @@ SHOW BINLOG EVENTS IN 'mysql-bin.0000004' FROM 52559 LIMIT 1 \G
 
 
 
-
-
 ### 그룹 복제의 자동 장애 감지 및 대응
+
+- 그룹 복제에서는 그룹의 일부 멤버에 장애가 발생해 응답 불능 상태에 빠졌다 하더라도 그룹이 정상적으로 동작할 수 있게 하는 장애 감지 메커니즘이 구현돼 있다.
+- 장애 감지 메커니즘에서는 문제 상태에 있는 멤버를 식별하고 해당 멤버를 그룹 복제에서 제외시킴으로써 그룹이 정상적으로 동작 중인 멤버로만 구성될 수 있게 하고 클라이언트 요청이 문제없이 처리될 수 있게 한다.
+- 그룹 복제에서는 멤버 간에 주기적으로 통신 메시지를 주고 받으며 서로의 상태를 확인하는데 멤버로부터 5초 내로 메시지를 받지 못하면 해당 멤버에 문제가 생긴 것으로 의심하기 시작한다.
+- 장애가 의심되는 멤버에 대해 과반수의 멤버가 동의하면 해당 멤버를 그룹에서 추방한다.
+- MySQL 8.0.13 버전에는 `group_replication_member_expel_timeout` 시스템 변수가 추가되면서 멤버가 의심을 받고 나서 추방되기 전까지의 대기 시간을 초 단위로 지정할 수 있다.
+- MySQL 8.0.20 버전에는 해당 기본값이 0이라서 의심되는 즉시 추방되었고 MySQL 8.0.21버전에는 해당 기본값이 5가되어 5초간 대기하고 추방시킨다.
+-  `group_replication_member_expel_timeout` 시스템변수의 기본값을 그대로 사용할 경우 네트워크가 느린 환경에서는 불필요하게 그룹 멤버가 추방당할 수 있기 때문에 이런 환경에서는 기본값을 좀 더 큰 적절한 값으로 설정하는 것이 좋다.
+
+<br>
+
+- 멤버가 추방되면 그룹 뷰가 변경되므로 그룹 멤버들은 새로운 뷰 ID 값을 갖게 되고 추방된 멤버가 다시 그룹에 재연결하게 되면 자신이 가진 뷰 ID와는 다르기 때문에 자신이 추방됐음을 알게 된다.
+- 추방된 멤버는 자동으로 그룹에 재가입을 시도할 수도 있는데 `group_replication_autorejoin_tries` 시스템 변수에 설정된 값에 따라 달라진다. 
+- `group_replication_autorejoin_tries` 은 MySQL 8.0.16 버전에서 도입된 변수로 해당 멤버는 해당 그룹에서 추방되면 해당 시스템 변수에 설정된 횟수만큼 그룹에 재가입 시도를 하게 된다.
+- `group_replication_autorejoin_tries` 은 MySQL 8.0.20 버전까지 기본값이 0이었고 MySQL 8.0.21 버전부터 기본값이 3으로 변경되었다. 각 시도당 5분의 시간 간격을 둔다.
+- 멤버의 재가입 시도에 대한 정보는 `performance_schema` 데이터베이스의 `events_stages_current` 테이블을 통해 확인할 수 있다.
+
+```sql
+-- //자동 재가입 프로세스 동작 여부 확인
+SELECT COUNT(*)
+FROM performance_schema.events_stages_current
+WHERE EVENT_NAME LIKE '%auto-rejoin%';
+
+-- //자동 재가입 프로세스 동작 여부 확인
+SELECT (WORK_COMPLETE - 1) AS rejoin_num
+FROM performance_schema.events_stages_current
+WHERE EVENT_NAME LIKE '%auto-rejoin%';
+
+-- //다음 재가입까지 남은 시간
+SELECT 
+ROUND(360 - ((TIMER_WAIT * 10e-13) - 360 * (WORK_COMPLETED - 1)), 2) AS remaining_seconds
+FROM performance_schema.events_stages_current
+WHERE EVENT_NAME LIKE '%auto-rejoin%';
+```
+
+
 
 ### 글부 복제의 분산 복구
 
