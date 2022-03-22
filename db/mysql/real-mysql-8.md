@@ -4640,15 +4640,103 @@ Switching to SQL mode... Commands end with ;
 - InnoDB 클러스터의 MySQL 서버들은 모두 Performance 스키마가 활성화 돼있어야 한다.
 - MySQL 셸을 사용해 InnoDB 클러스터를 구성하기 위해 MySQL 셸이 설치될 서버에 파이썬 2.7이상의 버전으로 설치돼 있어야 한다.
 
+### 
+
+> innodb-cluster docker-compose github
+>
+> - [https://github.com/neumayer/mysql-docker-compose-examples](https://github.com/neumayer/mysql-docker-compose-examples)
+
 
 
 ### InnoDB 클러스터 생성
 
-#### 사전 준비
+```
+
+//mysql 서버로 접속
+MySQL  JS > \connect root@localhost:3301
+Creating a session to 'root@localhost:3301'
+ 
+//클러스터 생성
+MySQL  localhost:3301 ssl  JS > var cluster = dba.createCluster("testCluster");
+
+A new InnoDB cluster will be created on instance 'localhost:3301'.
+
+Validating instance configuration at localhost:3301...
+
+This instance reports its own address as 5307d46cc22b:3306
+
+Instance configuration is suitable.
+NOTE: Group Replication will communicate with other members using '5307d46cc22b:33061'. Use the localAddress option to override.
+
+Creating InnoDB cluster 'testCluster' on '5307d46cc22b:3306'...
+
+Adding Seed Instance...
+Cluster successfully created. Use Cluster.addInstance() to add MySQL instances.
+At least 3 instances are needed for the cluster to be able to withstand up to
+one server failure.
+ 
+```
+
+- 복잡한 그룹 복제 설정없이 클러스터 생성을 `dba.createCluster()` 처럼 쉽게 사용할 수 있다.
+-  `dba.createCluster()` 에서 수행되는 일
+  - InnoDB 클러스터에 대한 정보를 저장할 메타데이터 데이터베이스 (mysql_innodb_cluster_metadata 생성) 및 메타데이터 설정
+  - 그룹 복제 설정 및 시작
+  - 그룹 복제 분산 복구에서 사용될 db 계정 생성
+- InnoDB 클러스터는 기본적으로 싱글 프라이머리 모드로 생성되며 처음 클러스터 생성을 진행한 MySQL 서버가 프라이머리로 지정된다.
+- 만약 멀티 프라이머리로 클러스터를 생성하고 싶다면 아래와 같은 옵션을 지정해야 한다.
+
+```javascript
+var cluster = dba.createCluster("testCluster", {multiPrimary:true})
+```
+
+- 클러스터 상태 조회와 같은 클러스터 관련 명령들은 클러스터 객체를 통해 실행할 수 있다.
+
+```javascript
+var cluster = dba.getCluster()
+cluster.status()
+
+{
+    "clusterName": "testCluster", 
+    "defaultReplicaSet": {
+        "name": "default", 
+        "primary": "5307d46cc22b:3306", 
+        "ssl": "REQUIRED", 
+        "status": "OK_NO_TOLERANCE", 
+        "statusText": "Cluster is NOT tolerant to any failures.", 
+        "topology": {
+            "5307d46cc22b:3306": {
+                "address": "5307d46cc22b:3306", 
+                "memberRole": "PRIMARY", 
+                "memberState": "(MISSING)", 
+                "mode": "n/a", 
+                "readReplicas": {}, 
+                "role": "HA", 
+                "shellConnectError": "MySQL Error 2005: Could not open connection to '5307d46cc22b:3306': Unknown MySQL server host '5307d46cc22b' (8)", 
+                "status": "ONLINE", 
+                "version": "8.0.12"
+            }
+        }, 
+        "topologyMode": "Single-Primary"
+    }, 
+    "groupInformationSourceMember": "5307d46cc22b:3306"
+}
+
+```
+
+
+
+#### InnoDB 클러스터 인스턴스 추가
+
+- 클러스터에 서버를 추가하려면 `<Cluster>.addInstance()` 메서드를 사용하면 된다.
+- 클러스터의 추가는 프라이머리가 아니여도 가능하다.
+
+
 
 
 
 ## InnoDB 클러스터 모니터링
+
+- MySQL 셸을 통해 InnoDB 클러스터 구성의 전반적인 상태를 확인할 수 있다.
 
 ## InnoDB 클러스터 작업
 
