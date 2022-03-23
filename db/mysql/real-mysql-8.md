@@ -4640,7 +4640,7 @@ Switching to SQL mode... Commands end with ;
 - InnoDB 클러스터의 MySQL 서버들은 모두 Performance 스키마가 활성화 돼있어야 한다.
 - MySQL 셸을 사용해 InnoDB 클러스터를 구성하기 위해 MySQL 셸이 설치될 서버에 파이썬 2.7이상의 버전으로 설치돼 있어야 한다.
 
-### 
+
 
 > innodb-cluster docker-compose github
 >
@@ -4648,14 +4648,65 @@ Switching to SQL mode... Commands end with ;
 
 
 
-### InnoDB 클러스터 생성
+```
+docker run -d -p 3307:3306 -e MYSQL_ROOT_PASSWORD=mysql --name mysql-server-1 mysql:8.0.28 
+```
+
+
+
+### InnoDB 클러스터 생성                                                                                                                                                                                                                                                                                                                                   
+
+### 사전 준비
+
+- InnoDB 클러스터에 사용될 MySQL 서버들은 InnoDB 클러스터 요구사항을 충족하도록 서버 옵션들이 적절하게 설정되어 있어야한다. MySQL 셸을 이용해서 간단하고 편리하게 설정할 수 있다.
+
+```
+MySQL  localhost:33060+ ssl  JS > dba.configureInstance("root@localhost:3306")
+Configuring local MySQL instance listening at port 3306 for use in an InnoDB cluster...
+
+This instance reports its own address as A10300ui-MacBookPro.local:3306
+Clients and other cluster members will communicate with it through this address by default. If this is not correct, the report_host MySQL system variable should be changed.
+
+ERROR: User 'root' can only connect from 'localhost'. New account(s) with proper source address specification to allow remote connection from all instances must be created to manage the cluster.
+
+1) Create remotely usable account for 'root' with same grants and password
+2) Create a new admin account for InnoDB cluster with minimal required grants
+3) Ignore and continue
+4) Cancel
+
+Please select an option [1]: 2
+Please provide an account name (e.g: icroot@%) to have it created with the necessary
+privileges or leave empty and press Enter to cancel.
+Account Name: icadmin@%
+Password for new account: 
+Confirm password: 
+
+applierWorkerThreads will be set to the default value of 4.
+
+The instance 'A10300ui-MacBookPro.local:3306' is valid to be used in an InnoDB cluster.
+
+Cluster admin user 'icadmin'@'%' created.
+The instance 'A10300ui-MacBookPro.local:3306' is already ready to be used in an InnoDB cluster.
+
+Successfully enabled parallel appliers.
+```
+
+- `dba.configureInstance("root@localhost:3306")` 구문을 사용해서 현재 설정이 InnoDB 클러스터에 요구되는 사항들을 충족하는지 확인하고 필요 시 자동으로 서버를 재설정 한다.
+- 위와 같이 새로 계정을 생성할 수 있다.
+  - icadmin:qwer!23
+
+
+
+
+
+#### InnoDB 클러스터 생성
 
 ```
 
 //mysql 서버로 접속
-MySQL  JS > \connect root@localhost:3301
-Creating a session to 'root@localhost:3301'
- 
+MySQL  JS > \connect icadmin@localhost:3306
+Creating a session to 'icadmin@localhost:3306'
+
 //클러스터 생성
 MySQL  localhost:3301 ssl  JS > var cluster = dba.createCluster("testCluster");
 
@@ -4699,27 +4750,27 @@ cluster.status()
     "clusterName": "testCluster", 
     "defaultReplicaSet": {
         "name": "default", 
-        "primary": "5307d46cc22b:3306", 
+        "primary": "A10300ui-MacBookPro.local:3306", 
         "ssl": "REQUIRED", 
         "status": "OK_NO_TOLERANCE", 
         "statusText": "Cluster is NOT tolerant to any failures.", 
         "topology": {
-            "5307d46cc22b:3306": {
-                "address": "5307d46cc22b:3306", 
+            "A10300ui-MacBookPro.local:3306": {
+                "address": "A10300ui-MacBookPro.local:3306", 
                 "memberRole": "PRIMARY", 
-                "memberState": "(MISSING)", 
-                "mode": "n/a", 
+                "mode": "R/W", 
                 "readReplicas": {}, 
+                "replicationLag": null, 
                 "role": "HA", 
-                "shellConnectError": "MySQL Error 2005: Could not open connection to '5307d46cc22b:3306': Unknown MySQL server host '5307d46cc22b' (8)", 
                 "status": "ONLINE", 
-                "version": "8.0.12"
+                "version": "8.0.28"
             }
         }, 
         "topologyMode": "Single-Primary"
     }, 
-    "groupInformationSourceMember": "5307d46cc22b:3306"
+    "groupInformationSourceMember": "A10300ui-MacBookPro.local:3306"
 }
+
 
 ```
 
@@ -4728,7 +4779,16 @@ cluster.status()
 #### InnoDB 클러스터 인스턴스 추가
 
 - 클러스터에 서버를 추가하려면 `<Cluster>.addInstance()` 메서드를 사용하면 된다.
-- 클러스터의 추가는 프라이머리가 아니여도 가능하다.
+- 클러스터의 추가는 프라이머리가 아니여도 가능하다
+
+```
+var cluster = dba.getCluster()
+cluster.addInstance("root@localhost:3301")
+```
+
+
+
+
 
 
 
