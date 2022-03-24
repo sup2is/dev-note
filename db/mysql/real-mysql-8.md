@@ -4661,7 +4661,7 @@ docker run -d -p 3307:3306 -e MYSQL_ROOT_PASSWORD=mysql --name mysql-server-1 my
 - InnoDB 클러스터에 사용될 MySQL 서버들은 InnoDB 클러스터 요구사항을 충족하도록 서버 옵션들이 적절하게 설정되어 있어야한다. MySQL 셸을 이용해서 간단하고 편리하게 설정할 수 있다.
 
 ```
-MySQL  localhost:33060+ ssl  JS > dba.configureInstance("root@localhost:3306")
+MySQL  localhost:33060+ ssl  JS > dba.configureInstance("root@localhost:3301")
 Configuring local MySQL instance listening at port 3306 for use in an InnoDB cluster...
 
 This instance reports its own address as A10300ui-MacBookPro.local:3306
@@ -4750,26 +4750,28 @@ cluster.status()
     "clusterName": "testCluster", 
     "defaultReplicaSet": {
         "name": "default", 
-        "primary": "A10300ui-MacBookPro.local:3306", 
+        "primary": "fa3bfaaadb60:3306", 
         "ssl": "REQUIRED", 
         "status": "OK_NO_TOLERANCE", 
         "statusText": "Cluster is NOT tolerant to any failures.", 
         "topology": {
-            "A10300ui-MacBookPro.local:3306": {
-                "address": "A10300ui-MacBookPro.local:3306", 
+            "fa3bfaaadb60:3306": {
+                "address": "fa3bfaaadb60:3306", 
                 "memberRole": "PRIMARY", 
-                "mode": "R/W", 
+                "memberState": "(MISSING)", 
+                "mode": "n/a", 
                 "readReplicas": {}, 
-                "replicationLag": null, 
                 "role": "HA", 
+                "shellConnectError": "MySQL Error 2005: Could not open connection to 'fa3bfaaadb60:3306': Unknown MySQL server host 'fa3bfaaadb60' (8)", 
                 "status": "ONLINE", 
                 "version": "8.0.28"
             }
         }, 
         "topologyMode": "Single-Primary"
     }, 
-    "groupInformationSourceMember": "A10300ui-MacBookPro.local:3306"
+    "groupInformationSourceMember": "fa3bfaaadb60:3306"
 }
+
 
 
 ```
@@ -4783,8 +4785,143 @@ cluster.status()
 
 ```
 var cluster = dba.getCluster()
-cluster.addInstance("root@localhost:3301")
+cluster.addInstance("root@localhost:3302")
+
+cluster.addInstance("root@localhost:3303")
 ```
+
+
+
+#### MySQL 라우터 설정
+
+- MySQL 라우터 부트스트랩 명령
+
+```
+mysqlrouter --bootstrap icadmin@localhost:3306 --name icroute1 \
+--directory /tmp/myrouter --acount icrouter --user root
+```
+
+`사용된 옵션의 역할`
+
+- `--bootstrap [mysql_uri]`
+  - 이 옵션을 지정하면 MySQL 라우터가 인자로 전돨된 MySQL 서버에 접속해 해당 서버가 속한 InnoDB 클러스터의 메타데이터를 읽어들이고 이를 바탕으로 라우터 서버를 구동하는 데 필요한 파일을 모두 자동으로 생성한다.
+  - InnoDB 클러스터에 라우터 서버 정보를 등록한다.
+- `--name [router_name]`
+  - 라우터의 이름을 지정한다. 지정한 이름은 라우터의 설정 파일에 명시되며, InnoDB 클러스터에 라우터를 등록할 때도 사용된다.
+- `--directory [mysql_username]`
+  - 부트스트랩 시 생성되는 디렉터리 및 파일들이 저장될 경로를 지정한다.
+- `--account [mysql_username]`
+  - 라우터에서 InnoDB 클러스터 내 MySQL 서버들로 접속할 때 사용할 DB 계정을 지정한다. 만약 인자로 지정한 계정이 MySQL 서버들에 존재하지 않는 경우 라우터에서 필요로 하는 최소한의 권한으로 계정을 자동 생성한다.
+- `--user [os_username]`
+  - 인자로 지정한 시스템 사용자 계정으로 라우터가 실행된다. 부트스트랩 시 생성되는 디렉터리 및 파일들의 소유자도 해당 사용자로 설정된다.
+
+
+
+<br>
+
+<br>
+
+- 지정한 경로에는 다음과 같이 디렉터리 및 파일이 생성돼 있는 것을 확인할 수 있다.
+
+
+
+- InnoDB 클러스터에서 부트스트랩 시 자동으로 생성된 라우터용 DB 계정과 라우터 서버 등록 내역을 확인할 수 있다.
+
+```sql
+\sql SELECT user,host FROM mysql.user WHERE user='icrouter'
+
+
+\sql SHOW GRANTS FOR 'icrouter'@'%';
+
+
+//InnoDB 클러스터에 등록된 라우터 정보 확인
+var cluster = dba.getCluster()
+cluster.listRouters()
+
+```
+
+
+
+- 부트스트랩 명령이 완료되면 아래 네개의 포트를 사용하도록 설정된 것을 확인할 수 있다.
+  - MySQL 기본 포로토콜로 연결되는 읽기 전용 포트 
+  - MySQL 기본 포로토콜로 연결되는 읽기-쓰기용 포트
+  - X 프로토콜로 연결되는 읽기 전용 포트
+  - X 프로토콜로 연결되는 읽기-쓰기용 포트
+
+```
+vi /tmp/myrouter/mysqlrouter.conf
+```
+
+
+
+- 설정 파일에서 `metadata_cahce` 섹션과 `routing` 섹션은 MySQL 라우터 동작에서 가장 중요한 부분이다.
+- MySQL 라우터는 내부적으로 플러그인 형태의 아키텍처로 구성되어 있는데 하나는 메타데이터 캐시 플러그인, 커넥션 라우팅 플러그인인에 대한 설정에 해당한다.
+- 메타데이터 캐시 플러그인은 라우터에서 접속할 InnoDB 클러스터의 정보를 구성하고 관리하는 부분을 담당한다.
+- 커넥션 라우팅 플러그인은 애플리케이션 서버로 부터 유입된 쿼리 요청을 InnoDB 클러스터로 전달하는 부분을 담당한다.
+- 두 섹션에 설정돼 있는 하위 옵션 중 다음 옵션들은 필요에 따라 적절한 값으로 재설정해서 사용하는 것이 좋다.
+
+`설정 값`
+
+- `[metadata_cache].ttl`
+
+  - MySQL 라우터가 내부적으로 캐싱하고 있는 클러스터 메타데이터를 갱신하는 주기를 제어하는 옵션
+  - 초단위
+
+- `[metadata_cache].use_gr_notifications`
+
+  - 이 옵션이 활성화되면 클러스터의 그룹 복제에서 발생하는 변경사항에 대해 MySQL 라우터가 알림을 받을 수 있다.
+  - MySQL 라우터는 MySQL 서버로부터 다음과 같은 경우에 대해 알림을 전달받을 수 있고 알림을 수신한 후 현재 캐싱하고 있는 클러스터 메타데이터를 갱신한다.
+    - 그룹 복제에서 정족수 손실이 발생한 경우
+    - 그룹 멤버 구성(그룹 뷰)에 변경이 발생한 경우
+    - 그룹 멤버의 역할이 변경된 경우
+    - 그룹 멤버의 상태가 변경된 경우
+  - MySQL 라우터가 이러한 그룹 복제 알림을 받기 위해서는 각 클러스터 인스턴스에 X 프로토콜로 연결할 수 있어야 한다.
+  - `use_gr_notifications` 옵션을 활성화해서 사용하게 되면 `ttl` 옵션에 설정된 갱신 주기는 추가적인 보조수단이 되므로 `ttl` 값을 적절히 큰 값으로 설정해도 무방하다.
+
+- `[routing].destinations`
+
+  - MySQL 라우터에서 쿼리 요청을 전달할 대상 MySQL 서버를 지정하는 옵션
+  - 정적인 형태는 아래와 같이 MySQL 서버들을 고정된 값으로 지정한 것을 의미한다.
+
+  ```
+  destinations=192.168.35.2, ... , ...
+  ```
+
+  - 동적인 형태는 메타데이터 캐시에서 대상 서버들을 조회하는 형태로 다음과 같은 URI 포맷을 띤다.
+  - 기본적으로 동적인 형태가 자동으로 설정된다.
+
+  ```
+  destinations=metadata-cache://testCluster/?role=PRIMARY
+  ```
+
+  - URI에서는 다음의 세 옵션을 사용할 수 있다.
+
+    - `role`
+
+      - 어떤 타입의 MySQL 서버로 연결할 것인지 설정하는 옵션
+      - `PRIMARY`, `SECONDARY`, `PRIMARY_AND_SECONDARY` 값으로 설정 가능하다.
+
+    - `disconnect_on_promoted_to_primary`
+
+      - 클러스터에서 세컨더리 서버가 프라이머리로 승격 됐을 때 해당 서버에 대한 기존 클라이언트 연결을 종료할 것인지 여부를 제어한다.
+
+    - `disconnect_on_metadata_unavailable`
+
+      - 클러스터 과부하 등으로 인해 MySQL 라우터에서 클러스터의 메타데이터 갱신이 불가할 때 클러스터에 대한 기존 클라이언트 연결을 모두 종료할 것인지 여부를 제어한다.
+      - 기본값은 `no`
+      - 이 옵션은 MySQL 라우터 8.0.12 부터 사용 가능하다.
+
+    - 아래와 같은 형태로 조합해서 사용 가능하다.
+
+      ```
+      destination=metadata-cache://testCluster/?role=SECONDARY&disconnect_on_promoted_to_primary=yes
+      ```
+
+- `[routing].routing_strategy`
+
+- 
+
+
 
 
 
