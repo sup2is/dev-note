@@ -4919,21 +4919,115 @@ vi /tmp/myrouter/mysqlrouter.conf
 
 - `[routing].routing_strategy`
 
-- 
+  - MySQL 라우터가 어떤 MySQL 서버에 연결해서 쿼리 요청을 전달할 것인지 연결 대상 서버를 선택하는 방식을 제어하는 옵션이다.
+  - `destination` 옵션에 지정된 서버들이 연결 대상 서버가 되고 MySQL 라우터에 새로 연결이 필요할 때마다 `routing_strategy` 옵션에 설정된 값을 바탕으로 연결 대상 서버들 중에서 최종적으로 연결할 서버를 선택하게 된다.
+  - `routing_strategy`은 다음의 네가지 옵션을 사용할 수 있다.
+    - `round-robin`
+      - 연결 대상 서버들에 대해 라운드 로빈 방식으로 연결할 서버를 선택한다.
+    - `round-robin-with-fallback`
+      - 세컨더리 서버들에 대해 라운드 로빈 방식으로 연결할 서버를 선택하며, 클러스터에 연결 가능한 세컨더리 서버가 존재하지 않는 경우 프라이머리 서버들에 대해 라운드 로빈 방식으로 연결할 서버를 선택하게 된다.
+    - `first-available`
+      - 연결 대상 서버 목록에서 사용 가능한 첫 번쨰 서버에 연결한다.
+      - 에러가 발생하면 사용 가능한 다음 서버로 다시 연결을 시도하고 연결 대상 서버 목록에 더이상 연결을 시도할 서버가 존재하지 않을 때까지 계속된다.
+    - `next-available`
+      - `first-available` 방식과 동일하나 연결 오류 시 오류가 발생한 서버에 대해 연결 불가로 표시하고 연결 대상에서 제외한다.
+      - 한번 제외된 서버는 MySQL 라우터가 재시작될 때까지 연결 대상에 포함되지 않는다.
+      - 이 방식은 메타데이터 캐시를 사용하는 경우엔 지원하지 않고 `destinations`에 정적으로 서버들을 지정한 경우에만 사용 가능하다.
+  - `routing_strategy` 옵션은 `destinations`에 지정된 `role` 별로 기본으로 설정되는 값과 설정 가능한 값들이 달라진다.
+    - `role`이 `PRIMARY`로 지정된 경우
+      - 기본적으로 `round-robin`으로 동작
+      - MySQL 라우터가 부트스트랩 명령으로 구성된 경우 설정 파일에 `first-available` 방식이 자동으로 지정
+      - `round-robin`, `first-available` 만 지정 가능
+    - `role`이 `SECONDARY`로 지정된 경우
+      - 기본적으로 `round-robin`으로 동작
+      - MySQL 라우터가 부트스트랩 명령으로 구성된 경우 설정 파일에 `round-robin-with-fallback` 방식이 자동으로 지정
+      - `round-robin`, `first-available`, `round-robin-with-fallback` 만 지정 가능
+    - `role`이 `PRIMARY_AND_SECONDARY`로 지정된 경우
+      - 기본적으로 `round-robin`으로 동작
+      - `round-robin`, `first-available` 만 지정 가능
+
+<br>
+
+<br>
+
+- MySQL 라우터에 대한 부트스트랩이 완료되면 라우터는 자동으로 실행되지 않으므로 다음과 같이 수동으로 실행한다.
+
+```
+/tmp/myrouter/start.sh
 
 
+# netstat으로 4개의 TCP 포트 확인
+netstat -lntp | grep mysqlrouter
+```
+
+- 클라이언트는 더이상 InnoDB 클러스터에 연결하지 않고 MySQL 라우터로 연결한다는 점이다.
+- 라우터를 통해 실제 쿼리가 어디 서버에 전달되었는지 확인하려면 간단하게 `hostname`과 `port` 시스템 변수를 조회하면된다.
+
+```
+
+// 라우터의 기본 쓰기 포트(6446)로 연결해서 쿼리 실행
+\connect icadmin@mysql-router-server1:6466
+\sql SELECT @@hostname, @@port;
+
+\connect icadmin@mysql-router-server1:6447
+\sql SELECT @@hostname, @@port;
 
 
+```
 
-
-
-
+- 쓰기 포트로 연결한 경우 실행 쿼리는 프라이머리 서버로 전달되며 읽기 포트로 연결해서 실행한 쿼리는 세컨더리 서버들 중 한 서버로 전달된다.
 
 
 
 ## InnoDB 클러스터 모니터링
 
 - MySQL 셸을 통해 InnoDB 클러스터 구성의 전반적인 상태를 확인할 수 있다.
+- 클러스터의 복제 토폴로지 구성을 간략하게 확인하고 싶은 경우 `<Cluster>.describe()` 메서드를 사용하면 된다.
+
+```
+cluster.describe()
+```
+
+- 클러스터의 전반적인 상태를 좀 더 자세하게 사용하고 싶다면 아래와 같이 사용할 수 있다.
+
+```
+cluster.status({'extended':1})
+```
+
+ `일반적인 status()에서 추가된 부분`
+
+- `GRProtocolVersion`
+  - 클러스터의 그룹 복제에서 사용하는 통신 프로토콜 버전을 나타낸다.
+- `groupName`
+  - 클러스터의 그룹 복제에 설정된 그룹 이름을 나타낸다.
+- `fenceSysVar`
+  - 각 클러스터 인스턴스에서 활성화돼 있는 차단 시스템 변수들의 목록이 보여진다
+  - `read_only`와 `super_read_only`, `offline_mode` 변수가 해당 목록에 보여질 수 있다.
+- `memberId`
+  - 각 클러스터 인스턴스들의 UUID를 나타낸다.
+- `memberRole`
+  - 클러스터의 그룹 복제에서 인스턴스의 역할을 나타낸다.
+- `memberState`
+  - 클러스터의 그룹 복제에서 각 클러스터 인스턴스들의 상태를 나타낸다.
+- `metadataVersion`
+  - MySQL 셸에서 InnoDB 클러스터 관리를 위해 생성한 클러스터 메타데이터 스키마의 버전을 나타낸다.
+
+
+
+<br>
+
+<br>
+
+- `<Cluster>.status()` 메서드는 어떠한 옵션도 지정하지 않고 실행하면 기본적으로 `extended` 옵션이 0이다.
+
+`extended 옵션, (MySQL 셸 8.0.17미만에서는 0 or 1만 가능)`
+
+- 0: 기본적으로 설정되는 값, 추가적인 정보를 출력하지 않는다.
+- 1: 클러스터의 그룹 복제 통신 프로토콜 버전, 그룹 이름. 각 클러스터 인스턴스들의 그룹 복제에서의 역할 및 상태, 차단 시스템 목록과 클러스터 메타데이터 스키마 버전이 추가로 표시된다.
+- 2: 각 클러스터 인스턴스에서 처리된 트랜잭션에 대한 통계 정보가 추가로 표시된다.
+- 3: 각 클러스터 인스턴스의 복제 커넥션 및 복제 처리 스레드에 대한 통계 정보가 추가로 표시된다.
+
+
 
 ## InnoDB 클러스터 작업
 
