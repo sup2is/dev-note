@@ -3828,7 +3828,7 @@ CREATE PROCEDURE sp_updateemployeehiredate1()
 
 - 기존 복제에서는 기본적으로 소스 서버에서의 트랜잭션 커밋 처리가 레플리카 서버와는 무관하게 처리되는 비동기 방식으로 동작한다. 소스서버에서는 트랜잭션 커밋 시 레플리카 서버로도 해당 트랜잭션이 잘 전달 됐는지 확인하지 않는다.
 - 반동기 방식은 트랜잭션 처리를 할 때 소스 서버와 레플리카 사이에 확인 단계가 하나 추가된 것으로 반동기방식을 사용하는 경우 소스 서버에서는 트랜잭션 커밋 처리 중 레플리카 서버로 트랜잭션이 잘 전달됐는지 응답을 기다린 후 최정적으로 커밋을 한다.
-- 그룹 복제에서는 한 서버에서 트랜잭션이 커밋된 준비가 되면 트랜잭션 정보를 그룹의 다른 멤버들에게 전송하고 과반수 이상의 멤버로부터 응답을 전달받으면 그때 해당 트랜잭션을 인증하고 최종적으로 커밋 처리를 완료한다.
+- 그룹 복제에서는 한 서버에서 트랜잭션이 커밋될 준비가 되면 트랜잭션 정보를 그룹의 다른 멤버들에게 전송하고 과반수 이상의 멤버로부터 응답을 전달받으면 그때 해당 트랜잭션을 인증하고 최종적으로 커밋 처리를 완료한다.
 - 트랜잭션 인증은 인증 대상 트랜잭션이 이미 인증 단계를 통과한 선행 트랜잭션과 동시점에 동일한 데이터를 변경했는지 충돌 여부를 검사해서 문제 없이 적용 가능하지를 확인하는 과정이다.
 - 그룹 복제에서 트랜잭션 커밋을 처리할 때 만약 과반수 이상의 멤버로부터 응답을 받지 못하면 해당 트랜잭션은 그룹에 적용되지 않는다.
 - 가장 큰 차이점으로는 비동기, 반동기 방식 모두 복제 구성 내에서 트랜잭션은 소스 서버에서 일방적으로 적용되지만 그룹 복제에서는 그룹 내 멤버들의 응답에 따라 전체 복제 그룹에서 해당 트랜잭션의 적용 여부가 결정된다는 것이다.
@@ -4647,6 +4647,12 @@ Switching to SQL mode... Commands end with ;
 
 
 
+mysql --verbose --help | grep my.cnf
+
+출처: https://harrythegreat.tistory.com/entry/mac-brew에서-설치한-mysql-mycnf가-안먹을때 [미디움으로 이사했습니다! @harrythegreat]
+
+출처: https://harrythegreat.tistory.com/entry/mac-brew에서-설치한-mysql-mycnf가-안먹을때 [미디움으로 이사했습니다! @harrythegreat]
+
 > innodb-cluster docker-compose github
 >
 > - [https://github.com/neumayer/mysql-docker-compose-examples](https://github.com/neumayer/mysql-docker-compose-examples)
@@ -4666,7 +4672,7 @@ docker run -d -p 3307:3306 -e MYSQL_ROOT_PASSWORD=mysql --name mysql-server-1 my
 - InnoDB 클러스터에 사용될 MySQL 서버들은 InnoDB 클러스터 요구사항을 충족하도록 서버 옵션들이 적절하게 설정되어 있어야한다. MySQL 셸을 이용해서 간단하고 편리하게 설정할 수 있다.
 
 ```
-MySQL  localhost:33060+ ssl  JS > dba.configureInstance("root@localhost:3301")
+MySQL  localhost:33060+ ssl  JS > dba.configureInstance("root@localhost:3306")
 Configuring local MySQL instance listening at port 3306 for use in an InnoDB cluster...
 
 This instance reports its own address as A10300ui-MacBookPro.local:3306
@@ -4688,12 +4694,26 @@ Confirm password:
 
 applierWorkerThreads will be set to the default value of 4.
 
-The instance 'A10300ui-MacBookPro.local:3306' is valid to be used in an InnoDB cluster.
+NOTE: Some configuration options need to be fixed:
++----------------------------------------+---------------+----------------+--------------------------------------------------+
+| Variable                               | Current Value | Required Value | Note                                             |
++----------------------------------------+---------------+----------------+--------------------------------------------------+
+| binlog_transaction_dependency_tracking | COMMIT_ORDER  | WRITESET       | Update the server variable                       |
+| enforce_gtid_consistency               | OFF           | ON             | Update read-only variable and restart the server |
+| gtid_mode                              | OFF           | ON             | Update read-only variable and restart the server |
+| server_id                              | 1             | <unique ID>    | Update read-only variable and restart the server |
++----------------------------------------+---------------+----------------+--------------------------------------------------+
+
+Some variables need to be changed, but cannot be done dynamically on the server.
+Do you want to perform the required configuration changes? [y/n]: y
+Do you want to restart the instance after configuring it? [y/n]: y
 
 Cluster admin user 'icadmin'@'%' created.
-The instance 'A10300ui-MacBookPro.local:3306' is already ready to be used in an InnoDB cluster.
+Configuring instance...
+The instance 'A10300ui-MacBookPro.local:3306' was configured to be used in an InnoDB cluster.
+Restarting MySQL...
+NOTE: MySQL server at A10300ui-MacBookPro.local:3306 was restarted.
 
-Successfully enabled parallel appliers.
 ```
 
 - `dba.configureInstance("root@localhost:3306")` 구문을 사용해서 현재 설정이 InnoDB 클러스터에 요구되는 사항들을 충족하는지 확인하고 필요 시 자동으로 서버를 재설정 한다.
@@ -4715,16 +4735,16 @@ Creating a session to 'icadmin@localhost:3306'
 //클러스터 생성
 MySQL  localhost:3301 ssl  JS > var cluster = dba.createCluster("testCluster");
 
-A new InnoDB cluster will be created on instance 'localhost:3301'.
+A new InnoDB cluster will be created on instance 'localhost:3306'.
 
-Validating instance configuration at localhost:3301...
+Validating instance configuration at localhost:3306...
 
-This instance reports its own address as 5307d46cc22b:3306
+This instance reports its own address as A10300ui-MacBookPro.local:3306
 
 Instance configuration is suitable.
-NOTE: Group Replication will communicate with other members using '5307d46cc22b:33061'. Use the localAddress option to override.
+NOTE: Group Replication will communicate with other members using 'A10300ui-MacBookPro.local:33061'. Use the localAddress option to override.
 
-Creating InnoDB cluster 'testCluster' on '5307d46cc22b:3306'...
+Creating InnoDB cluster 'testCluster' on 'A10300ui-MacBookPro.local:3306'...
 
 Adding Seed Instance...
 Cluster successfully created. Use Cluster.addInstance() to add MySQL instances.
@@ -4755,29 +4775,26 @@ cluster.status()
     "clusterName": "testCluster", 
     "defaultReplicaSet": {
         "name": "default", 
-        "primary": "fa3bfaaadb60:3306", 
+        "primary": "A10300ui-MacBookPro.local:3306", 
         "ssl": "REQUIRED", 
         "status": "OK_NO_TOLERANCE", 
         "statusText": "Cluster is NOT tolerant to any failures.", 
         "topology": {
-            "fa3bfaaadb60:3306": {
-                "address": "fa3bfaaadb60:3306", 
+            "A10300ui-MacBookPro.local:3306": {
+                "address": "A10300ui-MacBookPro.local:3306", 
                 "memberRole": "PRIMARY", 
-                "memberState": "(MISSING)", 
-                "mode": "n/a", 
+                "mode": "R/W", 
                 "readReplicas": {}, 
+                "replicationLag": null, 
                 "role": "HA", 
-                "shellConnectError": "MySQL Error 2005: Could not open connection to 'fa3bfaaadb60:3306': Unknown MySQL server host 'fa3bfaaadb60' (8)", 
                 "status": "ONLINE", 
                 "version": "8.0.28"
             }
         }, 
         "topologyMode": "Single-Primary"
     }, 
-    "groupInformationSourceMember": "fa3bfaaadb60:3306"
+    "groupInformationSourceMember": "A10300ui-MacBookPro.local:3306"
 }
-
-
 
 ```
 
@@ -4790,10 +4807,49 @@ cluster.status()
 
 ```
 var cluster = dba.getCluster()
-cluster.addInstance("root@localhost:3302")
-
-cluster.addInstance("root@localhost:3303")
+cluster.addInstance("root@localhost:3301")
 ```
+
+- 만약 클러스터의 대상이되는 서버에 설정이 필요하다면 아래와같이 친절하게 잘 알려준다.
+
+```
+NOTE: Some configuration options need to be fixed:
++----------------------------------------+---------------+----------------+--------------------------------------------------+
+| Variable                               | Current Value | Required Value | Note                                             |
++----------------------------------------+---------------+----------------+--------------------------------------------------+
+| binlog_transaction_dependency_tracking | COMMIT_ORDER  | WRITESET       | Update the server variable                       |
+| enforce_gtid_consistency               | OFF           | ON             | Update read-only variable and restart the server |
+| gtid_mode                              | OFF           | ON             | Update read-only variable and restart the server |
+| server_id                              | 1             | <unique ID>    | Update read-only variable and restart the server |
++----------------------------------------+---------------+----------------+--------------------------------------------------+
+
+```
+
+
+
+
+
+
+
+```
+
+
+docker run -d -p 3304:3306 -e MYSQL_ROOT_PASSWORD=mysql --name mysql-server-2 mysql:8.0.28 --lower_case_table_names=2
+
+docker run -d --name mysql5.7 -p 3303:3306 -e MYSQL_ALLOW_EMPTY_PASSWORD=true -e TZ=Asia/Seoul mysql:5.7 --character-set-server=utf8 --collation-server=utf8_general_ci --lower_case_table_names=1 
+
+mdfind -name homebrew.mxcl.mysql.plist
+
+출처: https://harrythegreat.tistory.com/entry/mac-brew에서-설치한-mysql-mycnf가-안먹을때 [미디움으로 이사했습니다! @harrythegreat]
+
+lower_case_table_names = 1
+
+character-set-server=utf8
+
+collation-server=utf8_general_ci
+```
+
+
 
 
 
