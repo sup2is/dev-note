@@ -4645,23 +4645,9 @@ Switching to SQL mode... Commands end with ;
 - InnoDB 클러스터의 MySQL 서버들은 모두 Performance 스키마가 활성화 돼있어야 한다.
 - MySQL 셸을 사용해 InnoDB 클러스터를 구성하기 위해 MySQL 셸이 설치될 서버에 파이썬 2.7이상의 버전으로 설치돼 있어야 한다.
 
-
-
-mysql --verbose --help | grep my.cnf
-
-출처: https://harrythegreat.tistory.com/entry/mac-brew에서-설치한-mysql-mycnf가-안먹을때 [미디움으로 이사했습니다! @harrythegreat]
-
-출처: https://harrythegreat.tistory.com/entry/mac-brew에서-설치한-mysql-mycnf가-안먹을때 [미디움으로 이사했습니다! @harrythegreat]
-
 > innodb-cluster docker-compose github
 >
 > - [https://github.com/neumayer/mysql-docker-compose-examples](https://github.com/neumayer/mysql-docker-compose-examples)
-
-
-
-```
-docker run -d -p 3307:3306 -e MYSQL_ROOT_PASSWORD=mysql --name mysql-server-1 mysql:8.0.28 
-```
 
 
 
@@ -4718,7 +4704,7 @@ NOTE: MySQL server at A10300ui-MacBookPro.local:3306 was restarted.
 
 - `dba.configureInstance("root@localhost:3306")` 구문을 사용해서 현재 설정이 InnoDB 클러스터에 요구되는 사항들을 충족하는지 확인하고 필요 시 자동으로 서버를 재설정 한다.
 - 위와 같이 새로 계정을 생성할 수 있다.
-  - icadmin:qwer!23
+  - icadmin2@%:qwer!23
 
 
 
@@ -4772,28 +4758,60 @@ var cluster = dba.getCluster()
 cluster.status()
 
 {
-    "clusterName": "testCluster", 
+    "clusterName": "devCluster", 
     "defaultReplicaSet": {
         "name": "default", 
-        "primary": "A10300ui-MacBookPro.local:3306", 
+        "primary": "mysql-server-1:3306", 
         "ssl": "REQUIRED", 
-        "status": "OK_NO_TOLERANCE", 
-        "statusText": "Cluster is NOT tolerant to any failures.", 
+        "status": "OK", 
+        "statusText": "Cluster is ONLINE and can tolerate up to ONE failure.", 
         "topology": {
-            "A10300ui-MacBookPro.local:3306": {
-                "address": "A10300ui-MacBookPro.local:3306", 
+            "mysql-server-1:3306": {
+                "address": "mysql-server-1:3306", 
+                "instanceErrors": [
+                    "NOTE: instance server_id is not registered in the metadata. Use cluster.rescan() to update the metadata."
+                ], 
                 "memberRole": "PRIMARY", 
-                "mode": "R/W", 
+                "memberState": "(MISSING)", 
+                "mode": "n/a", 
                 "readReplicas": {}, 
-                "replicationLag": null, 
                 "role": "HA", 
+                "shellConnectError": "MySQL Error 2005: Could not open connection to 'mysql-server-1:3306': Unknown MySQL server host 'mysql-server-1' (8)", 
                 "status": "ONLINE", 
-                "version": "8.0.28"
+                "version": "8.0.12"
+            }, 
+            "mysql-server-2:3306": {
+                "address": "mysql-server-2:3306", 
+                "instanceErrors": [
+                    "NOTE: instance server_id is not registered in the metadata. Use cluster.rescan() to update the metadata."
+                ], 
+                "memberRole": "SECONDARY", 
+                "memberState": "(MISSING)", 
+                "mode": "n/a", 
+                "readReplicas": {}, 
+                "role": "HA", 
+                "shellConnectError": "MySQL Error 2005: Could not open connection to 'mysql-server-2:3306': Unknown MySQL server host 'mysql-server-2' (8)", 
+                "status": "ONLINE", 
+                "version": "8.0.12"
+            }, 
+            "mysql-server-3:3306": {
+                "address": "mysql-server-3:3306", 
+                "instanceErrors": [
+                    "NOTE: instance server_id is not registered in the metadata. Use cluster.rescan() to update the metadata."
+                ], 
+                "memberRole": "SECONDARY", 
+                "memberState": "(MISSING)", 
+                "mode": "n/a", 
+                "readReplicas": {}, 
+                "role": "HA", 
+                "shellConnectError": "MySQL Error 2005: Could not open connection to 'mysql-server-3:3306': Unknown MySQL server host 'mysql-server-3' (8)", 
+                "status": "ONLINE", 
+                "version": "8.0.12"
             }
         }, 
         "topologyMode": "Single-Primary"
     }, 
-    "groupInformationSourceMember": "A10300ui-MacBookPro.local:3306"
+    "groupInformationSourceMember": "30f50168f043:3306"
 }
 
 ```
@@ -4807,7 +4825,7 @@ cluster.status()
 
 ```
 var cluster = dba.getCluster()
-cluster.addInstance("root@localhost:3301")
+cluster.addInstance("root@localhost:3302")
 ```
 
 - 만약 클러스터의 대상이되는 서버에 설정이 필요하다면 아래와같이 친절하게 잘 알려준다.
@@ -4824,34 +4842,6 @@ NOTE: Some configuration options need to be fixed:
 +----------------------------------------+---------------+----------------+--------------------------------------------------+
 
 ```
-
-
-
-
-
-
-
-```
-
-
-docker run -d -p 3304:3306 -e MYSQL_ROOT_PASSWORD=mysql --name mysql-server-2 mysql:8.0.28 --lower_case_table_names=2
-
-docker run -d --name mysql5.7 -p 3303:3306 -e MYSQL_ALLOW_EMPTY_PASSWORD=true -e TZ=Asia/Seoul mysql:5.7 --character-set-server=utf8 --collation-server=utf8_general_ci --lower_case_table_names=1 
-
-mdfind -name homebrew.mxcl.mysql.plist
-
-출처: https://harrythegreat.tistory.com/entry/mac-brew에서-설치한-mysql-mycnf가-안먹을때 [미디움으로 이사했습니다! @harrythegreat]
-
-lower_case_table_names = 1
-
-character-set-server=utf8
-
-collation-server=utf8_general_ci
-```
-
-
-
-
 
 #### MySQL 라우터 설정
 
@@ -4880,10 +4870,6 @@ mysqlrouter --bootstrap icadmin@localhost:3306 --name icroute1 \
 
 <br>
 
-<br>
-
-- 지정한 경로에는 다음과 같이 디렉터리 및 파일이 생성돼 있는 것을 확인할 수 있다.
-
 
 
 - InnoDB 클러스터에서 부트스트랩 시 자동으로 생성된 라우터용 DB 계정과 라우터 서버 등록 내역을 확인할 수 있다.
@@ -4899,6 +4885,20 @@ mysqlrouter --bootstrap icadmin@localhost:3306 --name icroute1 \
 var cluster = dba.getCluster()
 cluster.listRouters()
 
+{
+    "clusterName": "devCluster", 
+    "routers": {
+        "8a20d4e44168::": {
+            "hostname": "8a20d4e44168", 
+            "lastCheckIn": null, 
+            "roPort": 6447, 
+            "roXPort": 6449, 
+            "rwPort": 6446, 
+            "rwXPort": 6448, 
+            "version": "8.0.28"
+        }
+    }
+}
 ```
 
 
@@ -4911,6 +4911,89 @@ cluster.listRouters()
 
 ```
 vi /tmp/myrouter/mysqlrouter.conf
+
+# File automatically generated during MySQL Router bootstrap
+[DEFAULT]
+logging_folder=
+runtime_folder=/tmp/mysqlrouter/run
+data_folder=/tmp/mysqlrouter/data
+keyring_path=/tmp/mysqlrouter/data/keyring
+master_key_path=/tmp/mysqlrouter/mysqlrouter.key
+connect_timeout=15
+read_timeout=30
+dynamic_state=/tmp/mysqlrouter/data/state.json
+client_ssl_cert=/tmp/mysqlrouter/data/router-cert.pem
+client_ssl_key=/tmp/mysqlrouter/data/router-key.pem
+client_ssl_mode=PREFERRED
+server_ssl_mode=AS_CLIENT
+server_ssl_verify=DISABLED
+
+[logger]
+level=INFO
+
+[metadata_cache:devCluster]
+cluster_type=gr
+router_id=1
+user=mysql_router1_svxffarlomj7
+metadata_cluster=devCluster
+ttl=0.5
+auth_cache_ttl=-1
+auth_cache_refresh_interval=2
+use_gr_notifications=0
+
+[routing:devCluster_rw]
+bind_address=0.0.0.0
+bind_port=6446
+destinations=metadata-cache://devCluster/?role=PRIMARY
+routing_strategy=first-available
+protocol=classic
+
+[routing:devCluster_ro]
+bind_address=0.0.0.0
+bind_port=6447
+destinations=metadata-cache://devCluster/?role=SECONDARY
+routing_strategy=round-robin-with-fallback
+protocol=classic
+
+[routing:devCluster_x_rw]
+bind_address=0.0.0.0
+bind_port=6448
+destinations=metadata-cache://devCluster/?role=PRIMARY
+routing_strategy=first-available
+protocol=x
+
+[routing:devCluster_x_ro]
+bind_address=0.0.0.0
+bind_port=6449
+destinations=metadata-cache://devCluster/?role=SECONDARY
+routing_strategy=round-robin-with-fallback
+protocol=x
+
+[http_server]
+port=8443
+ssl=1
+ssl_cert=/tmp/mysqlrouter/data/router-cert.pem
+ssl_key=/tmp/mysqlrouter/data/router-key.pem
+
+[http_auth_realm:default_auth_realm]
+backend=default_auth_backend
+method=basic
+name=default_realm
+
+[rest_router]
+require_realm=default_auth_realm
+
+[rest_api]
+
+[http_auth_backend:default_auth_backend]
+backend=file
+filename=/tmp/mysqlrouter/data/auth_backend_passwd_file
+
+[rest_routing]
+require_realm=default_auth_realm
+
+[rest_metadata_cache]
+require_realm=default_auth_realm
 ```
 
 
@@ -5030,8 +5113,12 @@ netstat -lntp | grep mysqlrouter
 \connect icadmin@mysql-router-server1:6466
 \sql SELECT @@hostname, @@port;
 
-\connect icadmin@mysql-router-server1:6447
-\sql SELECT @@hostname, @@port;
++--------------+--------+
+| @@hostname   | @@port |
++--------------+--------+
+| 30f50168f043 |   3306 |
++--------------+--------+
+1 row in set (0.0020 sec)
 
 
 ```
@@ -5047,12 +5134,106 @@ netstat -lntp | grep mysqlrouter
 
 ```
 cluster.describe()
+
+{
+    "clusterName": "devCluster", 
+    "defaultReplicaSet": {
+        "name": "default", 
+        "topology": [
+            {
+                "address": "mysql-server-1:3306", 
+                "label": "mysql-server-1:3306", 
+                "role": "HA"
+            }, 
+            {
+                "address": "mysql-server-2:3306", 
+                "label": "mysql-server-2:3306", 
+                "role": "HA"
+            }, 
+            {
+                "address": "mysql-server-3:3306", 
+                "label": "mysql-server-3:3306", 
+                "role": "HA"
+            }
+        ], 
+        "topologyMode": "Single-Primary"
+    }
+}
+
 ```
 
 - 클러스터의 전반적인 상태를 좀 더 자세하게 사용하고 싶다면 아래와 같이 사용할 수 있다.
 
 ```
-cluster.status({'extended':1})
+cluster.status({'extended':1
+
+{
+    "clusterName": "devCluster", 
+    "defaultReplicaSet": {
+        "GRProtocolVersion": "5.7.14", 
+        "groupName": "ee891ea8-b6d2-11ec-8166-0242ac130004", 
+        "groupViewId": "16493777624982331:3", 
+        "name": "default", 
+        "primary": "mysql-server-1:3306", 
+        "ssl": "REQUIRED", 
+        "status": "OK", 
+        "statusText": "Cluster is ONLINE and can tolerate up to ONE failure.", 
+        "topology": {
+            "mysql-server-1:3306": {
+                "address": "mysql-server-1:3306", 
+                "fenceSysVars": [], 
+                "instanceErrors": [
+                    "NOTE: instance server_id is not registered in the metadata. Use cluster.rescan() to update the metadata."
+                ], 
+                "memberId": "e641a1c3-b6d2-11ec-a521-0242ac130004", 
+                "memberRole": "PRIMARY", 
+                "memberState": "(MISSING)", 
+                "mode": "n/a", 
+                "readReplicas": {}, 
+                "role": "HA", 
+                "shellConnectError": "MySQL Error 2005: Could not open connection to 'mysql-server-1:3306': Unknown MySQL server host 'mysql-server-1' (8)", 
+                "status": "ONLINE", 
+                "version": "8.0.12"
+            }, 
+            "mysql-server-2:3306": {
+                "address": "mysql-server-2:3306", 
+                "fenceSysVars": [], 
+                "instanceErrors": [
+                    "NOTE: instance server_id is not registered in the metadata. Use cluster.rescan() to update the metadata."
+                ], 
+                "memberId": "e64abc99-b6d2-11ec-a577-0242ac130003", 
+                "memberRole": "SECONDARY", 
+                "memberState": "(MISSING)", 
+                "mode": "n/a", 
+                "readReplicas": {}, 
+                "role": "HA", 
+                "shellConnectError": "MySQL Error 2005: Could not open connection to 'mysql-server-2:3306': Unknown MySQL server host 'mysql-server-2' (8)", 
+                "status": "ONLINE", 
+                "version": "8.0.12"
+            }, 
+            "mysql-server-3:3306": {
+                "address": "mysql-server-3:3306", 
+                "fenceSysVars": [], 
+                "instanceErrors": [
+                    "NOTE: instance server_id is not registered in the metadata. Use cluster.rescan() to update the metadata."
+                ], 
+                "memberId": "e640e885-b6d2-11ec-a5f2-0242ac130002", 
+                "memberRole": "SECONDARY", 
+                "memberState": "(MISSING)", 
+                "mode": "n/a", 
+                "readReplicas": {}, 
+                "role": "HA", 
+                "shellConnectError": "MySQL Error 2005: Could not open connection to 'mysql-server-3:3306': Unknown MySQL server host 'mysql-server-3' (8)", 
+                "status": "ONLINE", 
+                "version": "8.0.12"
+            }
+        }, 
+        "topologyMode": "Single-Primary"
+    }, 
+    "groupInformationSourceMember": "30f50168f043:3306", 
+    "metadataVersion": "1.0.1"
+}
+
 ```
 
  `일반적인 status()에서 추가된 부분`
