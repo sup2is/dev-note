@@ -141,14 +141,111 @@ FROM Products;
 ## 해법: 교차 테이블 생성
 
 - 별도의 테이블에 저장해 account_id가 별도의 행을 차지하도록 하는 것이 좋다.
+- 새로만드는 Contracts 테이블은 Products와 Accounts 사이의 다대다 관계를 구현한다.
+
+```sql
+CREATE TABLE Contacts (
+  product_id  BIGINT UNSIGNED NOT NULL,
+  account_id  BIGINT UNSIGNED NOT NULL,
+  PRIMARY KEY (product_id, account_id),
+  FOREIGN KEY (product_id) REFERENCES Products(product_id),
+  FOREIGN KEY (account_id) REFERENCES Accounts(account_id)
+);
+
+INSERT INTO Contacts (product_id, account_id)
+VALUES (123, 12), (123, 34), (345, 23), (567, 12), (567, 34);
+
+```
 
 
 
+**계정으로 제품 조회하기와 제품으로 계정 조회하기**
+
+- 주어진 계정에 대한 모든 제품의 속성을 조회하려면 Products 테이블과 Contracts 테이블을 조인하면 된다.
+
+```sql
+SELECT p.*
+FROM  Products AS p JOIN Contacts AS c ON (p.product_id = c.product_id)
+WHERE c.account_id = 34;
+```
+
+- 이쿼리는 효율적으로 인덱스를 사용할 수 있다.
 
 
 
+**집계 쿼리 만들기**
+
+- 제품당 계정 수를 리턴하는 쿼리
+
+```sql
+SELECT product_id, COUNT(*) AS accounts_per_product
+FROM Contacts
+GROUP BY product_id;
+```
+
+- 계정 당 제품 수를 구하는 쿼리
+
+```sql
+SELECT account_id, COUNT(*) AS products_per_account
+FROM Contacts
+GROUP BY account_id;
+```
+
+- 가장 많은 담당자를 할당 받은 제품을 구하는 쿼리
+
+```sql
+SELECT c.product_id, c.contacts_per_product
+FROM (
+  SELECT product_id, COUNT(*) AS accounts_per_product
+  FROM Contacts
+  GROUP BY product_id
+) AS c
+ORDER BY c.contacts_per_product DESC LIMIT 1
+```
 
 
+
+**특정 제품에 대한 계정 갱신**
+
+```sql
+INSERT INTO Contacts (product_id, account_id) VALUES (456, 34);
+
+DELETE FROM Contacts WHERE product_id = 456 AND account_id = 34;
+```
+
+
+
+**제품 아이디 유효성 검증**
+
+- FK를 사용해서 참조 정합성을 데이터베이스가 강제하도록 할 수 있다.
+
+
+
+**구분자 문자 선택**
+
+- 각 항목은 별도의 행으로 저장하므로 구분자를 사용하지 않는다.
+
+
+
+**목록 길이 제한**
+
+- 각 항목이 별도의 행으로 존재하기 때문에 한 컬럼에 물리적으로 저장할 수 있는 데이터 타입의 크기만 제한을 받는다.
+
+
+
+**교차 테이블의 다른 장점**
+
+- 쉼표로 구분된 목록보다 인덱스를 더 효율적으로 활용할 수 있기 때문에 성능이 좋아진다.
+- 칼럼에 fk를 선언하면 많은 데이터베이스가 내부적으로 해당 칼럼에 대한 인덱스를 생성한다 
+  - MySQL의 InnoDB
+  - DB by DB
+- 교차 테이블에 칼럼을 추가해 추가 속성을 넣을 수 있다.
+
+
+
+## 정리
+
+- 각 값은 자신의 칼럼과 행에 저장하라.
 
 
 
