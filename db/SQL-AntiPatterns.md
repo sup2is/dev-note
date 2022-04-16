@@ -249,7 +249,339 @@ DELETE FROM Contacts WHERE product_id = 456 AND account_id = 34;
 
 
 
+# #3 순진한 트리
 
+- 각 답글에 답을 달 수 있는 구조로 아래와 같이 테이블을 간단하게 설계했다.
+
+```sql
+CREATE TABLE Comments (
+  comment_id   SERIAL PRIMARY KEY,
+  parent_id    BIGINT UNSIGNED,
+  comment      TEXT NOT NULL,
+  FOREIGN KEY (parent_id) REFERENCES Comments(comment_id)
+);
+
+```
+
+
+
+## 계층구조 저장 및 조회하기
+
+- 데이터가 재귀적 관계를 가지는 것은 흔한 일이다. 데이터는 트리나 계층적 구조가 될 수 있다.
+- 트리 데이터 구조에서 각 항목은 노드라 불리고 노드는 여러 개의 자식을 가질 수 있고 부모를 하나 가진다. 부모가 없는 최상위 노드를 root라고 하고 가장 아래에 있는 자식이 없는 노드를 leaf라고한다. 중간에 있는 노드는 그냥 노드다.
+- 트리 데이터 구조를 가지는 예
+  - 조직도
+  - 글타래
+
+
+
+### 안티패턴: 항상 부모에 의존하기
+
+- 초보적 방법은 parent_id 칼럼을 추가하는 것이다.
+
+```sql
+CREATE TABLE Comments (
+  comment_id   SERIAL PRIMARY KEY,
+  parent_id    BIGINT UNSIGNED,
+  bug_id       BIGINT UNSIGNED NOT NULL,
+  author       BIGINT UNSIGNED NOT NULL,
+  comment_date DATETIME NOT NULL,
+  comment      TEXT NOT NULL,
+  FOREIGN KEY (parent_id) REFERENCES Comments(comment_id),
+  FOREIGN KEY (bug_id) REFERENCES Bugs(bug_id),
+  FOREIGN KEY (author) REFERENCES Accounts(account_id)
+);
+
+```
+
+
+
+
+
+**인접 목록에서 트리 조회하기**
+
+- 답글과 그 답글의 바로 아래 자식은 비교적 간단한 쿼리로 얻을 수 있지만 단 두 단계만 조회할 수 있다.
+
+```sql
+SELECT c1.*, c2.*
+FROM Comments c1 LEFT OUTER JOIN Comments c2
+  ON c2.parent_id = c1.comment_id;
+
+```
+
+- 트리의 특징 중 하나가 어느 깊이까지든 확장될 수 있다는 것이므로 단계에 상관없이 후손들을 조회할 수 있어야 한다.
+- `COUNT()` 를 통해 답글 수를 계산하거나 `SUM()` 을 이용해 기계 조립에서 부품의 비용 합계를 구할 수 있어야한다.
+- 또 다른 방법으로 글타래의 모든 행을 가져와서 애플리케이션에서 계층 구조를 만드는 방법인데 이 방법은 대량의 데이터를 애플리케이션으로 가져오는 것이기 때문에 비효율적이다.
+
+
+
+
+
+**인접 목록에서 트리 유지하기**
+
+- 새로운 노드를 추가하는 것과 같은 일부 연산은 간단하고 노드 하나 또는 서브트리를 이동하는 것 역시 쉽게 할 수 있다.
+
+```sql
+INSERT INTO Comments (bug_id, parent_id, author, comment)
+  VALUES (1234, 7, 'Kukla', 'Thanks!');
+
+UPDATE Comments SET parent_id = 3 WHERE comment_id = 6;
+```
+
+- 하지만 트레이서 노드를 삭제하는 작업은 복잡하고 비효율적이다.
+
+```sql
+SELECT comment_id FROM Comments WHERE parent_id = 4; -- returns 5 and 6
+SELECT comment_id FROM Comments WHERE parent_id = 5; -- returns none
+SELECT comment_id FROM Comments WHERE parent_id = 6; -- returns 7
+SELECT comment_id FROM Comments WHERE parent_id = 7; -- returns none
+
+DELETE FROM Comments WHERE comment_id IN ( 7 );
+DELETE FROM Comments WHERE comment_id IN ( 5, 6 );
+DELETE FROM Comments WHERE comment_id = 4;
+
+```
+
+
+
+## 안티패턴 인식 방법
+
+- 다음과 같은 말을 듣는다면 순진한 트리 안티패턴이 사용되고 있음을 눈치챌 수 있다.
+  - 트리에서 얼마나 깊은 단계를 지원해야 하지?
+  - 트리 데이터 구조를 관리하는 코드는 건드리는게 겁나
+  - 트리에서 고아 노드를 정리하기 위해 주기적으로 스크립트를 돌려야 해
+
+
+
+## 안티패턴 사용이 합당한 경우
+
+- 인접 목록의 강점은 주어진 노드의 부모나 자식을 바로 얻어올 수 있고 새로운 노드를 추가하기도 쉽기 떄문에 계층적 데이터로 작업하는 데 이 정도로만으로도 충분하다면 인접 목록은 적절한 방법이다.
+- WITH 키워드, CTE(Common Table Expression)을 사용한 재귀적 쿼리 문법을 사용할 수 있는 DBMS라면 순진한 트리 구조를 사용해도 제약은 없어진다.
+
+```sql
+-- WITH절
+WITH CommentTree
+    (comment_id, bug_id, parent_id, author, comment, depth)
+AS (
+    SELECT *, 0 AS depth FROM Comments
+    WHERE parent_id IS NULL
+  UNION ALL
+    SELECT c.*, ct.depth+1 AS depth FROM CommentTree ct
+    JOIN Comments c ON (ct.comment_id = c.parent_id)
+)
+SELECT * FROM CommentTree WHERE bug_id = 1234;
+
+-- START WITH ... CONNECT BY PRIOR
+SELECT * FROM Comments
+START WITH comment_id = 9876
+CONNECT BY PRIOR parent_id = comment_id;
+```
+
+
+
+## 해법: 대안 트리 모델 사용
+
+- 계층적 데이터를 저장하는 데는 인접 목록 모델(순진한 트리) 외에도 경로 열거(Path Enumeration), 중첩 집합(Nested Sets), 클로저 테이블(Closure Table)과 같은 몇가지 대안이 있다.
+
+
+
+**경로 열거**
+
+- 경로 열거 방법에서는 일련의 조상을 각 노드의 속성으로 저장해 이를 해결한다.
+- 디렉토리 구조에서도 경로 열거 형태를 볼 수 있다.
+  - /usr/local/lib 
+    - /usr는 local의 부모
+    - /local은 lib의 부모
+- 기존 parent_id 칼럼 대신 path란 칼럼을 정의한다.
+
+```sql
+CREATE TABLE Comments (
+  comment_id   SERIAL PRIMARY KEY,
+  path         VARCHAR(1000),
+  bug_id       BIGINT UNSIGNED NOT NULL,
+  author       BIGINT UNSIGNED NOT NULL,
+  comment_date DATETIME NOT NULL,
+  comment      TEXT NOT NULL,
+  FOREIGN KEY (bug_id) REFERENCES Bugs(bug_id),
+  FOREIGN KEY (author) REFERENCES Accounts(account_id)
+);
+
+```
+
+
+
+| comment_id | path    | author | comment |
+| ---------- | ------- | ------ | ------- |
+| 1          | 1/      | A      | A       |
+| 2          | 1/2/    | B      | B       |
+| 3          | 1/2/3/  | C      | C       |
+| 4          | 1/4/    | D      | D       |
+| 5          | 1/4/5/  | E      | E       |
+| 6          | 1/4/6/  | F      | F       |
+| 7          | 1/4/6/7 | G      | G       |
+
+- 위와 같은 형태에서 경로가 /1/4/6/7/ 인 답글 #7의 조상을 찾으려면 다음과 같이 할 수 있다.
+
+```sql
+SELECT *
+FROM Comments AS c
+WHERE '1/4/6/7/' LIKE c.path || '%';
+
+-- 1/4/6/%, 1/4/%, 1/% 로 매칭
+```
+
+- 반대로 경로가 1/4/인 답글 #4의 후손을 찾으려면 다음과 같이 할 수 있다.
+
+```sql
+SELECT *
+FROM Comments AS c
+WHERE c.path LIKE '1/4/' || '%';
+
+-- /1/4/5, 1/4/6, 1/4/6/7 매칭
+```
+
+- 특정 노드의 서브트리에서 글쓴이당 답글 수를 세는 집계함수역시 쉽게 사용할 수 있다.
+
+```sql
+SELECT COUNT(*)
+FROM Comments AS c
+WHERE c.path LIKE '1/4/' || '%'
+GROUP BY c.author;
+
+```
+
+- 새로운 노드를 추가하는 방법은 인접 목록 모델에서와 비슷하게 부모 경로 + 새로운 노드의 아디를 덧분이느 방법으로 추가할 수 있다.
+
+```sql
+-- MySQL의 LAST_INSERT_ID()를 사용해서 path 수정
+INSERT INTO Comments (author, comment) VALUES ('Ollie', 'Good job!');
+UPDATE Comments 
+  SET path = (SELECT path FROM Comments WHERE comment_id = 7)
+    || LAST_INSERT_ID() || '/'
+WHERE comment_id = LAST_INSERT_ID();
+```
+
+- 경로 열거 방법은 경로가 올바르게 형성되도록 하거나 값이 실제 노드에 대응되도록 강제하는 방법은 없다. 경로 문자열을 유지하는 것은 애플리케이션 코드에 종속되며 이를 검증하는데는 비용이 많이 든다.
+- 경로 열거 방법은 VARCHAR 칼럼의 길이만큼 제한이 있기 때문에 무제한 확장은 불가능하다.
+
+
+
+**중첩 집합**
+
+- 중첩 집한은 각 노드가 자신의 부모를 저장하는 대신 자기 자손의 집합에 대한 정보를 저장한다.
+
+```sql
+CREATE TABLE Comments (
+  comment_id   SERIAL PRIMARY KEY,
+  nsleft       INTEGER NOT NULL,
+  nsright      INTEGER NOT NULL,
+  bug_id       BIGINT UNSIGNED NOT NULL,
+  author       BIGINT UNSIGNED NOT NULL,
+  comment_date DATETIME NOT NULL,
+  comment      TEXT NOT NULL,
+  FOREIGN KEY (bug_id) REFERENCES Bugs (bug_id),
+  FOREIGN KEY (author) REFERENCES Accounts(account_id)
+);
+
+```
+
+- 이 정보는 트리의 각 노드를 두 개의 수로 부호화해 나타낼 수 있는데 여기에선 nsleft와 nsright로 구분한다.
+- 각 노드의 nsleft와 nsright 수는 다음과 같이 주어진다.
+  - nsleft 수는 모든 자식 노드의 nsleft 수보다 작아야 한다.
+  - nsright 수는 모든 자식의 노드의 nsright 수보다 커야 한다.
+  - 이 수들은 comment_id 값과는 아무런 상관이 없다.
+
+
+
+사진
+
+| comment_id | nsleft | nsright | author | comment |
+| ---------- | ------ | ------- | ------ | ------- |
+| 1          | 1      | 14      | A      | A       |
+| 2          | 2      | 5       | B      | B       |
+| 3          | 3      | 4       | C      | C       |
+| 4          | 6      | 13      | D      | D       |
+| 5          | 7      | 8       | E      | E       |
+| 6          | 9      | 12      | F      | F       |
+| 7          | 10     | 11      | G      | G       |
+
+- nsleft 값이 현재 노드의 nsleft와 nsright 사이에 있는 노드를 검색하면 답글 #4 와 그 자손을 얻을 수 있다.
+
+```sql
+SELECT c2.*
+FROM Comments AS c1
+  JOIN Comments as c2
+    ON c2.nsleft BETWEEN c1.nsleft AND c1.nsright
+WHERE c1.comment_id = 4;
+
+```
+
+- 답글 #6과 그 조상은 nsright 값이 현재 노드의 숫자 사이에 있는 노드를 검색해 얻을 수 있다.
+
+```sql
+SELECT c2.*
+FROM Comments AS c1
+  JOIN Comment AS c2
+    ON c1.nsleft BETWEEN c2.nsleft AND c2.nsright
+WHERE c1.comment_id = 6;
+
+```
+
+- 중첩 집합 모델의 주요 강점 중 하나는 자식을 가진 노드를 삭제했을 때 그 자손이 자동으로 삭제된 노드 부모의 자손이 된다. 노드를 삭제해도 트리 구조에서는 아무런 문제가 없다.
+
+```sql
+-- Reports depth = 3
+SELECT c1.comment_id, COUNT(c2.comment_id) AS depth
+FROM Comment AS c1
+  JOIN Comment AS c2
+    ON c1.nsleft BETWEEN c2.nsleft AND c2.nsright
+WHERE c1.comment_id = 7
+GROUP BY c1.comment_id;
+
+DELETE FROM Comment WHERE comment_id = 6;
+
+-- Reports depth = 2
+SELECT c1.comment_id, COUNT(c2.comment_id) AS depth
+FROM Comment AS c1
+  JOIN Comment AS c2
+    ON c1.nsleft BETWEEN c2.nsleft AND c2.nsright
+WHERE c1.comment_id = 7
+GROUP BY c1.comment_id;
+
+```
+
+- 중첩 집합 모델의 단점은 부모 노드를 얻는 과정이 아래와 같이 복잡해진다.
+
+```sql
+SELECT parent.*
+FROM Comment AS c
+  JOIN Comment AS parent
+    ON c.nsleft BETWEEN parent.nsleft AND parent.nsright
+  LEFT OUTER JOIN Comment AS in_between
+    ON c.nsleft BETWEEN in_between.nsleft AND in_between.nsright
+    AND in_between.nsleft BETWEEN parent.nsleft AND parent.nsright
+WHERE c.comment_id = 6
+  AND in_between.comment_id IS NULL;
+
+```
+
+- 중첩 집합 모델에서는 노드를 추가, 이동하는 것과 같은 트리 조작도 다른 모델을 사용할 때보다 복잡하다. 새로운 노드를 추가할 때마다 새 노드의 왼쪽 값보다 큰 모든 노드의 왼쪽, 오른쪽 값을 다시 계산해야 한다.
+
+```sql
+-- make space for NS values 8 and 9
+UPDATE Comment
+  SET nsleft = CASE WHEN nsleft >= 8 THEN nsleft+2 ELSE nsleft END,
+      nsright = nsright+2
+WHERE nsright >= 7;
+
+-- create new child of comment #5, occupying NS values 8 and 9
+INSERT INTO Comment (nsleft, nsright, author, comment)
+  VALUES (8, 9, 'Fran', 'Me too!');
+
+```
+
+- 중첩 집합 모델은 각 노드에 대해 조작하는 것 보다는 서브트리를 쉽고 빠르게 조회하는 것이 중요할 때 가장 잘 맞는다.
+- 트리에 노드를 삽입하는 과정이 복잡하기 때문에 쓰기가 빈번하다면 중첩 집합은 좋은 선택이 아니다.
 
 
 
