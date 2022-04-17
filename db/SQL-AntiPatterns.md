@@ -758,19 +758,128 @@ WHERE ancestor = 4 AND path_length = 1;
 
 
 
+# #4 아이디가 필요해
 
 
 
+## 목표: PK 관례 확립
+
+- 목표는 모든 테이블이 PK를 갖도록 하는 것이지만 PK의 본질을 혼동하면 안된다.
+- PK는 테이블 내의 모든 행이 유일함을 보장하기 때문에, 각 행에 접근하는 논리적 메커니즘이 되고 중복 행이 저장되는 것을 방지한다.
+- 까다로운 부분은  PK로 사용할 칼럼을 선정하는 일이다.
+- 아무런 의미도 갖지 않는 인위적인 값을 PK로 잡을때는 이를 가상키 또는 대체키라 한다.
+- 여러 클라이언트가 동시에 새로운 행을 삽입하는 경우에도 각 행의 가상키 값이 유일하게 할당되는 것을 보장하기 위해, 대부분의 DBMS는 트랜잭션 격리 범위 밖에서 유일한 정수값을 생성하는 메커니즘을 제공한다.
+
+| 기능           | 지원 데이터베이스                                   |
+| -------------- | --------------------------------------------------- |
+| AUTO_INCREMENT | MySQL                                               |
+| GENERATOR      | Firebird, InterBase                                 |
+| IDENTITY       | DB2, Derby, Microsoft SQL Server, Sybase            |
+| ROWID          | SQLite                                              |
+| SEQUENCE       | DB2, Firebird, Informix, Ingres, Oracle, PostgreSQL |
+| SERIAL         | MySQL, PostgreSQL                                   |
 
 
 
+## 안티 패턴: 만능키
+
+- 모든 테이블에 id란 이름의 칼럼이 있는 것은 너무도 흔해져 이게 PK와 동의어가 되어 버렸다.
+- 모든 테이블에 id 칼럼을 추가하는 것은, 그 사용을 이상하게 만드는 몇 가지 효과를 초개한다.
+
+```sql
+CREATE TABLE Bugs (
+  id          SERIAL PRIMARY KEY,
+  description VARCHAR(1000),
+  -- . . .
+);
+
+```
 
 
 
+**중복 키 생성**
+
+- 테이블 안에 다른 칼럼이 자연키로 사용될 수 있는 상황에서조차 단지 통념에 따라 id 칼럼을 PK로 정의하고 bug_id는 UNIQUE를 사용하는 경우
+
+```sql
+CREATE TABLE Bugs (
+  id          SERIAL PRIMARY KEY,
+  bug_id      VARCHAR(10) UNIQUE,
+  description VARCHAR(1000),
+  -- . . .
+);
+
+INSERT INTO Bugs (bug_id, description, ...)
+  VALUES ('VIS-078', 'crashes on save', ...);
+
+```
+
+- 사실 bug_id칼럼은 각 행을 유일하게 식별할 수 있도록 해준다는 면에서 id와 사용 목적이 동일하다.
+
+**중복 행 허용**
+
+- 복합 키는 여러 칼럼을 포함한다. PK는 특정한 bug_id와 product_id 값의 조합이 테이블 안에서 한 번만 나타난다는 것을 보장해야 하지만 id 칼럼을 PK로 사용하는 경우 두 칼럼에 제약조건이 적용되지 않는다.
 
 
 
+```sql
+-- START:typical
+CREATE TABLE BugsProducts (
+  id          SERIAL PRIMARY KEY,
+  bug_id      BIGINT UNSIGNED NOT NULL,
+  product_id  BIGINT UNSIGNED NOT NULL,
+  FOREIGN KEY (bug_id) REFERENCES Bugs(bug_id),
+  FOREIGN KEY (product_id) REFERENCES Products(product_id)
+);
 
+INSERT INTO BugsProducts (bug_id, product_id)
+  VALUES (1234, 1), (1234, 1), (1234, 1); -- duplicates are permitted
+-- END:typical
+```
+
+
+
+- 방법은 bug_id, product_id에 UNIQUE제약조건을 거는 것인데 이런 경우엔 id칼럼은 불필요한 것이다.
+
+```sql
+-- START:unique
+CREATE TABLE BugsProducts (
+  id          SERIAL PRIMARY KEY,
+  bug_id      BIGINT UNSIGNED NOT NULL,
+  product_id  BIGINT UNSIGNED NOT NULL,
+  UNIQUE KEY (bug_id, product_id),
+  FOREIGN KEY (bug_id) REFERENCES Bugs(bug_id),
+  FOREIGN KEY (product_id) REFERENCES Products(product_id)
+);
+-- END:unique
+```
+
+
+
+**모호한 키의 의미**
+
+- id란 이름이 너무 일반적이기 때문에 아루먼 의미도 갖지 못한다.
+- 이는 PK칼럼 이름이 동일한 두 테이블을 조인할 때 특히 문제가 된다.
+
+
+
+**USING 사용**
+
+**어려운 복합키**
+
+
+
+## 안티패턴 인식 방법
+
+- 다음과 같은 말은 안티패턴의 증거가 될 수 있다.
+  - 모든 테이블의 PK칼럼이 id라는 이름을 갖고 있다.
+  - "이 테이블에는 PK가 없어도 될 것 같은데"
+  - "다대다 연결에서 왜 중복이 발생하지?"
+  - "나는 데이터베이스 이론에서 값은 색인 테이블로 옮기고  ID로 참조해야한다고 하는 걸 읽어서. 그러나 그렇게 하고 싶지 않아. 내가 원하는 실제 값을 얻기 위해 매번 조인을 해야 하기 때문이지."
+
+
+
+## 안티패턴 사용이 합당한 경우
 
 
 
