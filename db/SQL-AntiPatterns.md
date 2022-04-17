@@ -585,5 +585,192 @@ INSERT INTO Comment (nsleft, nsright, author, comment)
 
 
 
+**클로저 테이블**
+
+- 클로저 테이블은 부모-자식 관계에 대한 경로만을 저장하는 것이 아니라 트리의 모든 경로를 저장한다.
+
+```sql
+CREATE TABLE Comments (
+  comment_id   SERIAL PRIMARY KEY,
+  bug_id       BIGINT UNSIGNED NOT NULL,
+  author       BIGINT UNSIGNED NOT NULL,
+  comment_date DATETIME NOT NULL,
+  comment      TEXT NOT NULL,
+  FOREIGN KEY (bug_id) REFERENCES Bugs(bug_id),
+  FOREIGN KEY (author) REFERENCES Accounts(account_id)
+);
+
+CREATE TABLE TreePaths (
+  ancestor    BIGINT UNSIGNED NOT NULL,
+  descendant  BIGINT UNSIGNED NOT NULL,
+  PRIMARY KEY(ancestor, descendant),
+  FOREIGN KEY (ancestor) REFERENCES Comments(comment_id),
+  FOREIGN KEY (descendant) REFERENCES Comments(comment_id)
+);
+
+```
+
+- 트리 구조에 대한 정보를 Comments 테이블에 저장하는 대신 TreePaths를 사용한다.
+- 이 테이블에는 트리에서 조상/자손 관계를 가진 모든 노드 쌍을 한 행으로 저장한다. 또한 각 노드에 대해 자기 자신을 참조하는 행도 추가한다.
+
+
+
+사진
+
+| ancestor | descendant |
+| -------- | :--------- |
+| 1        | 1          |
+| 1        | 2          |
+| 1        | 3          |
+| 1        | 4          |
+| 1        | 5          |
+| 1        | 6          |
+| 1        | 7          |
+| 2        | 2          |
+| 2        | 3          |
+| 3        | 3          |
+| 4        | 4          |
+| 4        | 5          |
+| 4        | 6          |
+| 4        | 7          |
+| 5        | 5          |
+| 6        | 6          |
+| 6        | 7          |
+| 7        | 7          |
+
+
+
+- 답글 #4의 자손을 얻으려면 TreePaths에서 ancestor가 4인 행을 가져오면 된다.
+
+```sql
+SELECT c.*
+FROM Comments AS c
+  JOIN TreePaths AS t ON c.comment_id = t.descendant
+WHERE t.ancestor = 4;
+
+```
+
+- 답글 #6의 조상을 얻으려면 TreePath에서 descendant가 6인 행을 가져오면 된다.
+
+```sql
+SELECT c.*
+FROM Comments AS c
+  JOIN TreePaths AS t ON c.comment_id = t.ancestor
+WHERE t.descendant = 6;
+
+```
+
+- 새로운 종말 노드, 예를 들어 답글 #5에 새로운 자식을 추가하려면 먼저 자기 자신을 참조하는 행을 추가하고 TreePaths에서 답글 #5를  descendant로 참조하는 모든 행을 복사해 descendant를 새로운 답글 아이디로 바꿔 넣는다.
+
+```sql
+INSERT INTO TreePaths (ancestor, descendant)
+  SELECT t.ancestor, 8
+  FROM TreePaths AS t
+  WHERE t.descendant = 5
+ UNION ALL
+  SELECT 8, 8;
+
+```
+
+- 종말 노드를 삭제할 때, 예를 들어 #7을 삭제할 때는 TreePaths에서 descendant로 참조하는 모든 행을 삭제한다.
+
+```sql
+DELETE FROM TreePaths WHERE descendant = 7;
+
+```
+
+- 서브트리, 예를들어 답글#4와 그 자손을 삭제하려면 TreePaths에서 답글 #4를 descendant로 참조하는 모든 행과  답글 #4의 자손을 descendant로 참조하는 모든 행을 삭제한다.
+
+```sql
+DELETE FROM TreePaths
+WHERE descendant IN (SELECT descendant
+		     FROM TreePaths
+		     WHERE ancestor = 4);
+
+```
+
+- 서브트리를 트리 내 다른 우치로 이동하고자 할 때는, 먼저 서브트리의 최상위 노드와 그 노드의 자손들을 참조하는 행을 삭제해 서브트리와 그 조상의 연결을 끊는다.
+- 예를 들어 답글 #6을 답글 #4의 자식에서 #3의 자식으로 옮기려면 아래와 같이 한다.
+
+```sql
+-- START:delete
+DELETE FROM TreePaths
+WHERE descendant IN (SELECT descendant
+		     FROM TreePaths
+		     WHERE ancestor = 6)
+  AND ancestor IN (SELECT ancestor
+		   FROM TreePaths
+		   WHERE descendant = 6
+		     AND ancestor != descendant);
+-- END:delete
+-- 위 쿼리는 (1, 6), (1, 7), (4, 6), (4, 7) 을 삭제한다. 즉 자기 자신과 자기 자신이 갖고 있는 서브트리 외에 모든 참조를 제거한다.
+
+-- START:reinsert
+INSERT INTO TreePaths (ancestor, descendant)
+  SELECT supertree.ancestor, subtree.descendant
+  FROM TreePaths AS supertree
+    CROSS JOIN TreePaths AS subtree
+  WHERE supertree.descendant = 3
+    AND subtree.ancestor = 6;
+-- END:reinsert
+-- 새로운 위치의 조상들과 서브트리의 자손들에 대응하는 행을 추가해서 고아가 된 서브트리를 붙인다.
+-- 위 쿼리는 (1, 6), (2, 6), (3, 6), (1, 7), (2, 7), (3, 7) 경로를 새로 생성한다.
+
+```
+
+- 클로저 테이블 모델은 중첩 집합 모델보다 직관적이다. 조상과 자손을 조회하는 것은 두 방법 모두 빠르고 쉽지만 클로저 테이블이 계층구조 정보를 유지하기가 쉽다. 
+- 두 방법 모두 인접 목록이나 경록 열거 방법보다 자식이나 부모를 조회하기 편리하다.
+- 부모나 자식 노드를 더 쉽게 조회할 수 있도록 TreePaths에 path_length 속성을 추가하면 클로저 테이블을 개선할 수 있다. 
+- 자기자신의 path_length는 0, 자식의 path_length는 1 ... 2 형태로 구성하면 아래와 같이 자식을 쉽게 조회할 수 있다.
+
+```sql
+SELECT *
+FROM TreePaths
+WHERE ancestor = 4 AND path_length = 1;
+
+```
+
+
+
+**어떤 모델을 사용해야 하는가?**
+
+- 인접 목록은 가장 흔히 사용되는 모델로 많은 소프트웨어 개발자가 알고 있다.
+- WITH나 CONNET BY PRIOR를 이용한 재귀적 쿼리는 인접 목록 모델을 좀 더 효율적으로 만들지만 이 문법을 지원하는 데이터베이스를 써야 한다.
+- 경로 열거는 브레드크럼을 사용자 인터페이스에 보여줄 때는 좋지만 참조 정합성을 강제하지 못하고 정보를 중복 저장하기 때문에 깨지기 쉬운 구조다.
+- 중첩 집합은 트리를 수정하는 일은 거의 없고 조회를 많이 하는 경우 적합하다. 역시 참조 정합성을 지원하지는 못한다.
+- 클로저 테이블은 가장 융통성 있는 모델이고 한 노드가 여러 트리에 속하는 것을 허용하는 유일한 모델이다. 클로저 테이블은 별도의 저장공간을 사용하기 때문에 계싼을 줄이는 대신 저장공간을 많이 사용하는 트레이드오프가 발생한다.
+
+<br>
+
+| 모델          | 테이블 | 자식 조회 | 트리 조회 | 삽입   | 삭제   |
+| ------------- | ------ | --------- | --------- | ------ | ------ |
+| 인접 목록     | 1      | 쉽다      | 어렵다    | 쉽다   | 쉽다   |
+| 재귀적 쿼리   | 1      | 쉽다      | 쉽다      | 쉽다   | 쉽다   |
+| 경로 열거     | 1      | 쉽다      | 쉽다      | 쉽다   | 쉽다   |
+| 중첩 집합     | 1      | 어렵다    | 쉽다      | 어렵다 | 어렵다 |
+| 클로저 테이블 | 2      | 쉽다      | 쉽다      | 쉽다   | 쉽다   |
+
+
+
+## 정리
+
+- 계층구조에는 항목과 관계가 있다. 작업에 맞도록 이 둘을 모두 모델링해야 한다.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
