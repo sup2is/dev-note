@@ -243,7 +243,7 @@ DELETE FROM Contacts WHERE product_id = 456 AND account_id = 34;
 
 
 
-## 정리
+**SQL Antipatterns Tip**
 
 - 각 값은 자신의 칼럼과 행에 저장하라.
 
@@ -752,7 +752,7 @@ WHERE ancestor = 4 AND path_length = 1;
 
 
 
-## 정리
+**SQL Antipatterns Tip**
 
 - 계층구조에는 항목과 관계가 있다. 작업에 맞도록 이 둘을 모두 모델링해야 한다.
 
@@ -881,5 +881,67 @@ CREATE TABLE BugsProducts (
 
 ## 안티패턴 사용이 합당한 경우
 
+- 가상키는 지나치게 긴 자연키를 대체하기 위해 사용한다면 적절한 선택이다.
+  - 파일 시스템의 파일 속성을 저장하는 테이블에서 파일 경로는 좋은 자연키이지만 인덱스로 잡기엔 비용이 많이 든다.
 
 
+
+## 해법: 상황에 맞추기
+
+- PK는 제약조건이지 데이터 타입이 아니다.
+- 또한 테이블의 특정 칼럼을 PK로 잡지 않고도 자동 증가하는 정수값을 가지도록 정의할 수 있다.
+
+
+
+**있는 그대로 말하기**
+
+- PK에 의미 있는 이름을 선택해야 한다. 이 이름은 PK가 식별하는 엔터티의 타입을 나타내야 한다.
+- FK에서도 가능하다면 같은 칼럼 이름을 사용하는게 기본이지만 연결의 본질을 더 잘 표현하는 경우라면 FK를 자신이 참조하는 PK이름과 다르게 하는 것도 괜찮다.
+
+```sql
+CREATE TABLE Bugs (
+  -- . . .
+  reported_by  BIGINT UNSIGNED NOT NULL,
+  FOREIGN KEY (reported_by) REFERENCES Accounts(account_id)
+);
+
+```
+
+
+
+**관례에서 벗어나기**
+
+**자연키와 복합키 포용**
+
+- 유일함이 보장되고, NULL 값을 가지는 경우가 없고, 행을 식별하는 용도로 사용할 수 있는 속성이 테이블에 있다면, 단지 통념을 따르기 위해 가상키를 추가해야 한다는 의무감을 느낌 필요는 없다.
+- 실제로 테이블에 있는 각 속성은 변하기 마련이고 유일하지 않게 될 수도 있기 때문에 이런 경우에는 가상키를 사용할 수 있다.
+- 여러 칼럼의 조합으로 행을 가장 잘 식별할 수 있다면 이 칼럼 조합을 복합키로 사용해야 한다.
+
+```sql
+-- START:table
+CREATE TABLE BugsProducts (
+  bug_id      BIGINT UNSIGNED NOT NULL,
+  product_id  BIGINT UNSIGNED NOT NULL,
+  PRIMARY KEY (bug_id, product_id),
+  FOREIGN KEY (bug_id) REFERENCES Bugs(bug_id),
+  FOREIGN KEY (product_id) REFERENCES Products(product_id)
+);
+-- END:table
+
+-- START:insert
+INSERT INTO BugsProducts (bug_id, product_id)
+  VALUES (1234, 1), (1234, 2), (1234, 3);
+
+INSERT INTO BugsProducts (bug_id, product_id)
+  VALUES (1234, 1); -- error: duplicate entry
+--END:insert
+
+```
+
+- 복합 PK를 참조하는 FK 또한 복합키가 되어야 함에 유의해야 한다.
+
+
+
+**SQL Antipatterns Tip**
+
+- 관례는 도움이 될 때만 좋은 것이다.
