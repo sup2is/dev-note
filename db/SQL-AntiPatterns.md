@@ -945,3 +945,161 @@ INSERT INTO BugsProducts (bug_id, product_id)
 **SQL Antipatterns Tip**
 
 - 관례는 도움이 될 때만 좋은 것이다.
+
+
+
+# #5 키가 없는 엔트리
+
+## 목표: 데이터베이스 아키텍처 단순화
+
+- 관계형 데이터베이스 설계는 각 테이블 자체에 대한 것이기도 하고 테이블간의 관계에 대한 것이기도 하다.
+- 참조 정합성은 데이터베이스를 적절히 설계하고 운영하는 데 있어 중요한 부분이다.
+- 어떤 칼럼 또는 칼럼 묶음에 FK 제약조건을 선언하면, 그 칼럼에 들어가는 값은 부모 테이블의 PK 또는 UNIQUE KEY에 의존해야 한다. 
+- FK를 무시하라는 이유들
+  - 데이터 업데이트 시 제약조건과 충돌할 수 있다.
+  - 참조 정합성 제약조건을 지원할 수 없는 매우 융통성 있는 데이터베이스 설계를 사용하고 있다.
+  - FK에 데이터베이스가 자동 생성하는 인덱스 때문에 성능에 영향을 받는다고 믿는다.
+  - FK를 지원하지 않는 데이터베이스를 사용하고 있다.
+  - FK 선언을 위해 문법을 찾아봐야 한다.
+
+
+
+## 안티패턴: 제약조건 무시
+
+- FK 제약조건을 생략하는 것이 처음에는 데이터베이스 설계를 단순하고 유연하고 빠르게 하는 것처럼 보이겠지만 다른 방식으로 대가를 치러야 한다. (참조정합성에 대한 대가)
+
+
+
+**무결점 코드**
+
+- 많은 사람들이 참조 정합성을 애플리케이션 코드에 녹인다.
+- 
+
+```sql
+-- # 변경전 select로 참조 정합성 확인
+-- START:select
+SELECT account_id FROM Accounts WHERE account_id = 1;
+-- END:select
+-- START:insert
+INSERT INTO Bugs (reported_by) VALUES (1);
+-- END:insert
+
+
+-- #변경전 select로 참조 정합성 확인
+-- START:select
+SELECT bug_id FROM Bugs WHERE reported_by = 1;
+-- END:select
+-- START:delete
+DELETE FROM Accounts WHERE account_id = 1;
+-- END:delete
+```
+
+- 위 방법은 동시성 문제가 생길 수 있고 테이블락을 사용할경우 병목이 될 수 있다.
+
+
+
+**오류 확인**
+
+- 손상된 데이터를 찾기 위해 개발자가 작성한 스크립트로 참조 정합성이 깨지는부분을 아래와 같이 수정해볼 수 있다.
+
+```sql
+SELECT b.bug_id, b.status
+FROM Bugs b LEFT OUTER JOIN BugStatus s
+  ON (b.status = s.status)
+WHERE s.status IS NULL;
+
+UPDATE Bugs SET status = DEFAULT WHERE status = 'BANANA';
+```
+
+- 그러나 위 스크립트를 얼마나 자주 해야하는지 정확한 타이밍이나 횟수를 계산하기 어렵고 디폴트값이 없는 칼럼에 대해서 좋은 방어책이 아니다.
+
+
+
+**"내 잘못이 아냐!"**
+
+- 데이터베이스는 일관성 있게 유지해야하지만 데이터베이스에 접근하는 모든 애플리케이션과 스크립트가 올바르게 변경을 가하는지 확신할 수 없다.
+
+
+
+**진퇴양난 업데이트**
+
+- 많은 개발자가 여러 테이블의 관련된 칼럼을 업데이트할 때 불편해지기 때문에 FK 제약조건 사용을 꺼린다.
+
+```sql
+DELETE FROM BugStatus WHERE status = 'BOGUS'; -- ERROR!
+DELETE FROM Bugs WHERE status = 'BOGUS';
+DELETE FROM BugStatus WHERE status = 'BOGUS'; -- retry succeeds
+
+
+UPDATE BugStatus SET status = 'INVALID' WHERE status = 'BOGUS'; -- ERROR!
+UPDATE Bugs SET status = 'INVALID' WHERE status = 'BOGUS'; -- ERROR!
+
+```
+
+
+
+## 안티패턴 인식 방법
+
+- 사람들이 다음과 같은 말을 하는 걸 들으면 아마도 키가 없는 엔트리 안티패턴을 사용하고 있을 것이다.
+  - 어떤 값이 한 테이블에는 있고 다른 테이블에는 없는지 확인하려면 쿼리를 어떻게 작성해야 하지?
+  - 테이블에 삽입하면서 다른 테이블에 어떤 값이 있는지를 확인하는 빠른 방법이 없을까?
+  - FK라고? FK는 데이터베이스를 느리게 만들기 떄문에 사용하지 말라고 들었는데?
+
+
+
+## 안티패턴 사용이 합당한 경우
+
+- FK제약조건을 지원하지 않는 데이터베이스 (MySQL의  myisam엔진, 3.6.19 이전의 SQLite) 을 사용할 수밖에 없는 경우
+- 관계를 모델링하는 데 FK를 사용할 수 없는 극단적으로 유연한 데이터베이스 설계인 경우
+
+
+
+## 해법: 제약조건 선언하기
+
+- 데이터베이스 설계에 참조 정합성을 강제해서 추가 공정 없이 처음부터 잘못된 데이터가 입력되지 않도록 할 수 있다.
+
+```sql
+CREATE TABLE Bugs (
+  -- . . .
+  reported_by       BIGINT UNSIGNED NOT NULL,
+  status            VARCHAR(20) NOT NULL DEFAULT 'NEW',
+  FOREIGN KEY (reported_by) REFERENCES Accounts(account_id),
+  FOREIGN KEY (status) REFERENCES BugStatus(status)
+);
+
+```
+
+- FK를 사용하면 불필요한 코드를 작성하지 않아도 되고, 데이터베이스를 변경할 때도 모든 코드가 동일한 제약조건을 따른다는 것을 확신할 수 있다.
+
+**여러 테이블 변경 지원**
+
+- FK는 애플리케이션 코드로 흉내낼 수 없는 단계적 업데이트(cascading update)기능이 있다.
+
+```sql
+CREATE TABLE Bugs (
+  -- . . .
+  reported_by       BIGINT UNSIGNED NOT NULL,
+  status            VARCHAR(20) NOT NULL DEFAULT 'NEW',
+  FOREIGN KEY (reported_by) REFERENCES Accounts(account_id)
+    ON UPDATE CASCADE
+    ON DELETE RESTRICT,
+  FOREIGN KEY (status) REFERENCES BugStatus(status)
+    ON UPDATE CASCADE
+    ON DELETE SET DEFAULT
+);
+
+```
+
+
+
+**오버헤드? 그닥~**
+
+- FK 제약조건이 약간의 오버헤드가 있는 것은 사실이지만 다른 대안과 비교했을 때 FK가 훨씬 효울적이라는 것은 입증되었다.
+  - INSERT, UPDATE, DELETE 전에 데이터를 확인하기 위해 SELECT 쿼리를 실행할 필요가 없다.
+  - 여러 테이블을 변경하기 위해 테이블 잠금을 사용할 필요가 없다.
+  - 불가피하게 생기는 고아 데이터를 정정하기 위해 품질 제어 스크림트를 주기적으로 돌릴 필요가 없다.
+- FK는 사용하기 쉽고, 성능을 향상시킬 뿐 아니라, 단순하든 복잡하든 데이터를 변경할 때 참조 정합성을 일관적으로 유지하는데 도움이 된다.
+
+**SQL Antipatterns Tip**
+
+- 제약조건을 사용해 데이터베이스에서 실수를 방지하라.
