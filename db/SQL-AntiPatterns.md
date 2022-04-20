@@ -1109,3 +1109,218 @@ CREATE TABLE Bugs (
 **SQL Antipatterns Tip**
 
 - 제약조건을 사용해 데이터베이스에서 실수를 방지하라.
+
+
+
+
+
+
+
+# #6 엔터티-속성-값
+
+## 목표: 가변 속성 지원
+
+- 소프트웨어 프로젝트에서 확장성은 자주 목표로 언급이 된다.
+- 일반적인 테이블은 테이블에 있는 모든 행과 관계된 속성 칼럼으로 이루어져 있고, 각 행은 비슷한 객체의 인스턴스를 나타낸다. 속성 집합이 다르면 객체의 타입도 다르다는 뜻이며, 따라서 다른 테이블에 있어야 한다.
+- 그러나 현대적인 객체지향 프로그래밍 모델에서는 동일한 데이터 타입을 확장하는 것과 같은 방법으로 객체의 타입도 관계를 가질 수 있다.
+
+사진
+
+- 위 이미지에서 Bug와 FeatureRequest는 Issue 타입이 갖는 속성을 기본으로 갖고 각각 자신만의 속성을 추가로 갖는다.
+
+## 안티패턴: 범용 속성 테이블 사용
+
+- 가변 속성을 지원해야 할 때 별도 테이블을 생성해 속성을 행으로 저장할 수 있다.
+
+`엔터티`
+
+- 보통 이 칼럼은 하나의 엔터티에 대해 하나의 행을 가지는 부모 테이블에 대한 FK다
+
+`속성`
+
+- 일반적인 테이블에서의 칼럼 이름을 나타내지만, 이 새로운 설계에서는 각 행마다 속성이 하나씩 들어간다.
+
+`값`
+
+- 모든 엔터티는 각 속성에 대한 값을 가진다. 예를 들어 PK 값이 1234인 버그가 주어졌을 때, status란 속성을 가지고, 그 속성 값은 NEW다
+
+
+
+사진
+
+
+
+- 이 설계는 엔터티-속성-값 또는 줄여서 EAV라 불린다.
+
+```sql
+CREATE TABLE Issues (
+  issue_id    SERIAL PRIMARY KEY
+);
+
+INSERT INTO Issues (issue_id) VALUES (1234);
+
+CREATE TABLE IssueAttributes (
+  issue_id    BIGINT UNSIGNED NOT NULL,
+  attr_name   VARCHAR(100) NOT NULL,
+  attr_value  VARCHAR(100),
+  PRIMARY KEY (issue_id, attr_name),
+  FOREIGN KEY (issue_id) REFERENCES Issues(issue_id)
+);
+
+INSERT INTO IssueAttributes (issue_id, attr_name, attr_value)
+  VALUES
+    (1234, 'product',          '1'),
+    (1234, 'date_reported',    '2009-06-01'),
+    (1234, 'status',           'NEW'),
+    (1234, 'description',      'Saving does not work'),
+    (1234, 'reported_by',      'Bill'),
+    (1234, 'version_affected', '1.0'),
+    (1234, 'severity',         'loss of functionality'),
+    (1234, 'priority',         'high');
+
+```
+
+- 별도 테이블을 추가해 다음과 같은 이득을 얻은 것 같아 보인다.
+  - 두 테이블 모두 적은 칼럼을 갖고 있다.
+  - 새로운 속성을 지원하기 위해 칼럼 수를 늘릴 필요가 없다.
+  - 특정 속성이 해당 행에 적용되지 않을 때 NULL을 채워야하는 칼럼이 지저분하게 생기는 것을 피할 수 있다.
+- 개선된 것처럼 보이지만 데이터베이스 설계가 단순하다고 해서 사용하기 어려운 것을 보상해주지는 않는다.
+
+
+
+**속성 조회**
+
+- 일반적으로 Issue 테이블에 date_reported라는 칼럼이 있으면 모든 버그와 조회일자는 아래와 같이 조회 가능하다.
+
+```sql
+SELECT issue_id, date_reported FROM Issues;
+
+```
+
+- EVA 설계를 사용할 때 위 쿼리와 동일한 정보를 얻으려면 IssueAttributes 테이블에서 문자열로 date_reported란 이름의 속성을 가진 행을 꺼내야 한다.
+
+```sql
+SELECT issue_id, attr_value AS "date_reported"
+FROM IssueAttributes
+WHERE attr_name = 'date_reported';
+
+```
+
+- 위 쿼리는 더 복잡하고 덜 명확하다.
+
+
+
+**데이터 정합성 지원**
+
+- EVA를 사용하면 일반적인 데이터베이스 설계를 사용할 때 얻을 수 있는 여러가지 장점을 희생해야 한다.
+
+`필수 속성 사용 불가`
+
+- 일반적인 데이터베이스 설계에서는 칼럼을 NOT NULL로 선언해 항상 값을 가지도록 강제할 수 있다.
+- EVA 설계에서는 각 속성이 테이블의 칼럼이 아니라 행으로 대응된다. 하지만 이런 형태의 제약조건은 지원하지 않는다.
+- EVA 설계에서는 이를 강제하는 애플리케이션 코드를 직접 작성해야 한다.
+
+`SQL 데이터 타입 사용 불가`
+
+- 일반적인 데이터베이스 설계에서는 칼럼의 데이터 타입을 강제해 아래와 같은 문제를 예방할 수 있다.
+
+```sql
+INSERT INTO Issues (date_reported) VALUES ('banana'); -- ERROR!
+
+```
+
+- EVA 설계에서는 모든 속성을 수용할 수 있는 문자열 타입을 사용하는 것이 보통이기 때문에 유효하지 않은 값을 거부할 방법이 없다.
+
+```sql
+INSERT INTO IssueAttributes (issue_id, attr_name, attr_value)
+  VALUES (1234, 'date_reported', 'banana');  -- Not an error!
+
+```
+
+
+
+`참조 정합성 강제 불가`
+
+- 일반적인 데이터베이스에서는 색인 테이블에 대한 FK를 정의해 특정 속성의 범위를 제한할 수 있다.
+
+```sql
+CREATE TABLE Issues (
+  issue_id         SERIAL PRIMARY KEY,
+  -- other columns
+  status           VARCHAR(20) NOT NULL DEFAULT 'NEW',
+  FOREIGN KEY (status) REFERENCES BugStatus(status)
+);
+
+```
+
+- EVA 설계에서는 attr_value 칼럼에 이런 식의 제약조건을 적용할 수 없다.
+
+```sql
+CREATE TABLE IssueAttributes (
+  issue_id         BIGINT UNSIGNED NOT NULL,
+  attr_name        VARCHAR(100) NOT NULL,
+  attr_value       VARCHAR(100),
+  FOREIGN KEY (attr_value) REFERENCES BugStatus(status)
+);
+
+```
+
+
+
+`속성 이름 강제 불가`
+
+- EVA 설계에서 어떤 데이터는 date_reported 란 이름의 속성을 사용하고 어떤 데이터는 report_date란 이름의 속성을 사용한다.
+- 이 방법을 강제하는 방법은 attr_name 칼럼에 들어갈 수 있는 속성을 저장하는 테이블에 대한 FK를 선언하면 해결할 수 있다.
+
+
+
+**행을 재구성하기**
+
+- 각 속성이 IssueAttributes 테이블의 별도 행으로 저장되어 있으므로 행 하나의 일부 속성을 꺼내기 위해서는 각 속성에 대한 조인이 필요하다. 
+
+```sql
+SELECT i.issue_id,
+  i1.attr_value AS "date_reported",
+  i2.attr_value AS "status",
+  i3.attr_value AS "priority",
+  i4.attr_value AS "description"
+FROM Issues AS i
+  LEFT OUTER JOIN IssueAttributes AS i1
+    ON i.issue_id = i1.issue_id AND i1.attr_name = 'date_reported'
+  LEFT OUTER JOIN IssueAttributes AS i2
+    ON i.issue_id = i2.issue_id AND i2.attr_name = 'status'
+  LEFT OUTER JOIN IssueAttributes AS i3
+    ON i.issue_id = i3.issue_id AND i3.attr_name = 'priority';
+  LEFT OUTER JOIN IssueAttributes AS i4
+    ON i.issue_id = i4.issue_id AND i4.attr_name = 'description';
+WHERE i.issue_id = 1234;
+
+```
+
+- 속성 개수가 늘어나면 조인 회수도 늘어나야하고 쿼리 비용은 지수적으로 증가한다.
+
+
+
+## 안티패턴 인식 방법
+
+- 프로젝트 팀에서 다음과 같은 말을 하는 사람이 있다면 누군가 EVA 안티패턴을 사용하고 있다는 뜻이다.
+  - "이 데이터베이스는 메타데이터 변경 없이 확장이 가능하지. 런타임에 새로운 속성을 정의할 수 있어"
+  - "하나의 쿼리에서 조인을 최대 몇 번이나 할 수 있지?"
+  - "우리 전자상거래 플랫폼에서는 리포트를 어떻게 생성해야 할지 이해할 수가 없어. 아무래도 컨설턴트를 고용해야 할 것 같아."
+
+
+
+## 안티패턴 사용이 합당한 경우
+
+- 관계형 데이터베이스에서 EVA 안티패턴 사용을 합리화하기는 어렵다.
+- 하지만 동적 속성을 지원하는 일부 애플리케이션의 기능에 적용할 수 있다.
+- 프로젝트 계획 시 EVA 사용의 위험과 이에 따른 부가 작업을 충분히 고려하여 꼭 필요한 곳에만 사용한다면 나쁘다고만 할 수는 없지만 EVA를 사용하는 시스템은 다루기가 매우 까다롭다.
+- 비관계형 데이터 관리가 필요하다면 가장 좋은 방법은 비관계형 기술을 사용하는 것이다.
+  - CouchDB, MongoDB, Redis ...
+
+
+
+## 해법: 서브타입 모델링
+
+
+
