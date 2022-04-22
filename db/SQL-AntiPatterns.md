@@ -1322,5 +1322,185 @@ WHERE i.issue_id = 1234;
 
 ## 해법: 서브타입 모델링
 
+- EVA를 사용하지 않고 저장하는 몇가지 방법이 있다.
+- 타입의 수에 제한이 있고 각 서브타입의 속성을 알고 있다면 대부분의 방법이 잘 들어 맞는다.
+- 어떤 방법이 최적일지는 데이터를 어떻게 조회할지에 따라 다르기때문에 각 경우에 따라 올바른 설계를 해야 한다.
+
+**단일 테이블 상속(Single Table Inheritance)**
+
+- 가장 단순한 설계는 관련된 모든 타입을 하나의 테이블에 저장하고 각 타입에 있는 모든 속성을 별도의 칼럼으로 가지도록 하는 것이다.
+- 예제에서 이 속성은 issue_type이다.
+
+```sql
+CREATE TABLE Issues (
+  issue_id         SERIAL PRIMARY KEY,
+  reported_by      BIGINT UNSIGNED NOT NULL,
+  product_id       BIGINT UNSIGNED,
+  priority         VARCHAR(20),
+  version_resolved VARCHAR(20),
+  status           VARCHAR(20),
+  issue_type       VARCHAR(10),  -- BUG or FEATURE
+  severity         VARCHAR(20),  -- only for bugs
+  version_affected VARCHAR(20),  -- only for bugs
+  sponsor          VARCHAR(50),  -- only for feature requests
+  FOREIGN KEY (reported_by) REFERENCES Accounts(account_id)
+  FOREIGN KEY (product_id) REFERENCES Products(product_id)
+);
+
+```
+
+- 단일 테이블 상속의 한계는 새로운 객체 타입이 생기면 데이터베이스는 새로 생긴 객체 타입의 속성을 수용해야 한다. 이는 칼럼 수의 실질적인 한계에 직면할 수도 있다.
+- 단일 테이블 상속의 또 다른 한계는 어떤 속성이 어느 서브타입에 속하는지를 정의하는 메타데이터가 없다.
+- 단일 테이블 상속은 서브타입 개수가 적고 특정 서브타입에만 속하는 속성 개수가 적을 때, 그리고 액티브 레코드와 같은 단일 테이블 데이터베이스 접근 패턴을 사용해야 할 때가 가장 좋다.
+
+**구체 테이블 상속(Concrete Table Inheritance)**
+
+- 다른 방법은 서브타입별로 별도의 테이블을 만드는 것이다.
+- 각 테이블에는 베이스타입에 있는 공통 속성뿐 아니라 특정 서브타입에만 필요한 속성도 포함된다.
+
+```sql
+CREATE TABLE Bugs (
+  issue_id         SERIAL PRIMARY KEY,
+  reported_by      BIGINT UNSIGNED NOT NULL,
+  product_id       BIGINT UNSIGNED,
+  priority         VARCHAR(20),
+  version_resolved VARCHAR(20),
+  status           VARCHAR(20),
+  severity         VARCHAR(20), -- only for bugs
+  version_affected VARCHAR(20), -- only for bugs
+  FOREIGN KEY (reported_by) REFERENCES Accounts(account_id),
+  FOREIGN KEY (product_id) REFERENCES Products(product_id)
+);
+
+CREATE TABLE FeatureRequests (
+  issue_id         SERIAL PRIMARY KEY,
+  reported_by      BIGINT UNSIGNED NOT NULL,
+  product_id       BIGINT UNSIGNED,
+  priority         VARCHAR(20),
+  version_resolved VARCHAR(20),
+  status           VARCHAR(20),
+  sponsor          VARCHAR(50),  -- only for feature requests
+  FOREIGN KEY (reported_by) REFERENCES Accounts(account_id),
+  FOREIGN KEY (product_id) REFERENCES Products(product_id)
+);
+
+```
+
+- 구체 테이블 상속이 단일 테이블 상속보다 좋은 점은, 특정 서브타입을 저장할 때 해당 서브타입에 적용되지 않는 속성은 저장할 수 없게 한다는 것이다.
+
+```sql
+INSERT INTO FeatureRequests (issue_id, severity) VALUES ( ... ); -- ERROR!
+
+```
+
+- 구체 테이블 상속의 다른 장점은 단일 테이블 상속 설계에 있어야 했던 각 행의 서브타입을 나타내는 부가적 속성이 필요하지 않다는 것이다. (issue_type)
+- 그러나 서브타입 속성에서 어떤 속성이 공통 속성인지 알기 어렵고 새로운 공통속성이 추가되면 모든 서브타입 테이블을 변경해야 한다.
+- 관련된 객체가 이런 서브타입 테이블에 저장되었다는 것을 알려주는 메타데이터 역시 없다. 프로젝트에 새로 투입된 개발자가 테이블 정의를 살펴보면 이 두 테이블 사이의 관계를 정확하게 파악하기 어렵다.
+- 각 서브타입이 별도 테이블에 저장되어 있는 경우 서브타입에 상관없이 모든 객체를 보는 것이 복잡해진다 이 쿼리를 쉽게 하려면 각 서브타입 테이블에 공통 속성만을 선택한 다음 이를 UNION으로 묶은 뷰를 정의해야 한다.
+
+```sql
+CREATE VIEW Issues AS
+  SELECT b.issue_id, b.reported_by, ... 'bug' AS issue_type
+  FROM Bugs AS b
+   UNION ALL
+  SELECT f.issue_id, f.reported_by, ... 'feature' AS issue_type
+  FROM FeatureRequests AS f;
+
+```
+
+- 구체 테이블 상속 설계는 모든 서브타입을 한꺼번에 조회할 필요가 거의 없는 경우에 가장 적합하다.
 
 
+
+**클래스 테이블 상속(Class Table Inheritance)**
+
+- 테이블이 객체지향 클래스인 것처럼 생각해 상속을 흉내내는 것이다.
+- 서브타입에 공통인 속성을 포함하는 베이스타입을 위한 테이블을 하나 만들고 각 서브타입에 대해 테이블을 만든다.
+- 서브타입 테이블의 PK는 베이스 테이블에 대한 FK역할도 한다.
+
+```sql
+CREATE TABLE Issues (
+  issue_id         SERIAL PRIMARY KEY,
+  reported_by      BIGINT UNSIGNED NOT NULL,
+  product_id       BIGINT UNSIGNED,
+  priority         VARCHAR(20),
+  version_resolved VARCHAR(20),
+  status           VARCHAR(20),
+  FOREIGN KEY (reported_by) REFERENCES Accounts(account_id),
+  FOREIGN KEY (product_id) REFERENCES Products(product_id)
+);
+
+CREATE TABLE Bugs (
+  issue_id         BIGINT UNSIGNED PRIMARY KEY,
+  severity         VARCHAR(20),
+  version_affected VARCHAR(20),
+  FOREIGN KEY (issue_id) REFERENCES Issues(issue_id)
+);
+
+CREATE TABLE FeatureRequests (
+  issue_id         BIGINT UNSIGNED PRIMARY KEY,
+  sponsor          VARCHAR(50),
+  FOREIGN KEY (issue_id) REFERENCES Issues(issue_id)
+);
+
+```
+
+- 이 설계는 메타데이터에 의해 일대일 관계가 강제된다.
+- 이 설계는 검색에서 베이스 타입에 있는 속성만 참조하는 한, 모든 서브타입에 대한 검색을 하는 데 효율적인 방법을 제공한다.
+
+```sql
+SELECT i.*, b.*, f.*
+FROM Issues AS i
+  LEFT OUTER JOIN Bugs AS b USING (issue_id)
+  LEFT OUTER JOIN FeatureRequests AS f USING (issue_id);
+
+```
+
+- 이 쿼리는 좋은 VIEW 후보이기도 하다.
+- 모든 서브타입에 대한 조회가 많고 공통칼럼을 참조하는 경우가 많다면 이 설계가 가장 적합하다.
+
+**반구조적 데이터(Semistructure Data)**
+
+- 서브타입의 수가 많거나 또는 새로운 속성을 지원해야 하는 경우가 빈번하다면 데이터 속성 이름과 값을 XML 또는 JSON 형식으로 부호화해 TEXT 칼럼으로 저장할 수 있다.
+- Martin Fowler는 이 패턴을 직렬화된 LOB(Serialized LOB)이라 부른다
+
+```sql
+CREATE TABLE Issues (
+  issue_id         SERIAL PRIMARY KEY,
+  reported_by      BIGINT UNSIGNED NOT NULL,
+  product_id       BIGINT UNSIGNED,
+  priority         VARCHAR(20),
+  version_resolved VARCHAR(20),
+  status           VARCHAR(20),
+  issue_type       VARCHAR(10),   -- BUG or FEATURE
+  attributes       TEXT NOT NULL, -- all dynamic attributes for the row
+  FOREIGN KEY (reported_by) REFERENCES Accounts(account_id),
+  FOREIGN KEY (product_id) REFERENCES Products(product_id)
+);
+
+```
+
+- 이 설계으 장점은 확장이 쉽다는 것이다.
+- 새로운 속성은 언제든 TEXT 칼럼에 저장할 수 있다.
+- 단점은 이런 구조에서 SQL 특정 속성에 접근하는 것을 거의 지원하지 못한다는 점이다. (GROUP BY, SUM ...)
+- 이 설계는 서브타입 개수를 제한할 필요가 없가 어느 때고 새로운 속성을 정의할 수 있는 완전한 유연성이 필요할 때 가장 적합하다.
+
+
+
+**사후 처리**
+
+- 프로젝트를 인계받았거나 어쩔 수 없이 EAV를 사용해야하는 경우 EAV를 사용할 때 수반되는 부가 작업을 예상하고 계획해야 한다.
+- 무엇보다 일반적인 테이블에 데이터가 저장되어 있을 때처럼 엔터티를 단일 행으로 조회하는 쿼리를 작성하면 안되고 EAV 방식처럼 조회해야 한다.
+
+```sql
+SELECT issue_id, attr_name, attr_value
+FROM IssueAttributes
+WHERE issue_id = 1234;
+
+```
+
+
+
+**SQL Antipatterns Tip**
+
+- 메타데이터를 위해서는 메타데이터를 사용하라.
