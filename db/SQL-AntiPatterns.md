@@ -1876,3 +1876,215 @@ WHERE b.issue_id = 1234;
 
 
 
+
+
+# #8 다중 칼럼 속성
+
+- 사용자 연락처 테이블에서 전화번호 설계는 약간 까다롭다. 사람들은 여러 개의 전화번호를 사용한다.
+- 칼럼이 얼마나 많아야 충분할까?
+
+
+
+## 목표: 다중 값 속성 저장
+
+- 2장 무단횡단과 비슷하다.
+- 버그에 태그를 다는 요구사항이 있다. 해당 버그에는 N개의 태그가 달릴 수 있다.
+
+
+
+## 안티패턴: 여러 개의 칼럼 생성
+
+- 속성에 여러 값이 들어가는 것을 고려해야 하지만, 각 칼럼에는 하나의 값만을 저장해야 한다는 것을 안다.
+- 테이블에 여러 칼럼을 만들고 각 칼럼에 하나의 태그를 저장하게 하는 것이 자연스러워 보인다.
+
+```sql
+CREATE TABLE Bugs (
+  bug_id      SERIAL PRIMARY KEY,
+  description VARCHAR(1000),
+  tag1        VARCHAR(20),
+  tag2        VARCHAR(20),
+  tag3        VARCHAR(20)
+);
+
+```
+
+- 주어진 버그에 태그를 달 때, 이 세 칼럼 중 하나에 값을 넣는다. 사용되지 않는 칼럼은 NULL로 남는다.
+
+| bug_id | description | tag1     | tag2        | tag3 |
+| ------ | ----------- | -------- | ----------- | ---- |
+| 1      | blabla      | crash    | NULL        | NULL |
+| 2      | blabla      | printing | performance | NULL |
+| 3      | blabla      | NULL     | NULL        | NULL |
+
+
+
+**값 검색**
+
+- 주어진 태그를 가진 버그를 찾으려면 세 칼럼을 모두 확인해야 한다.
+
+```sql
+SELECT * FROM Bugs
+WHERE tag1 = 'performance'
+   OR tag2 = 'performance'
+   OR tag3 = 'performance';
+
+-- START:style1
+SELECT * FROM Bugs
+WHERE (tag1 = 'performance' OR tag2 = 'performance' OR tag3 = 'performance')
+  AND (tag1 = 'printing' OR tag2 = 'printing' OR tag3 = 'printing');
+-- END:style1
+-- START:style2
+SELECT * FROM Bugs
+WHERE 'performance' IN (tag1, tag2, tag3)
+  AND 'printing'    IN (tag1, tag2, tag3);
+-- END:style2
+
+```
+
+
+
+**값 추가와 삭제**
+
+- 값을 추가하기 전에 먼저 해당 칼럼에 값이 있는지 확인하고 업데이트해야한다.
+
+```sql
+-- START:select
+SELECT * FROM Bugs WHERE bug_id = 3456;
+-- END:select
+-- START:update
+UPDATE Bugs SET tag2 = 'performance' WHERE bug_id = 3456;
+-- END:update
+
+```
+
+- 위 방법은 동시쓰기 충돌이 일어날 수 있다.
+- 값 삭제는 아래와 같이 NULLIF() 함수를 사용해서 태그를 삭제할 수 있다.
+
+```sql
+UPDATE Bugs
+SET tag1 = NULLIF(tag1, 'performance'),
+    tag2 = NULLIF(tag2, 'performance'),
+    tag3 = NULLIF(tag3, 'performance')
+WHERE bug_id = 3456;
+
+```
+
+- NULLIF()는 두 인수 값이 같을 때 NULL을 리턴한다.
+- 아래 문장은 performance란 새로운 태그를 저장할 때 세 칼럼이 모두 NULL이 아니면 아무런 변경도 가하지 않는다.
+
+```sql
+UPDATE Bugs
+SET tag1 = CASE
+      WHEN 'performance' IN (tag2, tag3) THEN tag1
+      ELSE COALESCE(tag1, 'performance') END,
+    tag2 = CASE
+      WHEN 'performance' IN (tag1, tag3) THEN tag2
+      ELSE COALESCE(tag2, 'performance') END,
+    tag3 = CASE
+      WHEN 'performance' IN (tag1, tag2) THEN tag3
+      ELSE COALESCE(tag3, 'performance') END
+WHERE bug_id = 3456;
+
+```
+
+
+
+**유일성 보장**
+
+- 여러 칼럼에 동일한 값이 나타나지 않게 하고 싶겠지만 다중 칼럼 속성 안티패턴을 사용하는 경우에는 데이터베이스에서 이를 예방하지 못한다.
+
+```sql
+INSERT INTO Bugs (description, tag1, tag2, tag3)
+  VALUES ('printing is slow', 'printing', 'performance', 'performance');
+
+```
+
+
+
+**값의 수 증가 처리**
+
+- 이 설계의 또 다른 단점은 칼럼 세 개가 모자랄 수도 있다는 것이다.
+- 테이블을 정의하는 시점에 태그의 최대 개수가 얼마나 될지 예측할 수 없다.
+
+```sql
+ALTER TABLE Bugs ADD COLUMN tag4 VARCHAR(20);
+
+```
+
+- 이런 변경은 다음과 같은 이유로 비용이 많이 든다.
+  - 이미 데이터를 포함하고 있는 데이터베이스 테이블 구조를 변경하려면 테이블 전체를 잠금 설정하고 다른 클라이언트의 접근을 차단하는 과정이 필요하다.
+  - 어떤 데이터베이스는 희망하는 구조의 새로운 테이블을 정의해 예전 테이블에서 모든 데이터를 복사한 다음 예전 테이블을 삭제하는 식으로 테이블 변경을 구현한다. 테이블에 많은 데이터가 쌓여 있다면 작업에 많은 시간이 걸린다.
+  - 다중 칼럼 속성의 집합에 칼럼을 추가한 경우 모든 애플리케이션에서 이 테이블을 참조하는 모든 SQL문이 변경되어야 한다.
+
+
+
+
+
+## 안티패턴 인식 방법
+
+- 사용자 인터페이스나 문서에 여러 개의 값을 할당할 수 있지만 최대 개수가 제한되어 있는 속성이 기술되어 있다면 다중 칼럼 속성 안티패턴이 사용되고 있음을 나타내는 것으로 볼 수 있다.
+- 이 안티패턴이 사용되고 있음을 나타내는 징조
+  - "태그를 최대 몇 개까지 붙일 수 있도록 지원해야 하지?"
+  - "SQL에서 여러 칼럼을 한꺼번에 검색하려면 어떻게 해야 하지?"
+
+
+
+## 안티패턴 사용이 합당한 경우
+
+- 어떤 경우에는 속성의 개수가 고정되고 선택의 위치나 순서가 중요할 수 있다.
+- 각 칼럼에 들어가는 값은 같은 종류지만 그 의미와 사용처가 달라 논리적으로 다른 속성이 되는 경우다.
+
+
+
+## 해법: 종속 테이블 생성
+
+- 가장 좋은 해법은 다중 값 속성을 위한 칼럼을 하나 가지는 종속 테이블을 만드는 것이다.
+- 여러 개의 값을 여러 개의 칼럼 대신 여러 개의 행에 저장하는 것이다.
+
+```sql
+CREATE TABLE Tags (
+  bug_id       BIGINT UNSIGNED NOT NULL
+  tag          VARCHAR(20),
+  PRIMARY KEY (bug_id, tag),
+  FOREIGN KEY (bug_id) REFERENCES Bugs(bug_id)
+);
+
+INSERT INTO Tags (bug_id, tag)
+  VALUES (1234, 'crash'), (3456, 'printing'), (3456, 'performance');
+
+```
+
+- 하나의 버그에 연관된 모든 태그가 한 컬럼에 있으면 주어진 태그에 대한 버그를 검색하는 작업이 좀더 직관적이다.
+
+```sql
+SELECT * FROM Bugs JOIN Tags USING (bug_id)
+WHERE tag = 'performance';
+
+SELECT * FROM Bugs
+  JOIN Tags AS t1 USING (bug_id)
+  JOIN Tags AS t2 USING (bug_id)
+WHERE t1.tag = 'printing' AND t2.tag = 'performance';
+
+```
+
+- 추가 삭제 역시 다중 칼럼 안티패턴을 사용할 때보다 훨씬 쉬워진다.
+
+```sql
+INSERT INTO Tags (bug_id, tag) VALUES (1234, 'save');
+
+DELETE FROM Tags WHERE bug_id = 1234 AND tag = 'crash';
+
+```
+
+- PK 제약조건을 통해 중복을 허용하지 않게 하고 버그에 달릴 수 있는 태그의 수가 제한되지 않는다.
+
+
+
+**SQL Antipatterns Tip**
+
+- 같은 의미를 가지는 각각의 값은 하나의 칼럼에 저장하라.
+
+
+
+
+
