@@ -2088,3 +2088,279 @@ DELETE FROM Tags WHERE bug_id = 1234 AND tag = 'crash';
 
 
 
+# #9 메타데이터 트리블
+
+- 연도별 매출을 나타내는 일련의 칼럼이 들어온 상황
+
+```sql
+ALTER TABLE Bugs_2002 ADD COLUMN hours NUMERIC(9,2);
+ALTER TABLE Bugs_2003 ADD COLUMN hours NUMERIC(9,2);
+ALTER TABLE Bugs_2004 ADD COLUMN hours NUMERIC(9,2);
+
+```
+
+- 데이터들은 불완전하게 입력됐고 대부분의 행에서 NULL로 남겨졌다.
+- 그들은 매년 칼럼을 하나씩 추가해야 했고 많은 시간과 비용을 낭비했다.
+
+
+
+## 목표: 확장 적응성 지원
+
+- 데이터양이 늘어나면 어떤 데이터베이스 쿼리든 성능이 떨어진다.
+- 인덱스를 잘 이해하고 사용하면 도움이 되지만 테이블의 데이터는 계속 늘어나고 이는 쿼리 성능에 영향을 준다.
+- 목표는 쿼리 성능을 향상시키고 지속적으로 크기가 늘어나는 테이블을 지원하도록 데이터베이스를 구성하는 것이다.
+
+
+
+## 안티패턴: 테이블 또는 칼럼 복제
+
+- 행이 적은 테이블을 조회하는 것이 행이 많은 테이블을 조회하는 것보따 빠르다는 사실을 경험을 통해 안다. 이는 우리가 어떤 작업을 해야하는 모든 테이블이 보다 적은 행을 포함하도록 만들어야한다는 그릇된 생각을 하게 만든다.
+- 그리고 두 가지 형태의 안티패턴으로 나타난다.
+  - 많은 행을 가진 큰 테이블을 여러 개의 작은 테이블로 분리한다. 작은 테이블의 이름은 테이블의 속성 중 하나의 값을 기준으로 해서 짓는다.
+  - 하나의 칼럼을 여러 개의 칼럼으로 분리한다. 칼럼 이름은 다른 속성의 값을 기준으로 해서 짓는다.
+- 모든 테이블이 적은 행을 갖도록 하려는 목표를 달성하기 위해서는 지나치게 많은 칼럼을 가지는 테이블을 생성해야 하거나 또는 엄청나게 많은 테이블을 만들어야 한다.
+
+
+
+**테이블이 우글우글**
+
+- 데이터를 분리해 별도의 테이블에 넣으려면, 어떤 행을 어떤 테이블로 보낼지 결정하는 정책이 필요하다.
+
+```sql
+CREATE TABLE Bugs_2008 ( . . . );
+CREATE TABLE Bugs_2009 ( . . . );
+CREATE TABLE Bugs_2010 ( . . . );
+
+```
+
+- 데이터베이스에 행을 삽이할 때 삽입하는 값에 따라 올바른 테이블을 사용하는 것은 사용자의 책임이다.
+- 새로운 연도가 되었을때 오류가 발생하지 않도록 반드시 새로운 연도에 매칭되는 테이블을 생성해줘야한다.
+
+
+
+**데이터 정합성 관리**
+
+- 다음 쿼리는 항상 빈 결과를 리턴해야 한다.
+
+```sql
+SELECT * FROM Bugs_2009
+WHERE date_reported NOT BETWEEN '2009-01-01' AND '2009-12-31';
+
+```
+
+- 각 테이블에 CHECK 제약조건을 선언할 수는 있다.
+
+```sql
+CREATE TABLE Bugs_2009 (
+  -- other columns
+  date_reported DATE CHECK (EXTRACT(YEAR FROM date_reported) = 2009)
+);
+
+CREATE TABLE Bugs_2010 (
+  -- other columns
+  date_reported DATE CHECK (EXTRACT(YEAR FROM date_reported) = 2010)
+);
+
+```
+
+
+
+**데이터 동기화**
+
+- 실제 버그 보고일자는 2010/01-03이지만 실제로 버그를 보고한 고객은 2009/12/27일 수 있다. 이때는 간단한 UPDATE로 날짜를 바꿀 수 있어야 한다.
+
+```sql
+UPDATE Bugs_2010
+SET date_reported = '2009-12-27'
+WHERE bug_id = 1234;
+
+```
+
+- 하지만 해당 행은 Bugs_2010테이블에서 유효하지 않는 항목이 되기 때문에 삭제하고 다른 테이블에 삽입해줘야한다.
+
+```sql
+INSERT INTO Bugs_2009 (bug_id, date_reported, ...)
+  SELECT bug_id, date_reported, ...
+  FROM Bugs_2010
+  WHERE bug_id = 1234;
+
+DELETE FROM Bugs_2010 WHERE bug_id = 1234;
+
+```
+
+
+
+**유일성 보장**
+
+- PK값은 모든 분할된 테이블에 걸쳐 유일함이 보장되어야 한다.
+- 한 테이블에서 다른 테이블로 행을 옮겨야 하면, PK 값이 다른 행과 충돌하지 않는다는 확신이 있어야 한다.
+- 시퀀스 객체를 지원하는 데이터베이스를 사용한다면 키 값 생성을 위해 모든 분리된 테이블에 하나의 시퀀스를 만들 수 있지만 테이블당 ID 유일성만을 보장하는 데이터베이스에서는 조금 까다로워진다.
+- 아래와 같이 PK 값 생성만을 위한 별도 테이블을 하나 정의해야 한다.
+
+```sql
+CREATE TABLE BugsIdGenerator (bug_id SERIAL PRIMARY KEY);
+
+INSERT INTO BugsIdGenerator (bug_id) VALUES (DEFAULT);
+ROLLBACK;
+
+INSERT INTO Bugs_2010 (bug_id, . . .)
+  VALUES (LAST_INSERT_ID(), . . .);
+
+```
+
+
+
+**여러 테이블에 걸쳐 조회하기**
+
+- 생성된 연도에 상관없이 모든 오픈된 버그의 개수를 알려달라는 요청일 경우 아래와 같은 쿼리를 수행해야한다.
+
+```sql
+SELECT b.status, COUNT(*) AS count_per_status FROM (
+  SELECT * FROM Bugs_2008
+    UNION
+  SELECT * FROM Bugs_2009
+    UNION
+  SELECT * FROM Bugs_2010 ) AS b
+GROUP BY b.status;
+
+```
+
+- 시간이 흘러 새로운 테이블이 들어오면 해당 쿼리는 변경된다.
+
+
+
+**메타데이터 동기화**
+
+- 상사가 버그를 해결하는 데 필요한 시간을 추적하기 위한 칼럼을 추가하라고 한다.
+
+```sql
+ALTER TABLE Bugs_2010 ADD COLUMN hours NUMERIC(9,2);
+
+```
+
+- 해당 테이블에만 변경이 있으면 UNION 쿼리에서 와일드카드를 사용할 수 없다.
+
+
+
+**참조 정합성 관리**
+
+- Comments와 같은 종속테이블이 Bugs를 참조한다면 FK를 선언할 수 없게된다. FK는 하나의 테이블을 지정해야 하는데 부모 테이블이 여러개로 분리되었기 때문에 불가능하다.
+
+```sql
+CREATE TABLE Comments (
+  comment_id        SERIAL PRIMARY KEY,
+  bug_id            BIGINT UNSIGNED NOT NULL,
+  FOREIGN KEY (bug_id) REFERENCES Bugs_????(bug_id)
+);
+
+```
+
+
+
+**메타데이터 트리블 칼럼 식별하기**
+
+- 칼럼 또한 메타데이터 트리블이 될 수 있다.
+
+```sql
+CREATE TABLE ProjectHistory (
+  bugs_fixed_2008  INT,
+  bugs_fixed_2009  INT,
+  bugs_fixed_2010  INT
+);
+
+```
+
+
+
+
+
+## 안티패턴 인식 방법
+
+- 다음과 같은 말은 데이터베이스에서 메타데이터 트리블 안티패턴이 자라나고 있음을 나타내는 것일 수 있다.
+  - "그러면 우리는~당 테이블(또는 칼럼)을 생성해야 해"
+  - "이 데이터베이스에 테이블을 최대 몇 개 까지 만들 수 있을 까?"
+  - "오늘 아침에 애플리케이션이 새로운 데이터를 추가하는 데 실패한 이유를 알아냈어. 새해에 대한 테이블을 만드는 걸 까먹었지 뭐야."
+  - "어떻게 하면 여러 테이블을 한꺼번에 검색하는 쿼리를 작성할 수 있을까? 모든 테이블은 같은 칼럼을 가지고 있어."
+  - "어떻게 하면 테이블이 름을 파라미터로 넘길 수 있을까? 테이블 이름 뒤에 연도를 동적으로 붙여서 쿼리를 해야 해."
+
+
+
+## 안티패턴 사용이 합당한 경우
+
+- 매일 사용하는 데이터와 오래된 데이터를 분리해 별도 보관하는 방식으로 테이블 수동 분할을 사용할 수 있다.
+- 현재 데이터와 오래된 데이터를 함께 조회할 필요가 없다면, 오래된 데이터를 다른 위치로 옮기고 해당 테이블에서 삭제하는 것이 적절하다.
+
+
+
+## 해법: 파티션 정규화
+
+- 테이블이 매우 커졌을 때, 테이블을 직접 분리하는 것보다 성능을 향상시키는 더 좋은 방법이 있다.
+
+**수평 분할 사용**
+
+- 수평 분할이라 불리는 기능을 사용하면 큰 테이블을 분리했을 떄의 단점 없이 장점만 살릴 수 있다.
+- 행을 여러 파티션으로 분리하는 규칙과 함께 논리적 테이블을 하나 정의하면 나머지는 데이터베이스가 알아서 해준다.
+- 물리적으로는 테이블이 분리되어있지만 SQL에서는 마치 하나의 테이블인 것처럼 사용할 수 있다.
+
+```sql
+CREATE TABLE Bugs (
+  bug_id SERIAL PRIMARY KEY,
+  -- other columns
+  date_reported DATE
+) PARTITION BY HASH ( YEAR(date_reported) )
+  PARTITIONS 4;
+
+```
+
+- 테이블을 직접 분리하는 것과 비교했을 때, 행이 잘못된 분리 테이블로 들어갈 위험이 없다.
+- date_reported 칼럼을 수정해도 Bugs 테이블에 대한 쿼리를 실행할 수 있다.
+
+
+
+**수직 분할 사용**
+
+- 수평 분할이 테이블을 행으로 누나는데 반해, 수직 분할은 칼럼으로 테이블을 나눈다.
+- 칼럼으로 테이블을 나누는 방법은 크기가 큰 탈럼이나 거의 사용되지 않는 칼럼이 있을 때 유리하다.
+- BLOB과 TEXT 칼럼은 크기가 가변적이고 매우 커질 수 있는데 테이블 쿼리에 와일드카드를 사용하는 경우 모든 칼럼을 조회하기 때문에 BLOB, TEXT를 모두 읽어오는 경우가 발생할 수 있다.
+- 해결 방법은 테이블 종속된 다른 테이블을 만들고 이 테이블의 BLOB 칼럼에 큰 데이터를 저장하는 방법이다.
+
+```sql
+CREATE TABLE ProductInstallers (
+  product_id      BIGINT UNSIGNED PRIMARY KEY,
+  installer_image BLOB,
+  FOREIGN KEY (product_id) REFERENCES Products(product_id)
+);
+
+```
+
+- 다른 예로 MySQLdml MyISAM 스토리지 엔진에서는 행이 고정크기일 때 조회 성능이 가장 좋다. VARCHAR 같은 가변 길이 데이터 타입을 함께 조회하면 성능 이점을 얻어올 수 없다.
+- 따라서 아래와 같이 테이블을 분리할 수 있다.
+
+```sql
+CREATE TABLE Bugs (
+  bug_id        SERIAL PRIMARY KEY, -- fixed length data type
+  summary       CHAR(80),           -- fixed length data type
+  date_reported DATE,               -- fixed length data type
+  reported_by   BIGINT UNSIGNED,    -- fixed length data type
+  FOREIGN KEY  (reported_by) REFERENCES Accounts(account_id)
+);
+
+CREATE TABLE BugDescriptions (
+  bug_id       BIGINT UNSIGNED PRIMARY KEY,
+  description  VARCHAR(1000),      -- variable length data type
+  resolution   VARCHAR(1000)       -- variable length data type
+  FOREIGN KEY (bug_id) REFERENCES Bugs(bug_id)
+);
+
+```
+
+- 위 경우는 분리된 테이블의 칼럼과 원래 테이블의 칼럼을 함께 조회하는 경우가 드문 경우에만 해당되고 만약 아니라면 매번 조인을 해야 하기 때문에 득보다 실이 많을 수 있다.
+
+
+
+**SQL Antipatterns Tip**
+
+- 데이터가 메타데이터를 낳도록 하지 말라.
+
+
+
