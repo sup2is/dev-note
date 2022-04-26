@@ -2593,3 +2593,103 @@ ALTER TABLE Bugs MODIFY COLUMN status
 
 
 
+## 안티패턴 인식 방법
+
+- ENUM이나 체크 제약조건의 문제는 값의 집합이 고정되지 않았을 때 나타난다.
+- ENUM 사용을 고려하고 있다면 먼저 값의 집합이 변할 것 같은지 스스로에게 물어보고 변할 것 같으면 ENUM을 사용하지 않는게 좋다.
+  - "데이터베이스를 내려야 애플리케이션 메뉴의 선택항목을 추가할 수 있어. 길어야 30분이면 충분할거야. 모든게 잘 되면 말이지"
+  - "status 칼럼은 다음 값 중 하나만 가질 수 있어. 이 목록을 바꿀 일이 생기면 안 돼."
+  - "애플리케이션 코드에 있는 목록 값이 데이터베이스에 있는 비즈니스 규칙과 또 틀어졌어."
+
+
+
+## 안티패턴 사용이 합당한 경우
+
+- 값의 집합이 변하지 않는다면 ENUM을 사용해도 문제가 별로 없다.
+
+
+
+## 해법: 데이터로 값을 지정하기
+
+- 칼럼의 값을 제한하는 것보다 Bugs.status 칼럼에 들어갈 수 있는 각 값을 행으로 하는 색인 테이블을 만드는 것이다.
+- 그리고 Bugs.status가 새로 만든 테이블을 참조하도록 FK 제약조건을 선언한다.
+
+```sql
+CREATE TABLE BugStatus (
+  status  VARCHAR(20) PRIMARY KEY
+);
+
+INSERT INTO BugStatus (status) VALUES ('NEW'), ('IN PROGRESS'), ('FIXED');
+
+CREATE TABLE Bugs (
+  -- other columns
+  status  VARCHAR(20),
+  FOREIGN KEY (status) REFERENCES BugStatus(status)
+    ON UPDATE CASCADE
+);
+
+```
+
+- 위와 같은 방법을 사용하면 ENUM, 체크제약조건처럼 status 값을 제한할 수 있다.
+
+
+
+**값의 집합 쿼리하기**
+
+- 이제 허용된 값은 메타데이터로 관리되는 것이 아니라 데이터로 저장된다.
+- 값의 집합을 데이터로 얻어올 수 있기 때문에 허용된 값을 조회하기 쉽다.
+
+```sql
+SELECT status FROM BugStatus ORDER BY status;
+
+```
+
+
+
+**색인 테이블의 값 갱신하기**
+
+- 색인 테이블을 사용하면 평범한 INSERT 문으로 값을 추가할 수 있다.
+- 칼럼을 재정의하거나 다운타임 일정을 세울 필요도 없다. 
+
+```sql
+INSERT INTO BugStatus (status) VALUES ('DUPLICATE');
+
+UPDATE BugStatus SET status = 'INVALID' WHERE status = 'BOGUS';
+
+```
+
+
+
+**더 이상 사용하지 않는 값 지원하기**
+
+- Bugs에 있는 행이 참조하는 한 색인 테이블에서 행을 삭제할 수는 없다.
+- 그러나 색인 테이블에 또 다른 속성 칼럼을 추가해 더 이상 사용되지 않는 값을 표시할 수는 있다.
+
+```sql
+ALTER TABLE BugStatus ADD COLUMN active
+  ENUM('INACTIVE', 'ACTIVE') NOT NULL DEFAULT 'ACTIVE';
+
+```
+
+- 값을 DELETE 하는 대신 UPDATE해서 유연하고 융통성있게 사용할 수 있다.
+
+```sql
+UPDATE BugStatus SET active = 'INACTIVE' WHERE status = 'DUPLICATE';
+
+SELECT status FROM BugStatus WHERE active = 'ACTIVE';
+```
+
+
+
+**포팅이 쉽다**
+
+- ENUM, 체크제약조건과 달리 색인 테이블을 사용하는 방법은 FK 제약조건을 사용한 참조 정합성이란 표준 SQL 기능만 사용하기 때문에 포팅이 쉬워진다.
+- 각 값을 별도의 행으로 저장하기 때문에 행의 개수에 제한이 없다.
+
+
+
+**SQL Antipatterns Tip**
+
+- 고정된 값의 집합에 대한 유효성 확인을 할 때는 메타데이터를 사용하라.
+- 유동적인 값의 집합에 대한 유효성 확인을 할 때는 데이터를 사용하라.
+
