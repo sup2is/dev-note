@@ -3171,11 +3171,98 @@ CREATE TABLE Bugs (
 
 
 
+## 안티패턴 사용이 합당한 경우
+
+- NULL을 사용하는 것은 안티 패턴이 아니다. NULL을 일반적인 값처럼 사용하거나 일반적인 값을 NULL처럼 사용하는 것이 안티패턴이다.
+- NULL을 일반적인 값으로 취급해야 하는 경우 중 하나는 데이터를 import 또는 export할 때 모든 값이 텍스트로 표현되어야 하기 때문에 "NULL" 로 표시된다.
+- 사용자의 입력 또한 NULL을 직접 나타낼 수는 없다. 
+- 누락된 값에 여러가지 구분이 있을 때는 NULL을 사용할 수 없다.
+
+## 
+
+## 해법: 유일한 값으로 NULL을 사용하라
+
+- NULL 값과 관련된 대부분의 문제는 SQL의 세 가지 값 로직의 동작을 제대로 이해하지 못한 데서 비롯된다.
+
+
+
+**스칼라 수식에서의 NULL**
+
+| 수식               | 기대 값  | 실제 값 | 이유                                       |
+| ------------------ | -------- | ------- | ------------------------------------------ |
+| NULL = 0           | TRUE     | NULL    | NULL은 0 이 아니다.                        |
+| NULL = 12345       | FALSE    | NULL    | 지정된 값이 모르는 값과 같은지 알 수 없다. |
+| NULL <> 12345      | TRUE     | NULL    | 지정된 값이 모르는 값과 다른지 알 수 없다. |
+| NULL + 12345       | 12345    | NULL    | NULL은 0 이 아니다.                        |
+| NULL \|\| 'string' | 'string' | NULL    | NULL은 빈 문자열이 아니다.                 |
+| NULL = NULL        | TRUE     | NULL    | 모르는 값과 모르는 값이 같은지 알 수 없다. |
+| NULL <> NULL       | FALSE    | NULL    | 모르는 값과 모르는 값이 다른지 알 수 없다. |
 
 
 
 
 
+**불리언 수식에서의 NULL**
+
+| 수식           | 기대 값 | 실제 값 | 이유                                         |
+| -------------- | ------- | ------- | -------------------------------------------- |
+| NULL AND TRUE  | FALSE   | NULL    | NULL은 false가 아니다.                       |
+| NULL AND FALSE | FALSE   | FALSE   | 어떤 진리 값이든 FALSE와 AND를 하면 false다. |
+| NULL OR FALSE  | FALSE   | NULL    | NULL은 false가 아니다.                       |
+| NULL OR TRUE   | TRUE    | TRUE    | 어떤 진리 값이든 TRUE와 OR를 하면 true다.    |
+| NULL AND TRUE  | TRUE    | NULL    | NULL은 false가 아니다.                       |
+
+
+
+**NULL 검색하기**
+
+- SQL 표준에는 IS NULL 연선자가 정의되어 있는데 연산자가 NULL이면 true를 반환한다.
+- IS NOT NULL은 피연산자가 NULL이면 false를 리턴한다.
+
+```sql
+SELECT * FROM Bugs WHERE assigned_to IS NULL;
+
+SELECT * FROM Bugs WHERE assigned_to IS NOT NULL;
+
+```
+
+- SQL-99 표준에서는 IS DISTINCT FROM이란 또 다른 비교연산자가 정의되어 있다. 일반 비교 연산자인 <>와 비슷하게 동작한다.
+- 이 연산자를 사용하면 값을 비교하기 전에 IS NULL로 확인을 해야 하는 수식을 쓰지 않아도 된다.
+- 아래 쿼리는 동일하다.
+
+```sql
+SELECT * FROM Bugs WHERE assigned_to IS NULL OR assigned_to <> 1;
+
+SELECT * FROM Bugs WHERE assigned_to IS DISTINCT FROM 1;
+
+```
+
+- 쿼리 파라미터로 리터럴 값이나 NULL을 보내고 싶을 때 이 연산자를 사용할 수 있다.
+- IS DISTINCT FROM의 지원은 데이터베이스 제품마다 다르다.
+  - PostgreSQL, IBM DB2, Firebird 지원
+  - Oracle, MSSQL 미지원
+  - MySQL 은 <=>
+
+
+
+**칼럼을 NOT NULL로 선언하기**
+
+- NULL 값이 애플리케이션 정책을 위반하거나 또는 의미가 없는 경우에는 칼럼에 NOT NULL 제약조건을 선언하는 것이 권장사항이다.
+- 애플리케이션 코드에 의존하기보다는 데이터베이스가 제약조건을 균일하게 강제하도록 하는 것이 더 좋은 방법이다.
+
+
+
+**동적 디폴트**
+
+- 주어진 칼럼이나 수식, 특정 쿼리에서만 디폴트 값을 설정하기 위해 COALESCE() 함수를 사용할 수 있따.
+- 이 함수는 가변 인수를 받고 NULL이 아닌 첫 인수를 리턴한다.
+
+```sql
+SELECT first_name || COALESCE(' ' || middle_initial || ' ', ' ') || last_name
+  AS full_name
+FROM Accounts;
+
+```
 
 
 
