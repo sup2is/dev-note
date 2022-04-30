@@ -3067,3 +3067,115 @@ CREATE INDEX TelephoneBook ON Accounts(last_name, first_name);
 
 
 
+# #14 모르는 것에 대한 두려움
+
+
+
+## 목표: 누락된 값을 구분하기
+
+- 데이터베이스의 어떤 데이터에 값이 없는 것은 피할 수 없다.
+- SQL은 특수한 값인 NULL을 지원한다.
+  - 여전히 일하고 있는 직원의 톼사일과 같이 행을 생성할 때 값을 알 수 없는 곳에 NULL을 사용할 수 있다.
+  - 전기만 사용하는 자동차에 대한 연료 효율과 같이 주어진 칼럼이 주어진 행에서 적용 가능한 값이 없는 경우에 NULL을 사용할 수 있다.
+  - 유효하지 않은 값이 입력되는 경우 NULL을 리턴할 수 있다.
+  - 외부 조인에서 매치되지 않는 행의 칼럼 값의 자리를 채우는 데 NULL 값을 사용한다.
+- 목표는 NULL을 포함하는 칼럼에 대한 쿼리를 작성하는 것이다.
+
+## 안티패턴: NULL을 일반 값처럼 사용
+
+**수식에서 NULL 사용**
+
+- NULL은 0과 같지 않다. 알지 못하는 값에 10을 더한다 해도 여전히 알지 못하는 값이다.
+
+```sql
+-- hours is NULL
+SELECT hours + 10 FROM Bugs;
+-- return NULL
+```
+
+- 문자열도 마찬가지로 NULL과 연결하면 NULL이 된다. (Oracle과 Sybase는 예외)
+- NULL은 false와도 같지 않다.
+- NULL이 들어간 불리언 수식은 AND, OR, NOT을 사용하더라도 항상 NULL이 된다.
+
+
+
+**NULL을 가질 수 있는 칼럼 검색**
+
+- 다음 쿼리는 assigned_to의 값이 123인 행만을 리턴하고 다른 값을 가지거나 칼럼이 NULL인 행은 리턴하지 않는다.
+
+```sql
+SELECT * FROM Bugs WHERE assigned_to = 123;
+
+```
+
+- 아래 쿼리는 assigned_to의 값이 123 아닌 값만 리턴하게해서 assigned_to이 NULL인 것도 리턴할 것으로 예상할 수 있지만 실제로는 그렇지 않다.
+
+```sql
+SELECT * FROM Bugs WHERE NOT (assigned_to = 123);
+
+```
+
+- NULL과는 어떤 비교를 하든 그 결과는 NULL이다.
+- 아래 쿼리 역시 그냥 NULL이다. assigned_to가 NULL인 행을 리턴하지 않는다.
+
+```sql
+SELECT * FROM Bugs WHERE assigned_to = NULL;
+
+SELECT * FROM Bugs WHERE assigned_to <> NULL;
+
+```
+
+
+
+**쿼리 파라미터로 NULL 사용**
+
+- 파라미터를 받는 SQL에서는 NULL을 다른 일반적인 값처럼 사용하기가 어렵다.
+- 아래 쿼리에서는 NULL을 파라미터로 사용할 수 없다.
+
+```sql
+SELECT * FROM Bugs WHERE assigned_to = ?;
+
+```
+
+
+
+**문제 회피하기**
+
+- 위와 같은 문제를 회피하기 위해 NULL을 허용하는 칼럼을 NOT NULL로 선언해볼 수 있다.
+
+```sql
+CREATE TABLE Bugs (
+  bug_id            SERIAL PRIMARY KEY,
+  -- other columns
+  assigned_to       BIGINT UNSIGNED NOT NULL,
+  hours             NUMERIC(9,2) NOT NULL,
+  FOREIGN KEY (assigned_to) REFERENCES Accounts(account_id)
+);
+
+```
+
+- 이런 값들은 해당 칼럼에서 아무런 의미를 가지면 안되기 때문에 0 또는 -1 등등의 매직넘버를 사용할 수 있다. 이런 값들은 히스토리가 되고 문서화가 반드시 되어야 한다.
+- assigned_to 칼럼은 Accounts의 FK로 존재하기 때문에 매직넘버에 맞는 Accounts.account_id 가 있어야 한다. 이는 실제 사용자 계정에 대한 참조가 없다는 것을 표시하기 위해 계정을 생성해야 한다는 의미다.
+- 칼럼을 NOT NULL로 선언했을 때는 해당 칼럼에 값이 없는 상태로 행이 존재하는 것이 의미가 없기 때문이어야 한다.
+- 누락된 값은 NULL 이어야 한다.
+
+
+
+## 안티패턴 인식 방법
+
+- 자신이나 팀원이 다음과 같은 문제를 설명하는 것을 발견한다면 NULL을 잘 못 다루고 있기 때문일 수도 있다.
+  - "assigned_to 칼럼에 아무 값도 설정되지 않은 행을 어떻게 찾을 수 있지?"
+  - "애플리케이션에서 몇몇 사용자의 전체 이름이 표시되지 않아. 데이터베이스에서는 분명 볼 수 있는데."
+  - "이 프로젝트의 전체 작업시간 보고서에 우리가 완료한 몇몇 버그만 포함되어 있어! 그러니까 우선순위를 할당한 것들만 포함이 되어 있네"
+  - "Bugs 테이블에서 '알 수 없음'을 나타내는 데 예전에 사용하던 문자열을 사용할 수 없다는 것을 확신했어. 다른 어떤 값을 사용해야 할 지 그리고 데이터를 변환해서 우리 코드가 새로운 값을 사용하도록 하는 데 개발 기간이 얼마나 필요할지 논의하기 위한 회의가 필요해"
+
+
+
+
+
+
+
+
+
+
+
