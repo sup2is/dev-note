@@ -3424,11 +3424,86 @@ WHERE NOT EXISTS
 
 
 
+**유도 테이블 사용하기**
+
+- 서브쿼리를 유도테이블로 사용해 각 제품에 대한 proudct_id와 버그 보고일자의 최댓값만 포함하는 일시결과를 만들 수 있다.
+- 그런 다음 이 결과를 테이블과 조인해 쿼리 결과가 각 제품당 가장 최근의 버그만포함하게 하면 결과를 얻을 수 있다.
+
+```sql
+SELECT m.product_id, m.latest, b1.bug_id
+FROM Bugs b1 JOIN BugsProducts bp1 USING (bug_id)
+  JOIN (SELECT bp2.product_id, MAX(b2.date_reported) AS latest
+   FROM Bugs b2 JOIN BugsProducts bp2 USING (bug_id)
+   GROUP BY bp2.product_id) m
+  ON (bp1.product_id = m.product_id AND b1.date_reported = m.latest);
+
+```
+
+- 유도 테이블을 사용하는 방법은 상호 연관된 서브쿼리를 사용하는 방법보다 확장적용성이 좋은 대안이다.
+- 대부분의 데이터베이스에서는 서브쿼리가 한 번만 수행되지만 여전히 임시테이블을 사용하므로 성능상 최적의 방법은 아니다.
 
 
 
+**조인 사용하기**
+
+- 대응되는 행이 없을 수도 있는 행의 집합에 대해 대응을 시도하는 조인을 시도할 수 있다.
+
+```sql
+SELECT bp1.product_id, b1.date_reported AS latest, b1.bug_id
+FROM Bugs b1 JOIN BugsProducts bp1 ON (b1.bug_id = bp1.bug_id)
+LEFT OUTER JOIN (Bugs AS b2 JOIN BugsProducts AS bp2 ON (b2.bug_id = bp2.bug_id))
+  ON (bp1.product_id = bp2.product_id AND (b1.date_reported < b2.date_reported
+    OR b1.date_reported = b2.date_reported AND b1.bug_id < b2.bug_id))
+WHERE b2.bug_id IS NULL;
+
+```
+
+- 서브쿼리보다 확장적응성이 뛰어나끼 때문에 대량 데이터에 대한 쿼리에서 확장적응성이 중요한 경우에는 조인을 사용하는게 좋다. 
+- 하지만 어떤 방법이 다른 방법보다 성능이 좋다고 가엊ㅇ하지 말고 여러 형태의 쿼리에 대해 성능을 측정해 확인해야한다는 점을 기억해야 한다.
 
 
+
+**다른 칼럼에 집계 함수 사용하기**
+
+- 다른 칼럼에 집계 함수를 적용해 단일 값 규칙을 따르게 할 수도 있다.
+
+```sql
+SELECT product_id, MAX(date_reported) AS latest,
+  MAX(bug_id) AS latest_bug_id
+FROM Bugs JOIN BugsProducts USING (bug_id)
+GROUP BY product_id;
+
+```
+
+- bug_id가 시간순으로 생성되는 경우에만 이 방법을 사용할 수 있다.
+
+
+
+**각 그룹에 대해 모든 값을 연결하기**
+
+- MySQL과 SQLite는 그룹에 속한 모든 값을 하나의 값으로 연결하는 GROUP_CONCAT()함수를 지원한다. 이 함수는 디폴트로 쉼표로 구분된 문자열을 만든다.
+
+```sql
+SELECT product_id, MAX(date_reported) AS latest
+  GROUP_CONCAT(bug_id) AS bug_id_list,
+FROM Bugs JOIN BugsProducts USING (bug_id)
+GROUP BY product_id;
+
+```
+
+| product_id | latest     | bug_id_list      |
+| ---------- | ---------- | ---------------- |
+| 1          | 2010-06-01 | 1234, 2248       |
+| 2          | 2010-02-16 | 3456, 4077, 5150 |
+| 3          | 2010-01-01 | 5678, 8063       |
+
+- 이 방법의 단점은 표준이 아니라는 점이다.
+
+
+
+**SQL Antipatterns Tip**
+
+- 모호한 쿼리 결과를 피하기 위해 단일 값 규칙을 따라라.
 
 
 
