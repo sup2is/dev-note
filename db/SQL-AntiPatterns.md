@@ -3559,4 +3559,127 @@ SELECT * FROM Bugs ORDER BY RAND() LIMIT 1;
 ## 해법: 테이블 전체 정렬 피하기
 
 - 임의로 정렬하는 방법은 테이블 스캔과 비용이 많이 드는 수동정렬을 수반한다.
+- 최적화할 수 없는 쿼리를 최적화하려고 헛된 노력을 들이기보다는, 새로운 접근 방법을 생각하는 편이 낫다.
+
+**1과 MAX 사이에서 임의의 키 값 고르기**
+
+- 테이블 정렬을 피하는 방법 중 하나는 1과 PK의 최댓값 사이에서 임의의 값을 선택하는 것이다.
+
+```sql
+SELECT * FROM Bugs
+WHERE bug_id = (SELECT CEIL(RAND() * (SELECT MAX(bug_id)) FROM Bugs);
+```
+
+- 이 방법은 PK값이 1부터 시작해 연속적으로 존재한다고 가정한다.
+- 키가 1과 최댓값 사이의 모든 값을 사용하는 경우에는 이 방법을 사용할 수 있다.
+
+
+
+**다음으로 큰 키 값 고르기**
+
+- 아래 쿼리는 1과 최댓값 사이에 빈틈이 있는 경우에도 사용할 수 있다.
+
+```sql
+SELECT b1.*
+FROM Bugs AS b1
+JOIN (SELECT CEIL(RAND() * (SELECT MAX(bug_id) FROM Bugs)) AS bug_id) AS b2
+WHERE b1.bug_id >= b2.bug_id
+ORDER BY b1.bug_id
+LIMIT 1;
+
+```
+
+- 이 방법은 임의의 수가 키 값과 대응되지 않는 경우에 대한 문제를 해결하지만 빈틈 바로 앞에 있는 키 값이 더 자주 선택된다는 단점이 있다.
+- 빈틈이 드물게 존재하고 모든 키 값이 동일한 빈도로 선택되는 것이 중요하지 않을 때 이방법을 사용할 수 있다.
+
+
+
+**모든 키 값의 목록을 구한 다음, 임의로 하나 고르기**
+
+- 결과 집합의 PK 값 하나를 고르는 애플리케이션 코드를 사용할 수 있다.
+- 이 기법은 테이블 정렬을 피하고 각 키 값을 거의 같은 확률로 선택하지만 다른 비용이 든다
+  - 데이터베이스로부터 모든 bug_id 값을 불러올 때 리스트 크기가 클 수 있다. 크기가 너무 커서 애플리케이션 메모리 자원을 넘어설 수 있다. 
+  - 쿼리를 두번 해야 한다. 한 번은 PK, 두번째는 임의의 행을 가져오기 위해서다.
+  - 결과 집합의 크기가 적당하고 단순한 쿼리로 임의의 행을 선택하는 경우에 이 기법을 사용할 수 있다.
+
+
+
+**오프셋을 이용해 임의로 고르기**
+
+- 데이터 집합에서 행의 개수를 세고 0과 행 개수 사이의 임의의 수를 고른 다음 데이터 집합을 쿼리할 때 이수를 오프셋으로 사용하는 방법이다.
+
+```sql
+<?php
+$rand = "SELECT ROUND(RAND() * (SELECT COUNT(*) FROM Bugs))";
+$offset = $pdo->query($rand)->fetch(PDO::FETCH_ASSOC);
+$sql = "SELECT * FROM Bugs LIMIT 1 OFFSET :offset";
+$stmt = $pdo->prepare($sql);
+$stmt->execute( $offset );
+$rand_bug = $stmt->fetch();
+
+```
+
+- 이 방법은 표준이 아닌 LIMIT절에 의존하고 있다. LIMIT절은 MySQL PostgreSQL, SQLite에서 지원한다.
+- 다른 대안은 Oracle, MSSQL, IBM DB2에서 동작하는 ROW_NUMBER() 윈도 함수를 사용하는 것이다.
+
+```sql
+<?php
+$rand = "SELECT 1 + MOD(ABS(dbms_random.random()),
+  (SELECT COUNT(*) FROM Bugs)) AS offset FROM dual";
+$offset = $pdo->query($rand)->fetch(PDO::FETCH_ASSOC);
+
+$sql = "WITH NumberedBugs AS (
+  SELECT b.*, ROW_NUMBER() OVER (ORDER BY bug_id) AS RN FROM Bugs b
+) SELECT * FROM NumberedBugs WHERE RN = :offset";
+$stmt = $pdo->prepare($sql);
+$stmt->execute( $offset );
+$rand_bug = $stmt->fetch();
+
+```
+
+- 키 값이 연속적이라고 확신할 수 없고, 각 행이 선택될 확률을 같게 해야 하는 경우에 이 방법을 사용할 수 있다.
+
+**벤더 종속적인 방법**
+
+- 어떤 데이터베이스제품이든 이런 종류의 작업을 위한 각자의 방법이 있을 수 있다.
+- MSSQL 2005에는 TABLESAMPLE 절이 있다.
+
+```sql
+SELECT * FROM Bugs TABLESAMPLE (1 ROWS);
+
+```
+
+- Oracle은 약간 다르게 SAMPLE 절을 사용한다. 다음 쿼리는 테이블에서 1%의 행을 가져온 다음 임의의 순서로 정렬한 후 한 행만 가져온다.
+
+```sql
+SELECT * FROM (SELECT * FROM Bugs SAMPLE (1)
+ORDER BY dbms_random.value) WHERE ROWNUM = 1;
+
+```
+
+
+
+**SQL Antipatterns Tip**
+
+- 어떤 쿼리는 최적화할 수 없다. 이 경우에는 다른 접근 방법을 취해야 한다.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
