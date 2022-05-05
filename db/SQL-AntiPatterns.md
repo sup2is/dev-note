@@ -3838,5 +3838,49 @@ WHERE testoutput.existsNode('/testsuite/test[@status="fail"]') > 0;
 
 
 
+# #18 스파게티 쿼리
 
+## 목표: SQL 쿼리 줄이기
+
+- SQL 프로그래머들이 일하면서 가장 흔하게 수렁에 빠지는 경우 중 하나가 "이걸 어떻게 하나의 쿼리로 해결할 수 있을까?" 하고 생각할 때다.
+- 프로그래머는 작업의 복잡도를 줄일 수는 없지만 방법은 단순화하고 싶어한다. 하나의 쿼리로 문제를 풀면 이목표를 달성했다고 생각한다.
+
+
+
+## 안티패턴: 복잡한 문제를 한 번에 풀기
+
+- SQL은 표현력이 뛰어난 언어다. 그러나 모든 작업을 한 줄의 코드로 해치워야 한다는 접근방법이 좋은 생각은 아니다.
+
+
+
+**의도하지 않은 제품**
+
+- 모든 결과를 하나의 쿼리로 만들어내려고 시도할 때 나타나는 흔한 결과 중 하나가 카테시안 곱이다.
+- 카테시안 곱은 쿼리에 사용된 두 테이블에 이들의 관계를 제한하는 조건이 없을 때 발생한다.
+
+```sql
+SELECT p.product_id,
+  COUNT(f.bug_id) AS count_fixed,
+  COUNT(o.bug_id) AS count_open
+FROM BugsProducts p
+LEFT OUTER JOIN (BugsProducts bpf JOIN Bugs f USING (bug_id)) f 
+  ON (p.bug_id = f.bug_id AND f.status = 'FIXED')
+LEFT OUTER JOIN (BugsProducts bpo JOIN Bugs o USING (bug_id)) o 
+  ON (p.bug_id = o.bug_id AND o.status = 'OPEN')
+WHERE p.product_id = 1
+GROUP BY p.product_id;
+
+```
+
+
+
+- 수정된 버그 (f 테이블) 와 오픈된 버그 (o 테이블) 사이의 관계를 제한하는 조건이 지정되지 않았기 때문에 디폴트는 카테시안곱이다. 
+- 이와 같이 한 쿼리로 여러 작업을 처리하려 할 때는 의도하지 않은 카테시안 곱을 생성하기 쉽다.
+- 하나의 쿼리에서 관련 없는 작업을 더많이 ㅊ처리하려 시도하면, 또 다른 카테시안 곱으로 전체 행의 수가 다시 늘어날 것이다.
+
+
+
+**그래도 충분하지 않다면**
+
+- 이런 쿼리는 잘못된 결과를 얻을 수 있을 뿐만 아니라, 작성하기도 어렵고 수정하기도 어렵고, 디버깅하기도 어렵다는 점을 고려해야 한다.
 
