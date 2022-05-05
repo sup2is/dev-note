@@ -2298,7 +2298,7 @@ CREATE TABLE ProjectHistory (
 
 **수평 분할 사용**
 
-- 수평 분할이라 불리는 기능을 사용하면 큰 테이블을 분리했을 떄의 단점 없이 장점만 살릴 수 있다.
+- 수평 분할이라 불리는 기능을 사용하면 큰 테이블을 분리했을 때의 단점 없이 장점만 살릴 수 있다.
 - 행을 여러 파티션으로 분리하는 규칙과 함께 논리적 테이블을 하나 정의하면 나머지는 데이터베이스가 알아서 해준다.
 - 물리적으로는 테이블이 분리되어있지만 SQL에서는 마치 하나의 테이블인 것처럼 사용할 수 있다.
 
@@ -2766,7 +2766,7 @@ CREATE TABLE Screenshots (
 
 **트랜잭션 문제**
 
-- 보통은 데이터를 업데이트하거나 삭제할 때, COMMIT으로 트랜잭션을 끝내기 전까지는 변경 사항이 다른 클라이언트에 보이지 않지만 데이터베이스 밖에 있는 파일을 변경할 떄는 이런식으로 동작하지 않는다.
+- 보통은 데이터를 업데이트하거나 삭제할 때, COMMIT으로 트랜잭션을 끝내기 전까지는 변경 사항이 다른 클라이언트에 보이지 않지만 데이터베이스 밖에 있는 파일을 변경할 때는 이런식으로 동작하지 않는다.
 - 파일을 삭제하거나 변경하면 다른 클라이언트에도 바로 영향이 간다.
 
 
@@ -2919,7 +2919,7 @@ CREATE TABLE Bugs (
 ```
 
 - 위 DDL에서는 쓸모없는 인덱스가 몇개 있다.
-  1. bug_id: 대부분의 데이터 베이스는 PK에 대해 자동으로 인덱스를 생성한다. 데이터베이스 제품에 따라 다르기떄문에 사용하는 데이터베이스의 문서를 읽어보자.
+  1. bug_id: 대부분의 데이터 베이스는 PK에 대해 자동으로 인덱스를 생성한다. 데이터베이스 제품에 따라 다르기때문에 사용하는 데이터베이스의 문서를 읽어보자.
   2. summary: VARCHAR(80)과 같이 긴 문자열타입에 대한 인덱스는 작은 데이터타입에 대한 인덱스보다 크다. summary 칼럼 전체로 검색을 하거나 정렬을 하는 쿼리를 실행시킬 일이 많이 없다.
   3. hours: 이 칼럼 역시 특정 값으로 검색할 일이 없을 것 같다.
   4. bug_id, date_reported, status: 복합 인덱스에서는 컬럼 순서가 중요하다. 검색 조건, 조인 조건 또는 정렬 순서에 맞춰 왼쪽에서 오른쪽 순으로 칼럼을 나열해야 한다.
@@ -3883,4 +3883,125 @@ GROUP BY p.product_id;
 **그래도 충분하지 않다면**
 
 - 이런 쿼리는 잘못된 결과를 얻을 수 있을 뿐만 아니라, 작성하기도 어렵고 수정하기도 어렵고, 디버깅하기도 어렵다는 점을 고려해야 한다.
+- 애플리케이션에서는 지속적인 개선 요청이 있을 것이라 예상해야 한다.
+- SQL 쿼리를 복잡하게 작성하면 이를 개선하는 데 더 많은 비용과 시간이 필요하게 된다.
+- 많은 조인, 상호 연관된 서브쿼리 등등으로 인해 실행할 때의 비용 역시 높은편이다. 여러 개의 단순한 쿼리를 사용하는 편이 훨씬 더 경제적이다.
+
+
+
+## 안티패턴 인식 방법
+
+- 프로젝트 구성원이 다음과 같은 말을 하는게 들리면, 스파게티 쿼리 안티패턴이 사용되고 있음을 나타내는 것일 수 있다.
+  - "합계와 개수가 왜 이렇게 크지?"
+  - "나는 하루 종일 이 괴물 같은 SQL 쿼리와 씨름했어"
+  - "우리 데이터베이스 리포트에는 아무것도 추가할 수 없어. SQL 쿼리가 어떻게 동작하는지 이해하려면 시간이 엄청나게 오래 걸릴거야"
+  - "쿼리에 DISTINCT를 하나 더 추가해봐"
+- 어떤 쿼리가 지나치게 오래걸리면 스파게티 쿼리임을 의심해봐야 한다.
+
+
+
+## 안티패턴 사용이 합당한 경우
+
+- 하나의 쿼리로 복잡한 작업을 실행하는 가장 일반적인 경우는 프로그래밍 프레임워크나 비주얼 컴포넌트 라이브러리를 사용할 때다.
+- 간단한 BI(Business Intelligence) 도구나 리포팅 도구 또한 이런 범주에 속하며 보통 하나의 데이터 소스에 접속해 데이터를 표시한다.
+- 이런 리포팅 애플리케이션을 사용한다면 코드를 직접 작성하는 경우보다 복잡한 SQL 쿼리를 만들게 된다.
+- 때로는 모든 결과를 정렬된 순서로 묶어서 봐야 하기 때문에, 하나의 쿼리로 복잡한 결과를 만들고 싶을 수도 있다.
+
+
+
+## 해법: 분할해서 정복하기
+
+- 검약율
+  - 두 개의 이론이 동일한 예측을 한다면, 단순한 쪽이 좋은 이론이다.
+- 동일한 결과 집합을 만드는 쿼리 두 개중 하나를 선택해야 할 때 단순한 쪽을 선택해야 한다.
+
+
+
+**한 번에 하나씩**
+
+- 의도하지 않은 카테시안 곱이 생기는 두 테이블 사이에 논리적 조인 조건을 찾을 수 없다면 스파게티 쿼리를 단순한 여러 개의 쿼리로 나누워야 한다.
+
+```sql
+SELECT p.product_id, COUNT(f.bug_id) AS count_fixed
+FROM BugsProducts p
+LEFT OUTER JOIN Bugs f ON (p.bug_id = f.bug_id AND f.status = 'FIXED')
+WHERE p.product_id = 1
+GROUP BY p.product_id;
+
+SELECT p.product_id, COUNT(o.bug_id) AS count_open
+FROM BugsProducts p
+LEFT OUTER JOIN Bugs o ON (p.bug_id = o.bug_id AND o.status = 'OPEN')
+WHERE p.product_id = 1
+GROUP BY p.product_id;
+
+```
+
+- 이 쿼리는 카테시안 곱도 생성하지 않고 단순하다. 리포트에 새로운 요구사항을 추가해야 하는 경우 유지보수가 쉽다. SQL엔진도 쉽게 최적화하고 실행할 수 있게 됐다. 다른사람들도 쉽게 이해할 수 있는 쿼리가 됐다.
+
+
+
+**UNION 연산**
+
+- UNION 연산을 사용하면 여러 쿼리의 결과를 하나의 결과 집합으로 묶을 수 있다.
+- 하나의 쿼리를 실행시켜 하나의 결과집합을 받는 것이 정말 필요하다면 UNION이 유용할 수 있다. (ex 결과 집합 정렬)
+
+```sql
+(SELECT p.product_id, f.status, COUNT(f.bug_id) AS bug_count
+ FROM BugsProducts p
+ LEFT OUTER JOIN Bugs f ON (p.bug_id = f.bug_id AND f.status = 'FIXED')
+ WHERE p.product_id = 1
+ GROUP BY p.product_id, f.status)
+
+UNION ALL
+
+(SELECT p.product_id, o.status, COUNT(o.bug_id) AS bug_count
+ FROM BugsProducts p
+ LEFT OUTER JOIN Bugs o ON (p.bug_id = o.bug_id AND o.status = 'OPEN')
+ WHERE p.product_id = 1
+ GROUP BY p.product_id, o.status)
+
+ORDER BY bug_count;
+
+```
+
+
+
+**상사의 문제 해결하기**
+
+- 가장 좋은 방법은 작업을 분리하는 것이다.
+- 우리가 작업하는 제품의 수, 버그를 수정한 개발자 수, 개발자 당 평균 수정 버그 개수, 수정한 버그 중 고객이 보고한 것의 개수를 구하는 쿼리를 개별적으로 동작시키면 된다.
+
+```sql
+SELECT COUNT(*) AS how_many_products
+FROM Products;
+
+SELECT COUNT(DISTINCT assigned_to) AS how_many_developers
+FROM Bugs
+WHERE status = 'FIXED';
+
+SELECT AVG(bugs_per_developer) AS average_bugs_per_developer
+FROM (SELECT dev.account_id, COUNT(*) AS bugs_per_developer
+      FROM Bugs b JOIN Accounts dev
+	ON (b.assigned_to = dev.account_id)
+      WHERE b.status = 'FIXED'
+      GROUP BY dev.account_id) t;
+
+SELECT COUNT(*) AS how_many_customer_bugs
+FROM Bugs b JOIN Accounts cust ON (b.reported_by = cust.account_id)
+WHERE b.status = 'FIXED' AND cust.email NOT LIKE '%@example.com';
+
+
+```
+
+
+
+**SQL을 이용한 SQL 자동 생성**
+
+
+
+**SQL Antipatterns Tip**
+
+- 하나의 SQL로 복잡한 문제를 풀 수 있을 것처럼 보이더라도, 확실치 못한 방법의 유혹에 넘어가면 안된다.
+
+
 
