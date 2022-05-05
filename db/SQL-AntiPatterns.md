@@ -3721,7 +3721,120 @@ SELECT * FROM Bugs WHERE description REGEXP '[[:<:]]one[[:>:]]';
 
 
 
+## 안티패턴 인식 방법
 
+- 다음과 같은 질문은 보통 가난한 자의 검색 엔진 안티패턴이 사용되고 있음을 나타낸다.
+  - "LIKE를 사용할 때 어떻게 하면 두 와일드카드 사이에 변수를 넣을 수 있지?"
+  - "문자열이 여러 개의 주어진 단어를 포함하고 있는지, 문자열이 특정 단어를 포함하지 않고 있는지 또는 문자열이 주어진 단어의 변형을 포함하고 있는지를 확인하는 정규표현식을 작성하려면 어떻게 해야하지?"
+  - "우리 웹 사이트의 검색 기능은 데이터베이스에 많은 문서를 추가했을 때 사용하기 어려울 정도로 느려. 뭐가 잘못된 걸까?"
+
+
+
+## 안티패턴 사용이 합당한 경우
+
+- 성능도 중요하지만 아주 가끔씩만 실행되는 쿼리를 최적화하기위해 많은 자원을 투자하는 것이 의미가 없을 수 있다.
+- 필요할때만 가끔 사용하는 쿼리라면 이를 위해 정의한 인덱스가 꼭 도움이 된다는 보장은 없다.
+- 복잡한 쿼리에서 패턴 매칭 연산자를 사용하기는 어렵지만, 간단한 경우에 대한 패턴이라면 최소의 노력으로 올바른 결과를 얻는 데 도움이 될 수는 있다.
+
+
+
+## 해법: 작업에 맞는 올바른 도구 사용하기
+
+- SQL 대신 특화된 검색 엔진을 사용하는 것이 제일 좋다.
+- 다른 대안은 검색 결과를 저장해 반복되는 비용을 줄이는 것이다.
+
+
+
+**벤더 확장 기능**
+
+- 대부분의 주요 데이터베이스 제품은 전체 텍스트 검색 요구에 대응하기위해 각자의 답을 만들었지만 이런 기능은 표준이 아니고 데이터베이스 제품 간 호환성도 없다.
+- 하나의 데이터베이스 제품을 사용한다면 이런 기능을 활용하는 것이 SQL 쿼리와 가장 잘 통합된 고성능 텍스트 검색을 위한 최선의 방법이다.
+
+`MySQL에서의 전체 텍스트 검색`
+
+- CHAR, VARCHAR 또는 TEXT 타입의 칼럼에 전체 텍스트 인덱스를 정의할 수 있다.
+- 다음은 Bugs 테이블의 summary, description 칼럼에 전체 텍스트 인덱스를 정의한 것이다.
+
+```sql
+ALTER TABLE Bugs ADD FULLTEXT INDEX bugfts (summary, description);
+
+```
+
+- 인덱스가 걸린 텍스트에서 키워드를 검색할 때는 MATCH() 함수를 사용한다.
+
+```sql
+SELECT * FROM Bugs WHERE MATCH(summary, description) AGAINST ('crash');
+
+```
+
+
+
+`Oracle에서의 텍스트 인덱싱`
+
+- CONTEXT
+
+```sql
+CREATE INDEX BugsText ON Bugs(summary) INDEXTYPE IS CTXSYS.CONTEXT;
+
+SELECT * FROM Bugs WHERE CONTAINS(summary, 'crash') > 0;
+
+```
+
+- CTXCAT
+
+```sql
+CTX_DDL.CREATE_INDEX_SET('BugsCatalogSet');
+CTX_DDL.ADD_INDEX('BugsCatalogSet', 'status');
+CTX_DDL.ADD_INDEX('BugsCatalogSet', 'priority');
+
+CREATE INDEX BugsCatalog ON Bugs(summary) INDEXTYPE IS CTXSYS.CTXCAT
+  PARAMETERS('BugsCatalogSet');
+
+```
+
+- CATSEARCH()
+
+```sql
+SELECT * FROM Bugs
+WHERE CATSEARCH(summary, '(crash save)', 'status = "NEW"') > 0;
+
+```
+
+- CTXXPATH
+
+```sql
+CREATE INDEX BugTestXml ON Bugs(testoutput) INDEXTYPE IS CTXSYS.CTXXPATH;
+
+SELECT * FROM Bugs
+WHERE testoutput.existsNode('/testsuite/test[@status="fail"]') > 0;
+
+```
+
+- CTXRULE
+
+
+
+`MSSQL에서의 전체 텍스트 검색`
+
+`PostgreSQL에서의 전체 텍스트 검색`
+
+`SQLite에서의 전체 텍스트 검색`
+
+
+
+**서드파티 검색 엔진**
+
+`Sphinx Search`
+
+`Apache Lucene`
+
+**직접 만들기**
+
+
+
+**SQL Antipatterns Tip**
+
+- 모든 문제를 SQL로 풀어야 하는 것은 아니다.
 
 
 
