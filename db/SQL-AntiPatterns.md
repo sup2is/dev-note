@@ -3293,7 +3293,7 @@ GROUP BY product_id;
 -- START:withbugid
 SELECT product_id, MAX(date_reported) AS latest, bug_id
 FROM Bugs JOIN BugsProducts USING (bug_id)
-GROUP BY product_id;
+GROUP BY product_id; 
 -- END:withbugid
 ```
 
@@ -3384,7 +3384,8 @@ GROUP BY b.reported_by;
 - 그러나 각 그룹에 대해 account_name에 가능한 값은 하나뿐이다. reported_by 값을 알면 account_name도 명확하게 알 수 있기 때문에 가능하다.
 - 이런 종류의 명확한 관계를 함수 종속이라 부른다.
 - 함수 종속의 가장 일반적인 예는 테이블의 PK와 테이블 속성 간의 관계다. (account_name은 PK인 account_id에 함수종속이다.)
-- 쿼리에서 외래키인 reported_by 칼럼으로 그룹을 지우면 Accounts 테이블의 속성은 함수 종속이고 쿼리에 모호한 결과가 포함되지 않는다.
+- Bugs.reported_by도 Accounts 테이블의 PK를 참조하므로 Accounts 테이블에 종속된 속성과 비슷한 관계를 가진다.
+- 쿼리에서 외래키인 reported_by 칼럼으로 그룹을 지으면 Accounts 테이블의 속성은 함수 종속이고 쿼리에 모호한 결과가 포함되지 않는다.
 - 하지만 대부분의 데이터베이스는 여전히 에러를 발생시키고 이런 쿼리 실행 시 함수 종속성을 판단하는 것은 비용도 많이 든다.
 
 
@@ -3426,7 +3427,7 @@ WHERE NOT EXISTS
 
 **유도 테이블 사용하기**
 
-- 서브쿼리를 유도테이블로 사용해 각 제품에 대한 proudct_id와 버그 보고일자의 최댓값만 포함하는 일시결과를 만들 수 있다.
+- 서브쿼리를 유도테이블(derived table)로 사용해 각 제품에 대한 proudct_id와 버그 보고일자의 최댓값만 포함하는 일시결과를 만들 수 있다.
 - 그런 다음 이 결과를 테이블과 조인해 쿼리 결과가 각 제품당 가장 최근의 버그만포함하게 하면 결과를 얻을 수 있다.
 
 ```sql
@@ -3446,7 +3447,7 @@ FROM Bugs b1 JOIN BugsProducts bp1 USING (bug_id)
 
 **조인 사용하기**
 
-- 대응되는 행이 없을 수도 있는 행의 집합에 대해 대응을 시도하는 조인을 시도할 수 있다.
+- 대응되는 행이 없을 수도 있는 행의 집합에 대해 대응을 시도하는 조인을 시도할 수 있다. (OUTER JOIN)
 
 ```sql
 SELECT bp1.product_id, b1.date_reported AS latest, b1.bug_id
@@ -3458,8 +3459,8 @@ WHERE b2.bug_id IS NULL;
 
 ```
 
-- 서브쿼리보다 확장적응성이 뛰어나끼 때문에 대량 데이터에 대한 쿼리에서 확장적응성이 중요한 경우에는 조인을 사용하는게 좋다. 
-- 하지만 어떤 방법이 다른 방법보다 성능이 좋다고 가엊ㅇ하지 말고 여러 형태의 쿼리에 대해 성능을 측정해 확인해야한다는 점을 기억해야 한다.
+- 서브쿼리보다 확장적응성이 뛰어나기 때문에 대량 데이터에 대한 쿼리에서 확장적응성이 중요한 경우에는 조인을 사용하는게 좋다. 
+- 하지만 어떤 방법이 다른 방법보다 성능이 좋다고 가정하지 말고 여러 형태의 쿼리에 대해 성능을 측정해 확인해야한다는 점을 기억해야 한다.
 
 
 
