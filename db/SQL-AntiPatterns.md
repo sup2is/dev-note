@@ -4268,5 +4268,104 @@ WHERE account_id = 123;
 
 **해시에 소금 추가하기**
 
+- 해시값을 저장했더라도 공격자가 데이터베이스에 접근했다면 공격자는 여전히 브루트 포스 방식으로 패스워드를 알아내려 할 수 있다.
+- 사용될 것 같은 패스워드의 해시 값을 담은 데이터베이스를 미리 준비해 이를 저장된 해시값과 비교할 수 있다. (사전 공격 dictionary attack)
+- 이런식의 사전 공격을 물리치는 방법 중 하나는 패스워드를 부호화할 때 salt를 추가하는 것이다.
+- salt는 해시 값을 구하기 전에 사용자의 패스워드에 덧붙이는 무의미한 바이트열이다. salt값이 추가된 해시는 공격자의 사전 공격을 막을 수 있다.
+- salt는 8바이트면 충분하다. 
+
+```sql
+CREATE TABLE Accounts (
+  account_id     SERIAL PRIMARY KEY,
+  account_name   VARCHAR(20),
+  email          VARCHAR(100) NOT NULL,
+  password_hash  CHAR(64) NOT NULL,
+  salt           BINARY(8) NOT NULL
+);
+
+INSERT INTO Accounts (account_id, account_name, email,
+    password_hash, salt)
+  VALUES (123, 'billkarwin', 'bill@example.com',
+    SHA2('xyzzy' || '-0xT!sp9'), '-0xT!sp9');
+
+SELECT (password_hash = SHA2('xyzzy' || salt)) AS password_matches
+FROM Accounts
+WHERE account_id = 123;
+
+```
+
+
+
+**SQL에서 패스워드 숨기기**
+
+- 해시함수를 사용하고 salt를 사용하더라도 SQL 문장에 패스워드가 여전히 평문으로 노출되고 있으면 공격자가 네트워크 패킷을 가로채거나 또는 SQL 쿼리가 기록된 로그 파일이 잘못된 손에 전달된다면 공격자가 패스워드를 읽을 수 있다.
+- SQL 쿼리에 패스워드를 평문으로 넣지 않고 애플리케이션 코드에서 해시값을 계산해서 SQL 쿼리에서 이 해시 값만 사용하면 이런 종류의 노출을 피할 수 있다.
+
+```sql
+<?php
+$password = 'xyzzy';
+
+$stmt = $pdo->query(
+   "SELECT salt
+    FROM Accounts
+    WHERE account_name = 'bill'");
+
+$row = $stmt->fetch();
+$salt = $row[0];
+
+$hash = hash('sha256', $password . $salt);
+
+$stmt = $pdo->query("
+  SELECT (password_hash = '$hash') AS password_matches;
+  FROM Accounts AS a
+  WHERE a.account_name = 'bill'");
+
+$row = $stmt->fetch();
+if ($row === false) {
+  // account 'bill' does not exist
+} else {
+  $password_matches = $row[0];
+  if (!$password_matches) {
+    // password given was incorrect
+  }
+}
+
+```
+
+- 공격자는 사용자의 브라우저와 웹 애플리케이션 서버 사이에서 데이터를 가로챌 수 있다.
+- 브라우저는 평문 상태의 패스워드를 서버로 보내기 때문에 브라우저와 애플리케이션 서버는 항상 HTTPS같은 보안 프로토콜을 사용해야 한다.
+
+
+
+**패스워드 복구가 아닌 패스워드 재설정 사용하기**
+
+- 데이터베이스에는 패스워드 대신 해시값이 저장되어 있으므로 패스워드를 복구해줄 수 없다.
+- 그러나 다른 방법으로 사용자의 접근을 허용할 수 있다.
+- 첫번째 대안으로는 이메일로 애플리케이션에서 생성한 임시 패스워드를 보내는 방법이다. 좀더 안전하게 하려면 짧은 시간이 지난 후에 임시패스워드를 만료시킬 수 있다. 이렇게하면 이메일을 누군가 가로채더라도 권한이 없는 사람의 접근을 허용할 가능성이 줄어든다.
+- 두번째 대안은 이메일에 새로운 패스워드를 포함시키는 대신 요청을 데이터베이스 테이블에 기록하고 아이디로 유일한 토큰을 할당하는 것이다.
+- 아주 안전한 시스템을 개발해야 한다면 PBKDF2, Bcrypt 같은 기술을 사용해야 한다.
+
+
+
+**SQL Antipatterns Tip**
+
+- 당신이 패스워드를 읽을 수 있으면, 해커도 읽을 수 있다.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
