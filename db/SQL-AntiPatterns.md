@@ -4392,13 +4392,252 @@ SELECT * FROM Bugs WHERE bug_id = 1234; DELETE FROM Bugs
 
 **사고는 여전히 발생할 것이다**
 
+```php
+<?php
+$project_name = $_REQUEST["name"];
+$sql = "SELECT * FROM Projects WHERE project_name = '$project_name'";
+
+```
+
+- $project_name에 O'Hare 라는 값이 파라미터로 들어가게 되면 쿼리는 의도하지 않은 형태로 바뀐다.
+
+```sql
+SELECT * FROM Projects WHERE project_name = 'O'Hare'
+```
+
+- 문자열은 처음 나타나는 홑따옴표로 끝나기 때문에 위 쿼리는 문법에러가 발생한다.
+- 이런 경우는 사고치곤 운이 좋은편이다. 문법 에러가 포함된 문장은 실행될 수 없으므로 더 이상의 나쁜일이 발생할 위험은 낮다.
+
+
+
+**최고의 웹 보안 위협**
+
+- 공격자가 SQL 인젝션을 이용해 SQL문을 조작할 수 있게 되면 심각한 위협이 된다.
+
+```php
+<?php
+$password = $_REQUEST["password"];
+$userid = $_REQUEST["userid"];
+$sql = "UPDATE Accounts SET password_hash = SHA2('$password')
+    WHERE account_id = $userid";
+
+```
+
+- 공격자가 $userid에 123 OR TRUE 라는 값을 넣으면 쿼리는 모든 사용자의 패스워드를 바꿀 수 있다.
+
+```sql
+UPDATE Accounts SET password_hash = SHA2('$password')
+    WHERE account_id = 123 OR TRUE
+```
+
+- 바로 이 점이 SQL 인젝션을 이해하고 어떻게 대응해야 할지를 아는 핵심이다.
+- SQL 인젝션은 파싱되기 전의 SQL문을 조작하는 방법으로 동작한다.
+- SQL 문이 파싱되기 전에 동적인 부분을 삽입하는 한, SQL 인젝션 위험이 있는 것이다.
+
+
+
+**치료를 위한 탐구**
+
+- SQL 인젝션 문제를 알았으면 다양한 기법으로 SQL인젝션을 방어하는 방법을 알아보자.
+
+`값을 이스케이프하기`
+
+- 매치되지 않는 따옴표 문자가 생기는 것으로부터 SQL 쿼리를 보호하는 방법 중 가장 오래된 것은 따옴표 문자가 문자열의 마지막이 되지 않도록 모든 따옴표 문자를 이스케이프 하는 것이다.
+- 표준 SQL에서는 따옴표 문자를 두 개 써서 하나의 따옴표 문자 리터럴을 만들 수 있다. 또는 대부분 프로그래밍언어에서와 마찬가지로 대부분의 데이터베이스 제품에서는 역슬래시를 이용한 이스케이프를 지원한다.
+
+```sql
+-- START:standard
+SELECT * FROM Projects WHERE project_name = 'O''Hare'
+-- END:standard
+-- START:backslash
+SELECT * FROM Projects WHERE project_name = 'O\'Hare'
+-- END:backslash
+
+```
+
+- 기본적인 아이디어는 SQL에 문자열을 삽입하기 전에 애플리케이션 데이터를 변환하는 것이다.
+
+
+
+`쿼리 파라미터`
+
+- SQL 문자열에 동적 값을 삽입하는 대신, 쿼리를 만들 때 파라미터가 들어갈 자리를 미리 정의하는 것이다.
+
+```php
+<?php
+$stmt = $pdo->prepare("SELECT * FROM Projects WHERE project_name = ?");
+$params = array($_REQUEST["name"]);
+$stmt->execute($params);
+?>
+
+```
+
+- 많은 프로그래머가 이 방법을 권고한다. 동적 내용을 이스케이프할 필요도 없고 이스케이프 함수의 결함을 걱정하지 않아도 되기 때문이다.
+
+- 쿼리 파라미터를 사용하는 방법은 SQL 인젝션에 대한 매우 강력한 방어가 된다.
+
+- 그러나 파라미터가 보편적 해결방법이 될 수 없는데 그 이유는 쿼리 파라미터의 값은 항상 하나의 리터럴로 인식되기 때문이다.
+
+  - 값의 목록을 하나의 파라미터로 전달할 수 없다.
+
+    - ```sql
+      <?php
+      $stmt = $pdo->prepare("SELECT * FROM Bugs WHERE bug_id IN ( ? )");
+      $stmt->execute(array("1234,3456,5678"));
+      ?>
+      
+      -- START:list
+      SELECT * FROM Bugs WHERE bug_id IN ( '1234,3456,5678' )
+      -- END:list
+      ```
+
+  - 테이블 이름은 파라미터로 전달할 수 없다.
+
+    - ```sql
+      <?php
+      $stmt = $pdo->prepare("SELECT * FROM ? WHERE bug_id = 1234");
+      $stmt->execute(array("Bugs"));
+      ?>
+      
+      -- START:table
+      SELECT * FROM 'Bugs' WHERE bug_id = 1234
+      -- END:table
+      ```
+
+      
+
+  - 칼럼 이름을 파라미터로 전달할 수 없다.
+
+    - ```sql
+      <?php
+      $stmt = $pdo->prepare("SELECT * FROM Bugs ORDER BY ?");
+      $stmt->execute(array("date_reported"));
+      ?>
+      
+      -- START:column
+      SELECT * FROM Bugs ORDER BY 'date_reported';
+      -- END:column
+      ```
+
+      
+
+  - SQL 키워드를 파라미터로 전달할 수 없다. 
+
+    - ```sql
+      <?php
+      $stmt = $pdo->prepare("SELECT * FROM Bugs ORDER BY date_reported ?");
+      $stmt->execute(array("DESC"));
+      ?>
+      
+      -- START:keyword
+      SELECT * FROM Bugs ORDER BY date_reported 'DESC'
+      -- END:keyword
+      
+      ```
+
+    
+
+`저장 프로시저`
+
+- 저장 프로시저는 SQL 인젝션 취약성에 대응하는 매우 강력한 방법이라고 많은 소프트웨어 개발자가 주장한다.
+- 저장 프로시저는 고정된 SQL문을 포함하며, 프로시저를 정의할 때 파싱된다.
+- 그러나 저장 프로시저 안에서도 안전하지 않은 방법으로 동적 SQL을 사용할 수 있다.
+
+```sql
+CREATE PROCEDURE UpdatePassword(input_password VARCHAR(20),
+  input_userid VARCHAR(20))
+BEGIN
+  SET @sql = CONCAT('UPDATE Accounts
+    SET password_hash = SHA2(', QUOTE(input_password), ')
+    WHERE account_id = ', input_userid);
+  PREPARE stmt FROM @sql;
+  EXECUTE stmt;
+END
+
+```
+
+- 위 프로시저에서 input_userid 인수는 SQL 쿼리에 그대로 삽입된다.
 
 
 
 
 
+`데이터 접근 프레임워크`
+
+- 데이터 접근 프레임워크 옹호자들이 자신들의 라이브러리가 SQL 인젝션 위험으로 코드를 지켜준다고 주장하는데 만약 SQL 문을 문자열로 작성하는 것을 허용한다면 이 주장은 틀린것이다.
+- 어떤 프레임워크도 안전한 SQL 코드만 작성하도록 강제할 수 없다.
 
 
+
+## 안티패턴 인식 방법
+
+- 실질적으로 모든 데이터베이스 애플리케이션은 SQL문을 동적으로 생성한다.
+- 이런 문장이 있는 애플리케이션은 잠재적인 SQL 인젝션 공격 위험에 노출되는 것이다.
+- SQL 인젝션 취약점은 너무도 흔해서 이런 취약점을 찾아 해결하기 위한 코드 검토를 마치지 않은 이상 SQL을 사용하는 모든 애플리케이션에 이런 취약점이 있을 것이라 예상해야 한다.
+
+
+
+## 안티패턴 사용이 합당한 경우
+
+- 애플리케이션에 SQL 인젝션으로 인한 보안 취약점을 허용할 합당한 이유는 없다.
+- 코드를 방어적으로 작성하고 동료들 또한 그렇게 할 수 있도록 돕는 것이 소프트웨어 개발자로서 당신의 책임이다.
+
+
+
+## 해법: 아무도 믿지 마라
+
+- 하나의 기술로 SQL 코드를 안전하게 만드는 방법은 없다.
+
+**입력 값 필터링**
+
+- 어떤 입력이 해로운 내용을 가지고 있을지 걱정만 하지 말고, 해당 입력에 대해 유효하지 않은 문자는 모두 제거해야 한다.
+- 이렇게 하는 방법은 프로그래밍 언어에 따라 다르다.
+
+
+
+**파라미터를 통한 값 전달**
+
+- 쿼리의 동적인 부분이 단순한 값이면, 쿼리 파라미터를 사용해 다른 SQL 표현과 분리해야 한다.
+- 쿼리파라미터는 하나의 값으로만 바뀔 수 있다. 파라미터가 있는 SQL문을 파싱하고 나면 어떤 SQL 인젝션 공격도 쿼리를 바꿀 수 없다.
+
+```sql
+UPDATE Accounts SET password_hash = SHA2('xyzzy')
+WHERE account_id = '123 OR TRUE'
+
+```
+
+- 애플리케이션 변수를 SQL 문의 리터럴 값으로 엮어야 할 경우에는 쿼리파라미터를 사용해야 한다.
+
+**동적 값 인용하기**
+
+- 보통 쿼리 파라미터를 사용하는 것이 최상의 방법이지만 간혹 쿼리 파라미터 사용으로 쿼리 옵티마이저가 어떤 인덱스를 사용할지에 대해 엉뚱한 결정을 할 때가 있다.
+- 칼럼의 카디널리티가 매우 낮은상황이라 인덱스를 쓰는 것이 비효율적이지만 옵티마이저는 파라미터에 어떤 값이 들어올지 알 수 없기 때문에 자칫 잘못된 최적화 계획을 선택할 수 있다.
+- 이런 경우 SQL문에 해당 값을 직접 삽입하는 것이 나을 수도 있다 이렇게 하는 경우에는 문자열을 주의 깊게 인용해야 한다.
+
+
+
+**사용자의 입력을 코드와 격리하기**
+
+**코드 검토를 함께 할 동료를 구하기**
+
+- 결함을 잡아내는 가장 좋은 방법은 다른 사람과 함께 코드를 검토하는 것이다.
+- 자존심 또는 자아때문에 올바른 일을 하지 못하면 안된다.
+- 당장은 코딩 실수를 스스로 발견하지 못한 것에 부끄러울 수 있으나 보안 결함으로 인해 웹사이트가 해킹당한것 보단 낫다.
+- SQL 인젝션 검사 가이드라인
+  - 애플리케이션 변수, 문자열 연결 또는 치환을 통해 생성되는 SQL 문을 찾는다.
+  - SQL문에서 사용되는 모든 동적 내용의 출처를 추적해, 사용자 입력, 파일, 환경변수, 웹 서비스, 서드파티 코드, 데이터베이스로부터 얻어온 문자열, 외부로 오는 모든 데이터를 찾는다.
+  - 외부로부터 오는 데이터는 잠재적으로 위험하다고 가정한다. 필터나 유효성 검사기, 매핑 배열을 통해 신뢰할 수 없는 데이터를 변환한다.
+  - 외부 데이터를 SQL문과 연결할 때는 쿼리 파라미터나 견고한 이스케이프 함수를 사용한다.
+  - 저장 프로시저나 동적 SQL문을 찾을 수 있는 다른 부분에 대한 코드 검사도 잊지 않는다.
+- 코드 검사는 SQL 인젝션 결함을 찾는 가장 정확하고 경제적인 방법이다.
+- 코드 검사를 위한 시간을 확보하고 이를 필수 활동으로 생각해야 한다.
+- 팀 동료의 코드를 함께 검사해 주어 호의에 보답하는 것도 잊지 않는다.
+
+
+
+**SQL Antipatterns Tip**
+
+- 사용자가 값을 입력하게 하라. 그러나 코드를 입력하게 해서는 안된다.
 
 
 
