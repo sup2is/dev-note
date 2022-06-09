@@ -1502,16 +1502,146 @@ abstarct class Animated {
 ### 가시성 변경자: 기본적으로 공개
 
 - 가시성 변경자는 코드 기반에 있는 선언에 대한 클래스 외부 접근을 제어한다.
-- 자바와 같이 public, protected, private 변경자가 있지만 package-default는 코틀린에 없다.
+- 자바와 같이 public, protected, private 변경자가 있지만 package-default는 코틀린에 없다. 대신 internal이라는 새로운 가시성 변경자를 도입했다.
+- internal은 모듈 내부에서만 볼 수 있다는 의미를 갖는다. 
 - 코틀린에서 기본 가시성은 public이다.
+
+| 변경자    | 클래스 멤버                      | 최상위 선언                    |
+| --------- | -------------------------------- | ------------------------------ |
+| public    | 모든 곳에서 볼 수 있다.          | 모든 곳에서 볼 수 있다.        |
+| internal  | 같은 모듈 안에서만 볼 수 있다.   | 같은 모듈 안에서만 볼 수 있다. |
+| protected | 하위 클래스 안에서만 볼 수 있다. | (최상위 선언에 적용할 수 없음) |
+| private   | 같은 클래스 안에서만 볼 수 있다. | 같은 파일 안에서만 볼 수 있다. |
+
+- 어떤 클래스의 기반 타입 목록에 들어있는 타입이나 제네릭 클래스의 타입 파라미터에 들어잇는 타입의 가시성은 그 클래스 자신의 가시성과 같거나 더 높아야 하고, 메서드의 시그니처에 사용된 모든 타입의 가시성은 그 메서드의 가시성과 같거나 더 높아야 한다는 더 일반적인 규칙에 해당한다.
+- 코틀린에서 protected는 오직 어떤 클래스나 그 클래스를 상속한 클래스 안에서만 보인다.
+- 또 다른 차이는 코틀린에서 외부 클래스가 내부 클래스, 중첩된 클래스의 private 멤버에 접근할 수 없다.
 
 ### 내부 클래스와 중첩된 클래스: 기본적으로 중첩 클래스
 
+- 코틀린에도 클래스 안에 다른 클래스를 선언할 수 있다.
+- 코틀린의 중첩 클래스는 명시적으로 요청하지 않는 한 바깥쪽 클래스 인스턴스에 접근 권한이 없다.
+- 코틀린의 중첩 클래스에 아무런 변경자가 붙지 않으면 기본적으로 자바 static 중첩 클래스와 같다.
+- 이를 내부 클래스로 변경해서 바깥쪽 클래스에 대한 참조를 포함하게 만들고 싶으면 inner 키워드를 붙여야 한다.
+- 내부 클래스에 Inner에서 바깥쪽 클래스 Outer의 참조에 접근하려면 this@Outer라고 써야 한다.
+
+```kotlin
+class Outer {
+    inner class Inner {
+        fun getOuterReference(): Outer = this@Outer
+    }
+}
+
+```
+
+- 코틀린에서 클래스 계층을 만들되 그 계층에 속한 클래스의 수를 제한하고 싶은 경우 중첩 클래스를 쓰면 편리하다.
+
 ### 봉인된 클래스: 클래스 계층 정의 시 계층 확장 제한
+
+```kotlin
+interface Expr
+class Num(val value: Int) : Expr
+class Sum(val left: Expr, val right: Expr) : Expr
+
+fun eval(e: Expr): Int =
+    when (e) {
+        is Num -> e.value
+        is Sum -> eval(e.right) + eval(e.left)
+        else ->
+            throw IllegalArgumentException("Unknown expression")
+    }
+
+fun main(args: Array<String>) {
+    println(eval(Sum(Sum(Num(1), Num(2)), Num(4))))
+}
+
+```
+
+- 코틀린 컴파일러는 when을 사용해 Expr 타입의 값을 검사할 때 꼭 디폴트 분기인 else 분기를 덧붙이게 강제한다.
+- 항상 디폴트 분기를 추가하는게 편하지 않기 때문에 코틀린은 이런 문제에 대한 해법을 제공한다. sealed 클래스가 그 답이다.
+- 상위 클래스에 sealed 변경자를 붙이면 그 상위 클래스를 상속한 하위클래스 정의를 제한할 수 있다.
+- sealed 클래스 하위 클래스를 정의할 때는 반드시 상위 클래스 안에 중첩시켜야 한다.
+
+```kotlin
+sealed class Expr {
+    class Num(val value: Int) : Expr()
+    class Sum(val left: Expr, val right: Expr) : Expr()
+}
+
+fun eval(e: Expr): Int =
+    when (e) {
+        is Expr.Num -> e.value
+        is Expr.Sum -> eval(e.right) + eval(e.left)
+    }
+
+fun main(args: Array<String>) {
+    println(eval(Expr.Sum(Expr.Sum(Expr.Num(1), Expr.Num(2)), Expr.Num(4))))
+}
+
+```
+
+- when식에서 sealed 클래스의 모든 하위 클래스를 처리한다면 디폴트 분기가 필요 없다.
+- sealed 클래스는 자동으로 open이다.
+- sealed 클래스에 새로운 하위 클래스가 추가되면 when절에서 컴파일에러가 발생해 쉽게 알아챌 수 있다.
+- 코틀린 1.5부터 sealed 인터페이스가 추가됐다. 참고
 
 ## 뻔하지 않은 생성자와 프로퍼티를 갖는 선언
 
+- 코틀린은 주 생성자와 부 생성자를 구분한다.
+- 코틀린은 초기화블록을 통해 초기화로직을 추가할 수 있다.
+
 ### 클래스 초기화: 주 생성자와 초기화 블록
+
+```kotlin
+class User(val nickname: String,
+           val isSubscribed: Boolean = true)
+```
+
+- 위와 같이 클래스 선언에 중괄호가 없고 괄호사이 val만 존재한다면 이는 주 생성자라고 부른다. 디폴트 값도 사용 가능하다.
+- 주 생성자는 생성자 파라미터를 지정하고 그 생성자 파라미터에 의해 초기화되는 프로퍼티를 정의하는 두가지 목적에 쓰인다. 
+
+```kotlin
+class User constructor(_nickname: String) {
+  val nickname: String
+  init {
+    nickname = _nickname
+  }
+}
+```
+
+- constructor는 주 생성자나 부 생성자 정의를 시작할 때 사용한다.
+- init 키워드는 초기화 블록을 시작한다.
+- 초기화 블록에는 클래스가 만들어질 때 실행될 초기화 코드가 들어간다.
+- 주 생성자는 제한적이라 별도의 코드를 포함할 수 없으므로 초기화 블록을 사용한다. 여러개의 초기화 블록도 선언할 수 있다.
+- 클래스의 인스턴스를 만들려면 new 키워드 없이 생성자를 직접 호출하면 된다.
+
+```kotlin
+val hyun = User("현석")
+```
+
+- 클래스에 기반 클래스가 있다면 주 생성자에서 기반 클래스의 생성자를 호출해야 할 필요가 있다.
+- 기반 클래스를 초기화하려면 기반 클래스 이름 뒤에 괄호를 치고 생성자 인자를 넘긴다.
+
+```kotlin
+open class User(val nickname: String) {...}
+class TwitterUser(nickname: String) : User(nickname) {...}
+```
+
+- 클래스를 정의할 때 별도로 생성자를 정의하지 않으면 컴파일러가 아무 일도 하지 않는 인자가 없는 디폴트 생성자를 만들어준다.
+- 하위 클래스라면 반드시 상위클래스의 생성자를 호출해야 하기 때문에 반드시 괄호가 들어간다.
+
+```kotlin
+class RadioButton: Button()
+```
+
+- 반면 인터페이스는 생성자가 없기 때문에 괄호가 없다.
+- 어떤 클래스를 클래스 외부에서 인스턴스화하지 못하게 막고 싶다면 모든 생성자를 private으로 만들면 된다.
+
+```kotlin
+class Secretive private constructor() {}
+```
+
+- 
 
 ### 부 생성자: 상위 클래스를 다른 방식으로 초기화
 
