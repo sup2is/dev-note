@@ -1374,3 +1374,170 @@ fun main(args: Array<String>) {
 
 
 
+# #4 클래스, 객체, 인터페이스
+
+## 클래스 계층 정의
+
+### 코틀린 인터페이스
+
+- 코틀린 인터페이스는 자바 8 인터페이스와 비슷하다.
+- 인터페이스에는 아무런 상태도 들어갈 수 없다.
+
+```kotlin
+interface Clickable {
+    fun click()
+}
+class Button : Clickable {
+    override fun click() = println("I was clicked")
+}
+
+fun main(args: Array<String>) {
+    Button().click()
+}
+
+```
+
+- 자바에서는 extends, implements를 사용하지만 코틀린에서는 클래스 이름 뒤에 : 콜론을 붙이고 인터페이스와 클래스 이름을 적는 형태로 구현과 확장을 모두 처리한다.
+- 자바와 마찬가지로 인터페이스는 n개, 호가장은 1개만 가능하다.
+- 코틀린에서는 override 키워드를 반드시 사용해야 한다.
+- 인터페이스에 메서드도 디폴트 구현을 제공할 수 있다.
+
+```kotlin
+interface Clickable {
+    fun click()
+    fun showOff() = println("I'm clickable!")
+}
+
+```
+
+- click은 반드시 구현해야하지만 showOff는 optional이다.
+- 아래와 같이 다른 인터페이스에 같은 default 시그니처 함수가 있다면 이 두 개를 동시에 구현하는 클래스는 컴파일에러가 발생한다.
+
+```kotlin
+interface Focusable {
+    fun setFocus(b: Boolean) =
+        println("I ${if (b) "got" else "lost"} focus.")
+
+    fun showOff() = println("I'm focusable!")
+}
+
+```
+
+- 따라서 이 경우 직접 구현해야한다.
+
+```kotlin
+class Button : Clickable, Focusable {
+    override fun click() = println("I was clicked")
+
+    override fun showOff() { // 상위 타입의 이름을 꺽쇠 괄호 사이에 넣어서 "super"를 지정하면 어떤 상위 타입의 멤버 메서드를 호출할지 지정할 수 있다.
+        super<Clickable>.showOff() 
+        super<Focusable>.showOff()
+    }
+}
+```
+
+### open, final, abstarct 변경자: 기본적으로 final
+
+- 취약한 기반 클래스라는 문제는 하위 클래스가 기반 클래스에 대해 가졌던 가정이 기반 클래스를 변경함으로써 깨져버린 경우에 생긴다.
+- 어떤 클래스가 자신을 상속하는 방법에 대해 정확한 규칙을 제공하지 않는다면 그 클래스의 클라이언트는 기반 클래스를 작성한 사람의 의도와 다른 방식으로 메서드를 오버라이드할 위험이 있다.
+- 이 문제를 해결하기 위해 조슈아 블로크는 "상속을 위한 설계와 문서를 갖추거나, 그럴 수 없다면 상속을 금지하라" 라는 조언을 한다.
+- 코틀린도 마찬가지의 철학을 따른다. 코틀린의 클래스와 메서드는 기본적으로 final이다.
+- 어떤 클래스의 상속을 허용하려면 클래스 앞에 open 변경자를 붙여야 한다. 메서드와 프로퍼티도 마찬가지다.
+
+```kotlin
+interface Clickable {
+    fun click()
+    fun showOff() = println("I'm clickable!")
+}
+
+open class RichButton : Clickable { // 이 클래스는 열려 있다.
+
+    fun disable() {} // 이 함수는 파이널이다. 하위 클래스가 이 메서드를 오버라이드 할 수 없다.
+
+    open fun animate() {} // 이 함수는 열려 있다.
+
+    override fun click() {} // 이 함수는 열려 있는 메서드를 오버라이드 한다. 오버라이드한 메서드는 기본적으로 열려 있다.
+}
+
+```
+
+- override 함수를 닫으려면 아래와 같이 final을 붙여야한다.
+
+```kotlin
+interface Clickable {
+    fun click()
+    fun showOff() = println("I'm clickable!")
+}
+
+open class RichButton : Clickable {
+    final override fun click() {}
+}
+
+```
+
+- 자바처럼 코틀린에서도 클래스를 abstract로 선언할 수 있다. abstract로 선언한 추상 클래스는 인스턴스화 할 수 없다.
+- 추상 멤버는 항상 열려있어서 open 변경자를 명시할 필요가 없다.
+
+```kotlin
+abstarct class Animated {
+	abstract fun animate() // 반드시 구현해야 한다.
+  
+  open fun stopAnimating() {} // 비추상함수는 기본적으로 final이라 open으로 열어줄 수 있다.
+  
+  fun animateTwice() {}
+}
+```
+
+- 클래스 내에서 상속 제어 변경자의 의미
+
+| 변경자   | 이 변경자가 붙은 멤버는...                              | 설명                                                         |
+| -------- | ------------------------------------------------------- | ------------------------------------------------------------ |
+| final    | 오버라이드할 수 없음                                    | 클래스 멤버의 기본 변경자다.                                 |
+| open     | 오버라이드할 수 있음                                    | 반드시 open을 명시해야 오버라이드할 수 있다.                 |
+| abstarct | 반드시 오버라이드 해야 함                               | 추상 클래스의 멤버에만 이 변경자를 붙일 수 있다.             |
+| override | 상위 클래스나 상위 인스턴스의 멤버를 오버라이드 하는 중 | 오버라이드하는 멤버는 기본적으로 열려있다. 하위 클래스의 오버라이드를 금지하려면 final을 명시해야 한다. |
+
+
+
+### 가시성 변경자: 기본적으로 공개
+
+- 가시성 변경자는 코드 기반에 있는 선언에 대한 클래스 외부 접근을 제어한다.
+- 자바와 같이 public, protected, private 변경자가 있지만 package-default는 코틀린에 없다.
+- 코틀린에서 기본 가시성은 public이다.
+
+### 내부 클래스와 중첩된 클래스: 기본적으로 중첩 클래스
+
+### 봉인된 클래스: 클래스 계층 정의 시 계층 확장 제한
+
+## 뻔하지 않은 생성자와 프로퍼티를 갖는 선언
+
+### 클래스 초기화: 주 생성자와 초기화 블록
+
+### 부 생성자: 상위 클래스를 다른 방식으로 초기화
+
+### 인터페이스에 선언된 프로퍼티 구현
+
+### 게터와 세터에서 뒷받침하는 필드에 접근
+
+### 접근자의 가시성 변경
+
+## 컴파일러가 생성한 메서드: 데이터 클래스와 클래스 위임
+
+### 모든 클래스가 정의해야 하는 메서드
+
+### 데이터 클래스: 모든 클래스가 정의해야 하는 메서드 자동 생성
+
+### 클래스 위임: by 키워드 사용
+
+## object 키워드: 클래스 선언과 인스턴스 생성
+
+### 객체 선언: 싱글턴을 쉽게 만들기
+
+### 동반 객체: 팩토리 메서드와 정적 멤버가 들어갈 장소
+
+### 동반 객체를 일반 객체처럼 사용
+
+### 객체 식: 무명 내부 클래스를 다른 방식으로 작성
+
+## 요약
+
