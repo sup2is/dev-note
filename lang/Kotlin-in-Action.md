@@ -2640,5 +2640,450 @@ fun main(args: Array<String>) {
 
 
 
+# #6 코틀린 타입 시스템
+
+## 널 가능성
+
+- 널 가능성은 NPE 오류를 피할 수 있게 돕기 위한 코틀린 타입 시스템의 특성이다.
+- 코틀린에서는 널이 될 수 있는지 여부를 타입 시스템에 축가함으로써 컴파일러가 여러 가지 오류를 컴파일 시 미리 감지해서 실행 시점에 발생할 수 있는 예외의 가능성을 줄일 수 있다.
+
+### 널이 될 수 있는 타입
+
+- 코틀린에서 널이 인자로 들어올 수 없다면 아래와 같이 함수를 정의할 수 있다.
+
+```kotlin
+fun strLen(s: String) = s.length
+
+strLen(null) // <- null은 들어갈 수 없기 때문에 컴파일 오류 발생
+```
+
+- 이 함수가 널과 문자열을 인자로 받을 수 있게 하려면 타입 이름 뒤에 물음표를 달아줘야한다.
+
+```kotlin
+fun strLen(s: String?) = s.length
+```
+
+- 어떤 타입이든 ?를 달아주면 null 참조를 저장할 수 있다는 뜻이다.
+- 널이 될 수 있는 타입의 변수가 있다면 그에 대해 수행할 수 있는 연산이 제한된다.
+  - 널이 될 수 있는 타입인 변수에 대해 변수.메서드() 형태로 직접 호출 불가
+  - 널이 될 수 있는 값을 널이 될 수 없는 타입의 변수에 대입 불가
+  - 널이 될 수 있는 타입의 값을 널이 될 수 없는 타입의 파라미터를 받는 함수에 전달 불가
+- null과 비교하고 나면 컴파일러는 그 사실을 기억하고 null이 아님이 확실한 영역에서는 해당 값을 널이 될 수 없는 타입의 값처럼 사용할 수 있다.
+
+```kotlin
+fun strLenSafe(s: String?): Int =
+    if (s != null) s.length else 0
+
+fun main(args: Array<String>) {
+    val x: String? = null
+    println(strLenSafe(x))
+    println(strLenSafe("abc"))
+}
+```
+
+
+
+### 타입의 의미
+
+- "타입은 분류로 ... 타입은 어떤 값들이 가능한지와 그 타입에 대해 수행할 수 있는 연산의 종류를 결정한다" - 위키피디아
+- 자바는 null을 제대로 다루지 못한다. 코틀린의 널이 될 수 있는 타입은 이런 문제에 대해 종합적인 해법을 제공한다.
+- 널이 될 수 있는 타입과 널이 될 수 없는 타입을 구분하면 각 타입의 값에 어떤 연산이 가능할지 명확히 이해할 수 있고 실행 시점에 예외를 발생시킬 수 있는 연산을 판단할 수 있다.
+
+
+
+### 안전한 호출 연산자: ?.
+
+- ?.은 null 검사와 메서드 호출을 한 번의 연산으로 수행한다.
+
+```kotlin
+fun printAllCaps(s: String?) {
+    val allCaps: String? = s?.toUpperCase()
+    println(allCaps)
+}
+
+fun main(args: Array<String>) {
+    printAllCaps("abc")
+    printAllCaps(null)
+}
+```
+
+- 호출하려는 값이 null 이 아니라면 일반 메서드처럼 호출되고 호출하려는 값이 null이면 이 호출은 무시되고 null이 결과값이 된다.
+- 안전한 호출의 결과 타입도 널이 될 수 있는 사실에 유의할 것!
+- 메서드 호출 뿐 아니라 프로퍼티를 읽거나 쓸 때에도 안전한 호출을 사용할 수 있다.
+
+```kotlin
+class Employee(val name: String, val manager: Employee?)
+
+fun managerName(employee: Employee): String? = employee.manager?.name
+
+fun main(args: Array<String>) {
+    val ceo = Employee("Da Boss", null)
+    val developer = Employee("Bob Smith", ceo)
+    println(managerName(developer))
+    println(managerName(ceo))
+}
+```
+
+```kotlin
+class Address(val streetAddress: String, val zipCode: Int,
+              val city: String, val country: String)
+
+class Company(val name: String, val address: Address?)
+
+class Person(val name: String, val company: Company?)
+
+fun Person.countryName(): String {
+   val country = this.company?.address?.country
+   return if (country != null) country else "Unknown"
+}
+
+fun main(args: Array<String>) {
+    val person = Person("Dmitry", null)
+    println(person.countryName())
+}
+
+```
+
+
+
+### 엘비스 연산자: ?:
+
+- 코틀린은 null 대신 사용할 디폴트 값을 지정할 때 편리하게 사용할 수 있는 연산자를 제공한다.
+- 그 연산자를 엘비스 연산자라고 한다. ?: 귀엽
+- 좌항 값이 널이면 우항 값을 결과로 한다.
+
+```kotlin
+fun strLenSafe(s: String?): Int = s?.length ?: 0
+
+fun main(args: Array<String>) {
+    println(strLenSafe("abc"))
+    println(strLenSafe(null))
+}
+```
+
+- 엘비스 연산자는 return, throw 등등에 넣을 수 있고 엘비스 연산자의 좌항이 널이면 함수가 즉시 어떤 값을 반환하거나 예외를 던지게할 수 있다.
+
+```kotlin
+class Address(val streetAddress: String, val zipCode: Int,
+              val city: String, val country: String)
+
+class Company(val name: String, val address: Address?)
+
+class Person(val name: String, val company: Company?)
+
+fun printShippingLabel(person: Person) {
+    val address = person.company?.address
+      ?: throw IllegalArgumentException("No address")
+    with (address) {
+        println(streetAddress)
+        println("$zipCode $city, $country")
+    }
+}
+
+fun main(args: Array<String>) {
+    val address = Address("Elsestr. 47", 80687, "Munich", "Germany")
+    val jetbrains = Company("JetBrains", address)
+    val person = Person("Dmitry", jetbrains)
+    printShippingLabel(person)
+    printShippingLabel(Person("Alexey", null))
+}
+```
+
+
+
+### 안전한 캐스트: as?
+
+- as? 연산자는 어떤 값을 지정한 타입으로 캐스트한다.
+- as?는 값을 대상 타입으로 변환할 수 없으면 null을 반환한다.
+- 안전한 캐스트를 사용할 때 일반적인 패턴은 캐스트를 수행한 뒤에 엘비스 연산자를 사용하는 것이다.
+
+
+
+```kotlin
+class Person(val firstName: String, val lastName: String) {
+   override fun equals(o: Any?): Boolean {
+      val otherPerson = o as? Person ?: return false
+
+      return otherPerson.firstName == firstName &&
+             otherPerson.lastName == lastName
+   }
+
+   override fun hashCode(): Int =
+      firstName.hashCode() * 37 + lastName.hashCode()
+}
+
+fun main(args: Array<String>) {
+    val p1 = Person("Dmitry", "Jemerov")
+    val p2 = Person("Dmitry", "Jemerov")
+    println(p1 == p2)
+    println(p1.equals(42))
+}
+```
+
+- 이런 패턴을 사용하면 파라미터로 받은 값이 원하는 타입인지 쉽게검사하고 캐스트할 수 있고 타입이 맞지 않으면 쉽게 false를 반환할 수 있다. 스마트 캐스트도 동작한다.
+
+### 널 아님 단언: !!
+
+- 느낌표를 !! 으로 사용하면 어떤 값이든 널이 될 수 없는 타입으로 강제로 바꿀 수 있다.
+- 널에 대해 !!를 적용하면 NPE가 발생한다.
+
+```kotlin
+fun ignoreNulls(s: String?) {
+    val sNotNull: String = s!!
+    println(sNotNull.length)
+}
+
+fun main(args: Array<String>) {
+    ignoreNulls(null)
+}
+
+// NPE
+```
+
+- 근본적으로 !!는 컴파일러에게 "나는 이 값이 null이 아님을 잘 알고 있다. 내가 잘못 생각했다면 예외가 발생해도 감수하겠다." 라는 의미로 사용한다.
+- 어떤 함수가 값이 널인지 검사한 다음에 다른 함수를 호출한다고해도 컴파일러는 호출된 함수 안에서 안전하게 그 값을 사용할 수 있음을 인식할 수 없다. 이런 경우 !!를 사용할 수 있다.
+- !!를 널에 대해 사용해서 발생하는 예외의 스택 트레이스에는 어떤 파일의 머 번째 줄인지에 대한 정보는 들어있지만 어떤 식에서 예외가 발생했는지에 대한 정보는 들어있지 않다. 어떤 값이 널이었는지 확실히 하기 위해 여러 !! 단언문을 한 줄에 함께 쓰는 일을 피하자!
+
+
+
+### let 함수
+
+- let 함수를 안전한 호출 연산자와 함께 사용하면 원하는 식을 평가해서 결과가 널인지 검사한 다음에 그 결과를 변수에 넣는 작업을 간단한 식을 사용해 한꺼번에 처리할 수 있다.
+
+```kotlin
+fun sendEmailTo(email: String) {
+    println("Sending email to $email")
+}
+
+fun main(args: Array<String>) {
+    var email: String? = "yole@example.com"
+    email?.let { sendEmailTo(it) }
+    email = null
+    email?.let { sendEmailTo(it) }
+}
+
+```
+
+- sendEmailTo가 null이 아닌 타입만 받지만 let함수를 사용하면 인자를 전달할 수도 있다.
+- let을 통해 널이 될 수 있는 타입의 값을 널이 될 수 없는 타입의 값으로 바꿔서 람다에 전달한다.
+- let으로 넘긴 타입이 실제로 널이라면 함수에서는 아무런 일도 발생하지 않는다.
+
+
+
+
+
+### 나중에 초기화할 프로퍼티
+
+- 코틀린에서는 클라스 안에 널이 될 수 없는 프로퍼티를 생성자 안에서 초기화하지 않고 특별한 메서드 안에서 초기화할 수는 없다.
+- 이런 특별한 초기화가 필요한 경우 경우 널이 될 수 있는 타입을 사용할 수밖에 없다. 이 경우 모든 프로퍼티에는 !! 가 들어가야 한다.
+
+```kotlin
+import org.junit.Before
+import org.junit.Test
+import org.junit.Assert
+
+class MyService {
+    fun performAction(): String = "foo"
+}
+
+class MyTest {
+    private var myService: MyService? = null
+
+    @Before fun setUp() {
+        myService = MyService()
+    }
+
+    @Test fun testAction() {
+        Assert.assertEquals("foo",
+            myService!!.performAction())
+    }
+}
+```
+
+- lateinit을 사용하면 프로퍼티를 나중에 초기화시킬 수 있다.
+
+```kotlin
+import org.junit.Before
+import org.junit.Test
+import org.junit.Assert
+
+class MyService {
+    fun performAction(): String = "foo"
+}
+
+class MyTest {
+    private lateinit var myService: MyService
+
+    @Before fun setUp() {
+        myService = MyService()
+    }
+
+    @Test fun testAction() {
+        Assert.assertEquals("foo",
+            myService.performAction())
+    }
+}
+```
+
+- 나중에 초기화하는 프로퍼티는 항상 var 여야 한다.
+- 나중에 초기화하는 프로퍼티는 널이 될 수 없는 타입이라 해도 더 이상 생성자 안에서 초기화할 필요가 없다.
+- 그 프로퍼티를 초기화하기 전에 프로퍼티에 접근하면 특별한 예외가 발생한다.
+
+### 널이 될 수 있는 타입 확장
+
+- 널이 될 수 있는 타입에 대한 확장 함수를 정의하면 null 값을 다루는 강력한 도구로활용할 수 있다.
+- 코틀린 String의 isNullOrEmpty이나 isNullOrBlack가 이런 함수다.
+
+```kotlin
+fun verifyUserInput(input: String?) {
+    if (input.isNullOrBlank()) {
+        println("Please fill in the required fields")
+    }
+}
+
+fun main(args: Array<String>) {
+    verifyUserInput(" ")
+    verifyUserInput(null)
+}
+```
+
+- 안전한 호출 없이도 널이 될 수 잇는 수신 객체 타입에 대해 선언된 확장 함수를 호출 가능하다.
+- 지금부터 너무 헷갈려요
+
+
+
+### 타입 파라미터의 널 가능성
+
+- 코틀린에서 함수나 클래스의 모든 타입 파라미터는 기본적으로 널이 될 수 있다.
+- 널이 될 수 있는 타입을 포함하넌 어떤 타입이라도 타입 파라미터를 대신할 수 있다.
+- 타입 파라미터 T를 클래스나 함수 안에서 타입 이름으로 사용하면 이름 끝에 물음표가 없더라도 T는 널이 될 수 있는 타입이다.
+
+```kotlin
+fun <T> printHashCode(t: T) {
+    println(t?.hashCode()) // T에 ?가 없지만 T는 타입파라미터, 즉 안전한 호출을 사용해야 한다.
+}
+
+fun main(args: Array<String>) {
+    printHashCode(null) // T의 타입은 Any? 로 추론된다.
+}
+```
+
+- 타입 파라미터가 널이 아님을 확실히 하려면 널이 될 수 없는 타입 상한을 지정해야 한다.
+
+```kotlin
+fun <T: Any> printHashCode(t: T) { // T는 null이 될 수 없는 타입이 된다.
+	println(t.hashCode())
+}
+```
+
+
+
+### 널 가능성과 자바
+
+- 자바의 @Nullabe은 코틀린의 String? 과 같고 @NotNull은 코틀린의 String과 같다
+- 코틀린은 여러 널 가능성 애너테이션을 알아본다.
+- 이런 널 가능성이 소스코드에 없으면 자바의 타입은 코틀린의 플랫폼 타입이 된다.
+
+**플랫폼 타입**
+
+- 플랫폼 타입은 코틀린이 널 관련 정보를 알 수 없는 타입을 말한다.
+- 플랫폼 타입에 대해 수행하는 모든 연산에 대한 책임은 사용자에 있다는 뜻이다.
+- 플랫폼 타입일때 컴파일러는 모든 연산을 허용한다.
+- 코틀린 컴파일러는 공개 가시성인 코틀린 함수의 널이 아닌 타입인 파라미터와 수신 객체에 대한 널 검사를 추가해준다. 따라서 공개 가시성 함수에 널 값을 사용하면 즉시 예외가 발생한다.
+- 오류를 피하려면 자바 메서드의 문서를 자세히 살펴봐서 그 메서드가 널을 반환할지 알아내고 널을 반환하는 메서드에 대한 널 검사를 추가해야 한다.
+- 코틀린에서는 플랫폼타입을 직접 선언할 수 없다.
+- 에러 메시지에서 ! 표기는 타입의 널 가능성에 대해 아무 정보도 없다는 뜻이다.
+- 플랫폼 타입은 널에 대한 정보가 없기 때문에 널 가능, 널 불가능 타입 두 곳 모두에 바인딩 될 수 있다.
+
+**상속**
+
+- 코틀린에서 자바 메서드를 오버라이드할 때 그 메서드의 파라미터와 반환 타입을 널이 될 수 있는 타입으로 선언할지 널이 될 수 없는 타입으로 선언할지 결정해야 한다.
+- 자바 클래스나 인터페이스를 코틀린에서 구현할 경우 널 가능성을 제대로 처리하는 일이 중요하다.
+
+## 코틀린의 원시 타입
+
+- 코틀린은 원시 타입과 래퍼 타입을 구분하지 않는다.
+
+### 원시 타입: Int, Boolean 등
+
+- 코틀린은 원시 타입과 래퍼 타입을 구분하지 않기 때문에 항상 같은 타입을 사용한다.
+
+```kotlin
+fun showProgress(progress: Int) {
+    val percent = progress.coerceIn(0, 100)
+    println("We're ${percent}% done!")
+}
+
+fun main(args: Array<String>) {
+    showProgress(146)
+}
+```
+
+- 코틀린은 실행 시점에 숫자 타입은 가능한 한 가장 효율적인 방식으로 표현된다. 대부분 Int 타입은 자바의 int 타입으로 컴파일한다. 이런 컴파일이 불가능할 땐 컬렉션, 제네릭을 사용하는 경우다.
+
+### 널이 될 수 있는 원시 타입: Int?, Boolean? 등
+
+- 널이 될 수 있는 코틀린 타입은 자바 원시 타입으로 표현할 수 없다. 따라서 코틀린에서 널이 될 수 있는 원시 타입을 사용하면 그 타입은 자바의 wrapper 타입으로 컴파일된다.
+
+```kotlin
+data class Person(val name: String,
+                  val age: Int? = null) {
+
+    fun isOlderThan(other: Person): Boolean? {
+        if (age == null || other.age == null)
+            return null
+        return age > other.age
+    }
+}
+
+fun main(args: Array<String>) {
+    println(Person("Sam", 35).isOlderThan(Person("Amy", 42)))
+    println(Person("Sam", 35).isOlderThan(Person("Jane")))
+}
+```
+
+- 제네릭의 경우 무조건 래퍼타입을 사용하기 때문에 대규모 컬렉션을 효율적으로 저장해야한다면 서드파티 라이브러리를 사용하거나 배열을 사용해야 한다.
+
+
+
+### 숫자 변환
+
+- 코틀린은 한 타입의 숫자를 다른 타입의 숫자로 자동 변환하지 않는다. 반드시 직접 변환 메서드를 호출해야 한다.
+- 코틀린은 Boolean을 제외한 모든 원시타입에 대한 변환 함수를 제공한다. toChar, toByte ...
+
+```kotlin
+fun main(args: Array<String>) {
+    val x = 1
+    println(x.toLong() in listOf(1L, 2L, 3L)) //변환 안하면 컴파일 에러 발생
+}
+
+```
+
+- 숫자 리터럴을 사용할 때는 보통 변환 함수를 호출할 필요가 없다. 42L 42.0f ..
+
+
+
+
+
+### Any, Any?: 최상위 타입
+
+### Unit 타입: 코틀린의 void
+
+### Nothing 타입: 이 함수는 결코 정상적으로 끝나지 않는다.
+
+## 컬렉션과 배열
+
+### 널 가능성과 컬렉션
+
+### 읽기 전영과 변경 가능한 컬렉션
+
+### 코틀린 컬렉션과 자바
+
+### 컬렉션을 플랫폼 타입으로 다루기
+
+### 객체의 배열과 원시 타입의 배열
+
+## 요약
+
 
 
