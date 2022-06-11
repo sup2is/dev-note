@@ -3061,29 +3061,215 @@ fun main(args: Array<String>) {
 
 - 숫자 리터럴을 사용할 때는 보통 변환 함수를 호출할 필요가 없다. 42L 42.0f ..
 
+```kotlin
+fun foo(l: Long) = println(l)
 
+fun main(args: Array<String>) {
+    val b: Byte = 1
+    val l = b + 1L
+    foo(42)
+}
+```
+
+- 문자열을 숫자로 변환할 수도 있다.
+
+```kotlin
+
+fun main(args: Array<String>) {
+    println("42".toInt())
+}
+
+```
 
 
 
 ### Any, Any?: 최상위 타입
 
+- 코틀린에서는 Any 타입이 모든 널이 될 수 없는 타입의 조상이다.
+- 자바에서 원시타입은 Object 타입이 아니지만 코틀린에서 Int, Boolean 등 원시타입을 포함한 모든 타입의 조상이 Any다
+- 널이 될 수 있는 타입은 Any?다.
+- 내부에서 Any 타입은 java.lang.Object 에 대응한다. 
+- Any에는 toString, equals, hashCode만 있고 wait, notify는 없기 때문에 필요하다면 java.lang.Object로 캐스팅해서 사용해야 한다.
+
+
+
 ### Unit 타입: 코틀린의 void
 
+- 코틀린 Unit 타입은 자바 void와 같은 기능을 한다.
+- 코틀린의 함수 반환 타입이 Unit이고 그 함수가 제네릭 함수를 오버라이드하지 않는다면 그 함수는 내부에서 자바 void 함수로 컴파일된다.
+- 자바와 다른점은 Unit은 모든 기능을 갖는 일반적인 타입이며 void와 달리 타입 인자로 쓸 수 있다.
+- Unit 타입의 함수는 Unit 값을 묵시적으로 반환한다.
+
+```kotlin
+interface Processor<T> {
+	fun process(): T
+}
+
+class NoResultProcessor : Processor<Unit> {
+  override fun process() {
+    //..
+    // <- 마지막줄에 return을 명시할 필요가 없다.
+  }
+  
+}
+```
+
 ### Nothing 타입: 이 함수는 결코 정상적으로 끝나지 않는다.
+
+- 테스트 라이브러리의 fail이나 정상적으로 함수가 끝나지 않는다는 사실을 알면 유용한데 이때 Nothing 타입을 사용한다.
+
+```kotlin
+fun fail(message: String): Nothing {
+    throw IllegalStateException(message)
+}
+
+fun main(args: Array<String>) {
+    fail("Error occurred")
+}
+```
+
+- Nothing 타입은 아무 값도 반환하지 않는다. 따라서 Nothing은 함수의 반환 타입이나 반환 타입으로 쓰일 타입 파라미터로만 쓸 수 있다.
+
+
 
 ## 컬렉션과 배열
 
 ### 널 가능성과 컬렉션
 
-### 읽기 전영과 변경 가능한 컬렉션
+- 변수 타입 뒤에 ? 를 붙이는 것 처럼 타입 인자에도 ? 를 사용할 수 있다.
+
+```kotlin
+import java.util.ArrayList
+import java.io.BufferedReader
+import java.io.StringReader
+
+fun readNumbers(reader: BufferedReader): List<Int?> {
+    val result = ArrayList<Int?>()
+    for (line in reader.lineSequence()) {
+        try {
+            val number = line.toInt()
+            result.add(number)
+        }
+        catch(e: NumberFormatException) {
+            result.add(null)
+        }
+    }
+    return result
+}
+
+fun addValidNumbers(numbers: List<Int?>) {
+    var sumOfValidNumbers = 0
+    var invalidNumbers = 0
+    for (number in numbers) {
+        if (number != null) {
+            sumOfValidNumbers += number
+        } else {
+            invalidNumbers++
+        }
+    }
+    println("Sum of valid numbers: $sumOfValidNumbers")
+    println("Invalid numbers: $invalidNumbers")
+}
+
+fun main(args: Array<String>) {
+    val reader = BufferedReader(StringReader("1\nabc\n42"))
+    val numbers = readNumbers(reader)
+    addValidNumbers(numbers)
+}
+```
+
+- 특별한 내용은 없고 리스트 원소에 접근하면 Int? 타입의 값을 얻고 이 값을 사용하기 전에 널 여부를 검사해야 한다.
+
+
+
+### 읽기 전용과 변경 가능한 컬렉션
+
+- 코틀린에서는 컬렉션 안의 데이터에 접근하는 인터페이스와 컬렉션 안의 데이터를 변경하는 인터페이스를 분리했다는 점이다.
+- 코틀린 컬렉션은 kotlin.collections.Collection 부터 시작한다. 이 Collection 인터페이스를 사용하면 컬렉션 안의 원소에 대해 이터레이션하고 컬렉션의 크기를 얻고, 어떤 값이 컬렉션 안에 들어있는지 검사하고, 컬렉션에서 데이터를 읽는 여러 다른 연산을 수행할 수 있다. but 쓰기 연산은 없다.
+- 컬렉션의 데이터를 수정하려면 kotlin.collections.MutableCollection 인터페이스를 사용하라.
+- MutableCollection은 Collection의 확장이다.
+- 코드에서 가능하면 항상 읽기 전용 인터페이스를 사용하는 것을 권장한다.
+- 이렇게 구분한 이유는 val과 var처럼 가변과 불변을 구분한 것과 비슷하다.
+
+```kotlin
+fun <T> copyElements(source: Collection<T>,
+                     target: MutableCollection<T>) {
+    for (item in source) {
+        target.add(item)
+    }
+}
+
+fun main(args: Array<String>) {
+    val source: Collection<Int> = arrayListOf(3, 5, 7)
+    val target: MutableCollection<Int> = arrayListOf(1)
+    copyElements(source, target)
+    println(target)
+}
+```
+
+- 컬렉션 인터페이스를 사용할 때 항상 염두에 둬야 할 핵심은 읽기 전용 컬렉션이라고해서 꼭 변경 불가능한 컬렉션일 필요는 없다는 점이다. 같은 인스턴스를 읽기전용, 쓰기 모두 바라볼 때
+- 읽기 전용이라고 항상 스레드 세이프하지 않다는 점을 명심해야 한다.
 
 ### 코틀린 컬렉션과 자바
+
+- 모든 코틀린 컬렉션은 그에 상응하는 자바 컬렉션 인터페이스의 인스턴스라는 점은 사실이다.
+- 코틀린은 모든 자바 컬렉션 인터페이스마다 읽기 전용, 쓰기 가능한 인터페이스라는 두 가지 표현을 제공한다.
+
+| 컬렉션 타입 | 읽기 전용 타입 | 변경 가능 타입                                    |
+| ----------- | -------------- | ------------------------------------------------- |
+| List        | listOf         | mutableListOf, arrayListOf                        |
+| Set         | setOf          | mutableSetOf, hashSetOf, linkedSetOf, sortedSetOf |
+| Map         | mapOf          | mutableMapOf, hashMapOf, linkedMapOf, sortedMapOf |
+
+- 자바에서는 읽기전용, 쓰기전용을 구분하지 않으므로 코틀린에서 Collection 타입으로 넘겨도 쓰기가 가능하다.
+- 위 상황은 널이 아닌 타입의 컬렉션을 자바에 넘겼을때도 똑같은 문제가 생길 수 있다.
+- 컬렉션을 자바로 넘길때는 특별히 주의해야 한다.
 
 ### 컬렉션을 플랫폼 타입으로 다루기
 
 ### 객체의 배열과 원시 타입의 배열
 
+- 코틀린 배열은 타입 파라미터를 받는 클래스다.
+- 코틀린에서 배열을 만드는 방법
+  - arrayOf 함수에 원소를 넘기면 배열을 만들 수 있다.
+  - arrayOfNulls 함수에 정수 값을 인자로 넘기면 모든 원소가 null이고 인자로 넘긴 값과 크기가 같은 배열을 만들 수 있다. 원소 타입이 널이될 수 있는 타입인 경우에만 이 함수를 쓸 수 있다.
+  - Array 생성자는 배열 크기와 람다를 인자로 받아서 람다를 호출해서 각 배열 원소를 초기화해준다. arrayOf를 쓰지 않고 각 원소가 널이 아닌 배열을 만들어야 하는 경우 이 생성자를 사용한다.
+
+```kotlin
+fun main(args: Array<String>) {
+    val letters = Array<String>(26) { i -> ('a' + i).toString() }
+    println(letters.joinToString(""))
+}
+```
+
+- 컬렉션을 vararg 인자에 넘기는 방법은 아래와 같다.
+
+```kotlin
+fun main(args: Array<String>) {
+    val strings = listOf("a", "b", "c")
+    println("%s/%s/%s".format(*strings.toTypedArray()))
+}
+```
+
+- Array\<Int\> 같은 타입을 선언하면 그 배열은 박싱된 정수의 배열로 컴파일된다. 박싱하지 않은 배열이 필요하다면 특별한 배열 클래스를 사용해야 하낟.
+- 코틀린은 원시 타입의 배열을 표현하는 별도 클래스를 가 원시 타입마다 하나씩 제공한다. IntArray, ByteArray ...
+
+
+
 ## 요약
+
+- 코틀린은 널이 될 수 있는 타입을 지원해 NPE 오류를 컴파일 시점에 감지할 수 있다.
+- 코틀린의 .?, ?:, !!, let 함수 등을 사용하면 널이 될 수 있는 타입을 간결한 코드로 다룰 수 있다.
+- as? 연산자를 사용하면 값을 다른 타입으로 변환하는 것과 변환이 불가능한 경우를 처리하는 것을 한꺼번에 편리하게 처리할 수 있다.
+- 자바에서 가져온 타입은 코틀린에서 플랫폼 타입으로 취급된다. 개발자는 플랫폼 타입을 널이 될 수 있는 타입으로도, 널이 될 수 없는 타입으로도 사용할 수 있다.
+- 코틀린에서는 수를 표현하는 타입이 일반 클래스와 똑같이 생겼고 일반 클래스와 똑같이 동작한다. 하지만 대부분 컴파일러는 숫자 타입을 자바 원시 타입으로 컴파일한다.
+- 널이 될 수 있는 원시 타입은 자바의 박싱한 원시 타입에 대응한다.
+- Any 타입은 다른 모든 타입의 조상 타입이며, 자바의 Object에 해당한다. Unit은 자바의 void와 비슷하다.
+- 정상적으로 끝나지 않는 함수의 반환 타입을 지정할 때 Nothing 타입을 사용한다.
+- 코틀린 컬렉션은 표준 자바 컬렉션 클래스를 사용한다. 하지만 코틀린은 자바보다 컬렉션을 더 개선해서 읽기 전용 컬렉션과 변경 가능한 컬렉션을 구별해 제공한다.
+- 자바 클래스를 코틀린에서 확장하거나 자바 인터페이스를 코틀린에서 구현하는 경우 메서드 파라미터의 널 가능성과 변경 가능성에 대해 깊이 생각해야 한다.
+- 코틀린의 Array 클래스는 일반 제네릭 클래스처럼 보인다. 하지만 Array는 자바 배열로 컴파일된다.
+- 원시 타입의 배열은 IntArray와 같이 각 타입에 대한 특별한 배열로 표현된다.
 
 
 
