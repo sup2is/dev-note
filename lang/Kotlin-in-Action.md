@@ -3273,3 +3273,373 @@ fun main(args: Array<String>) {
 
 
 
+
+
+
+
+
+
+# #7 연산자 오버로딩과 기타 관례
+
+- 어떤 기능과 미리 정해진 이름의 함수를 연결해주는 기법을 코틀린에서는 관례라고 부른다.
+- 언어 기능을 타입에 의존하는 자바와 달리 코틀린은 관례에 의존한다.
+
+## 산술 연산자 오버로딩
+
+- 자바에서는 원시타입, String만 + 연산자를 사용할 수 있다.
+- 코틀린에서는 BigInteger 같은 레퍼런스 타입에도 + 를 사용할 수 있다.
+
+### 이항 산술 연산 오버로딩
+
+```kotlin
+data class Point(val x: Int, val y: Int) {
+    operator fun plus(other: Point): Point {
+        return Point(x + other.x, y + other.y)
+    }
+}
+
+fun main(args: Array<String>) {
+    val p1 = Point(10, 20)
+    val p2 = Point(30, 40)
+    println(p1 + p2)
+}
+```
+
+- 연산자를 오버로딩하는 함수에는 꼭 operator가 있어야 한다.
+- operator키워드는 어떤 함수가 관례를 따르는 함수인지 명확히 알 수 있다.
+- 위 코드에서 p1 + p2는 p1.plus(p2) 가 된다.
+
+| 식    | 함수 이름        |
+| ----- | ---------------- |
+| a * b | times            |
+| a / b | div              |
+| a % b | mod(1.1부터 rem) |
+| a + b | plus             |
+| a - b | minus            |
+
+- 연산자 우선순위는 기본 숫자형 연산자 우선순위와 같다. 곱셈이 덧셈보다 먼저 수행
+- 코틀린 연산자가 자동으로 교환 법칙을 지원하지 않음에 유의할 것
+
+```kotlin
+data class Point(val x: Int, val y: Int)
+
+operator fun Point.times(scale: Double): Point {
+    return Point((x * scale).toInt(), (y * scale).toInt())
+}
+
+fun main(args: Array<String>) {
+    val p = Point(10, 20)
+    println(p * 1.5)
+}
+```
+
+- 위 예제에서 p * 1.5는 가능하지만 1.5 * p는 컴파일이 안된다.
+- 연산자 함수의 반환 타입이 꼭 두 피연산자 중 하나와 일치해야하는 조건은 없다.
+
+```kotlin
+operator fun Char.times(count: Int): String {
+    return toString().repeat(count)
+}
+
+fun main(args: Array<String>) {
+    println('a' * 3)
+}
+```
+
+- 일반 함수와 마찬가지로 operator 함수도 오버로딩할 수 있다. 이름은 같지만 파라미터 타입이 서로 다른 연산자 함수를 여럿 만들 수 있다.
+- 비트 연산자는 특별한 연산자 함수를 사용하지 않는다.
+  - shl: 왼쪽 시프트
+  - shr: 오른쪽 시프트
+  - ushr: 오른쪽 시프트
+  - and: qlxm rhq
+  - or: 비트 합
+  - xor: 비트 배타
+  - inv: 비트 반전
+
+```kotlin
+fun main(args: Array<String>) {
+    println(0x0F and 0xF0)
+    println(0x0F or 0xF0)
+    println(0x1 shl 4)
+}
+```
+
+### 복합 대입 연산자 오버로딩
+
+- 코틀린은 += 같은 복합 대입 연사자도 지원한다.
+- point += Point(3, 4)는 point = point + Point(3, 4)라고 쓴 식과 같다.
+
+```kotlin
+operator fun Point.plus(other: Point): Point {
+    return Point(x + other.x, y + other.y)
+}
+
+fun main(args: Array<String>) {
+    var point = Point(1, 2)
+    point += Point(3, 4)
+    println(point)
+}
+```
+
+- 반환 타입이 Unit인 plusAssign 함수를 정의하면 코틀린은 += 연산자에 그 함수를 사용한다. 그럼 컬렉션에 값을 넣을 수 있다.
+
+```kotlin
+import java.util.ArrayList
+
+fun main(args: Array<String>) {
+    val numbers = ArrayList<Int>()
+    numbers += 42
+    println(numbers[0])
+}
+
+@kotlin.internal.InlineOnly
+public inline operator fun <T> MutableCollection<in T>.plusAssign(element: T) {
+    this.add(element)
+}
+
+```
+
+- 다른 복합 대입 연산자 함수도 비슷하게 minusAssign, timesAssign 등의 이름을 사용한다.
+- plus와 plusAssign 연산을 동시에 정의하지 말자.
+- 클래스가 불변이라면 plus 만 정의, 빌더와 비슷한건 plusAssign으로 정의
+- 코틀린 표준 라이브러리는 +와 -에 새로운 컬렉션을 반환하며 +=, -=는 변경을 적용한 복사본을 반환한다.
+
+```kotlin
+fun main(args: Array<String>) {
+    val list = arrayListOf(1, 2)
+    list += 3
+    val newList = list + listOf(4, 5)
+    println(list)
+    println(newList)
+}
+```
+
+
+
+### 단항 연산자 오버로딩
+
+```kotlin
+data class Point(val x: Int, val y: Int)
+
+operator fun Point.unaryMinus(): Point {
+    return Point(-x, -y)
+}
+
+fun main(args: Array<String>) {
+    val p = Point(10, 20)
+    println(-p)
+}
+
+```
+
+- 단항 연산자 오버로딩 함수는 인자를 취급하지 않는다.
+
+| 식       | 함수 이름  |
+| -------- | ---------- |
+| +a       | unaryPlus  |
+| -a       | unaryMinus |
+| !a       | not        |
+| ++a, a++ | inc        |
+| --a, a-- | dec        |
+
+```kotlin
+import java.math.BigDecimal
+
+operator fun BigDecimal.inc() = this + BigDecimal.ONE
+
+fun main(args: Array<String>) {
+    var bd = BigDecimal.ZERO
+    println(bd++)
+    println(++bd)
+}
+```
+
+## 비교 연산자 오버로딩
+
+### 동등성 연산자: eqauls
+
+- == 가 equals를 호출하는 것 역시 관례를 적용한 것에 불과하다.
+- 코틀린에서 동등성 검사는 equals 호출과 널 검사로 컴파일된다.
+- 식별자 비교 연산자는 === 를 사용한다. (같은 참조인지) ===를 오버로딩할 수는 없다.
+- Any의 eqauls에는 operator가 붙어있어서 오버라이드할때 operator 변경자를 붙이지 않아도 적용된다. 
+
+### 순서 연산자: compareTo
+
+- 코틀린도 자바의 Comparable 인터페이스를 지원한다. compareTo 메서드를 호출하는 관례도 지원한다.
+- p1 < p2 는 p1.compareTo(p2) < 0 과 같다.
+
+```kotlin
+import kotlin.comparisons.compareValuesBy
+
+class Person(
+        val firstName: String, val lastName: String
+) : Comparable<Person> {
+
+    override fun compareTo(other: Person): Int {
+        return compareValuesBy(this, other,
+            Person::lastName, Person::firstName)
+    }
+}
+
+fun main(args: Array<String>) {
+    val p1 = Person("Alice", "Smith")
+    val p2 = Person("Bob", "Johnson")
+    println(p1 < p2)
+}
+
+```
+
+- 처음에는 성능에 신경쓰지말고 이해하기 쉽고 간결하게 코드를 작성하고 나중에 그 코드가 자주 호출됨에 따라 성능이 문제가 되면 성능을 개선하라.
+- Comprable 인터페이스를 구현하는 모든 자바 클래스를 코틀린에서는 간결한 연산자 구문으로 비교할 수 있다.
+
+
+
+## 컬렉션과 범위에 대해 쓸 수 있는 관례
+
+### 인덱스로 원소에 접근: get과 set
+
+- 코틀린에서 맵의 원소나 배열 원소에 접근할때 각괄호를 사용할 수 있다.
+- Map과 MutableMap에서 각괄호를 사용해서 get, set에 대한 operator는 이미 정의되어 있다.
+
+```kotlin
+data class Point(val x: Int, val y: Int)
+
+operator fun Point.get(index: Int): Int {
+    return when(index) {
+        0 -> x
+        1 -> y
+        else ->
+            throw IndexOutOfBoundsException("Invalid coordinate $index")
+    }
+}
+
+fun main(args: Array<String>) {
+    val p = Point(10, 20)
+    println(p[1])
+}
+```
+
+- 파라미터가 n개도 가능하고 반드시 Int일 필요도 없다.
+- 쓰기는 아래와 같은 형태로 하면 된다.
+
+```kotlin
+data class MutablePoint(var x: Int, var y: Int)
+
+operator fun MutablePoint.set(index: Int, value: Int) {
+    when(index) {
+        0 -> x = value
+        1 -> y = value
+        else ->
+            throw IndexOutOfBoundsException("Invalid coordinate $index")
+    }
+}
+
+fun main(args: Array<String>) {
+    val p = MutablePoint(10, 20)
+    p[1] = 42
+    println(p)
+}
+
+```
+
+
+
+### in 관례
+
+- in은 객체가 컬렉션에 들어있는지 검사한다.
+- in 연산자는 contains연산자와 대응한다.
+
+```kotlin
+data class Point(val x: Int, val y: Int)
+
+data class Rectangle(val upperLeft: Point, val lowerRight: Point)
+
+operator fun Rectangle.contains(p: Point): Boolean {
+    return p.x in upperLeft.x until lowerRight.x &&
+           p.y in upperLeft.y until lowerRight.y
+}
+
+fun main(args: Array<String>) {
+    val rect = Rectangle(Point(10, 20), Point(50, 50))
+    println(Point(20, 30) in rect)
+    println(Point(5, 5) in rect)
+}
+```
+
+- 10..20은 20을 포함하지만 10 until 20은 20을 포함하지 않는다. until은 열린 범위를 표현할때 사용한다.
+
+### rangeTo 관례
+
+- .. 연산자는 rangeTo 함수를 간략하게 표현하는 방법이다.
+- 어떤 클래스가 Comparable 인터페이스를 구현하면 rangeTo를 정의할 필요가 없다.
+- rangeTo 연산자는 다른 산술연산자보다 우선순위가 낮아서 괄호로 인자를 감싸주면 더 좋다.
+
+### for 루프를 위한 iterator 관례
+
+- 코틀린의 for 루프는 범위 검사와 똑같이 in 연산자를 사용한다.
+
+```kotlin
+import java.time.LocalDate
+
+operator fun ClosedRange<LocalDate>.iterator(): Iterator<LocalDate> =
+        object : Iterator<LocalDate> {
+            var current = start
+
+            override fun hasNext() =
+                current <= endInclusive
+
+            override fun next() = current.apply {
+                current = plusDays(1)
+            }
+        }
+
+fun main(args: Array<String>) {
+    val newYear = LocalDate.ofYearDay(2017, 1)
+    val daysOff = newYear.minusDays(1)..newYear
+    for (dayOff in daysOff) { println(dayOff) }
+}
+```
+
+- iterator 메서드를 확장하면 확장 함수로 정의하는 관례를 사용할 수 있다.
+
+## 구조 분해 선언과 component 함수
+
+- 구조 분해를 사용하면 복합적인 값을 분해해서 여러 다른 변수를 한꺼번에 초기화할 수 있다.
+
+```kotlin
+data class Point(val x: Int, val y: Int)
+
+fun main(args: Array<String>) {
+    val p = Point(10, 20)
+    val (x, y) = p
+    println(x)
+    println(y)
+}
+```
+
+
+
+
+
+### 구조 분해 선언과 루프
+
+## 프로퍼티 접근자 로직 재활용: 위임 프로퍼티
+
+### 위임 프로퍼티 소개
+
+### 위임 프로퍼티 사용: by lazy()를 사용한 프로퍼티 초기화 지연
+
+### 위임 프로퍼티 구현
+
+### 위임 프로퍼티 컴파일 규칙
+
+### 프로퍼티 값을 맵에 저장
+
+### 프레임워크에서 위임 프로퍼티 활용
+
+## 요약
+
+
+
+
+
