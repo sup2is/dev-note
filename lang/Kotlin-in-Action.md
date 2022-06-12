@@ -3279,6 +3279,10 @@ fun main(args: Array<String>) {
 
 
 
+
+
+
+
 # #7 연산자 오버로딩과 기타 관례
 
 - 어떤 기능과 미리 정해진 이름의 함수를 연결해주는 기법을 코틀린에서는 관례라고 부른다.
@@ -3615,19 +3619,122 @@ fun main(args: Array<String>) {
     println(x)
     println(y)
 }
+
+
+/*
+return 
+10
+20
+*/
 ```
 
+- 내부에서 구조 분해 선언은 관례를 사용한다. 구조 분해 선언의 각 변수를 초기화하기 위해 componentN 이라는 함수를 호출한다. N은 구조 분해 선언에 있는 변수 위치에 따라 붙는 번호다.
+- data클래스는 컴파일러가 자동으로 componentN 함수를 만들어준다.
+- 여러 값을 한꺼번에 반환해야하는 경우 유용하다.
 
+```kotlin
+data class NameComponents(val name: String,
+                          val extension: String)
+
+fun splitFilename(fullName: String): NameComponents {
+    val result = fullName.split('.', limit = 2)
+    return NameComponents(result[0], result[1])
+}
+
+fun main(args: Array<String>) {
+    val (name, ext) = splitFilename("example.kt")
+    println(name)
+    println(ext)
+}
+```
+
+- 코틀린 표준 라이브러리는 맨 앞의 다섯 원소에 대한 componentN을 제공한다.
 
 
 
 ### 구조 분해 선언과 루프
 
+- 변수 선언이 들어갈 수 있는 장소라면 어디든 구조 분해 선언을 사용할 수 있다.
+
+```kotlin
+for((key,value) in map) {
+	// ...
+}
+```
+
+
+
 ## 프로퍼티 접근자 로직 재활용: 위임 프로퍼티
+
+- 위임 프로퍼티를 사용하면 값을 뒷받침하는 필드에 단순히 저장하는 것보다 더 복잡한 방식으로 작동하는 프로퍼티를 쉽게 구현할 수 있다.
 
 ### 위임 프로퍼티 소개
 
+```kotlin
+class Foo {
+  var p: Type by Delegate()
+}
+```
+
+- p 프로퍼티는 접근자 로직을 다른 객체에게 위임한다.
+- 프로퍼티 위임 관례를 따르는 Delegate() 클래스는 getValue(), setValue() 메서드를 제공해야 한다.
+- 관례를 사용하는 다른 경우와 마찬가지로 getValue와 setValue는 멤버 메서드이거나 확장 함수일 수 있다.
+
 ### 위임 프로퍼티 사용: by lazy()를 사용한 프로퍼티 초기화 지연
+
+- 지연 초기화는 객체의 일부분을 초기화하지 않고 남겨뒀다가 실제로 그 부분의 값이 필요할 경우 초기화할 때 흔히 쓰이는 패턴이다.
+
+```kotlin
+class Email { /*...*/ }
+fun loadEmails(person: Person): List<Email> {
+    println("Load emails for ${person.name}")
+    return listOf(/*...*/)
+}
+
+class Person(val name: String) {
+    private var _emails: List<Email>? = null
+
+    val emails: List<Email>
+       get() {
+           if (_emails == null) {
+               _emails = loadEmails(this)
+           }
+           return _emails!!
+       }
+}
+
+fun main(args: Array<String>) {
+    val p = Person("Alice")
+    p.emails
+    p.emails
+}
+```
+
+- 이런 코드는 위임 프로퍼티를 사용하면 더 깔끔해진다.
+
+```kotlin
+class Email { /*...*/ }
+fun loadEmails(person: Person): List<Email> {
+    println("Load emails for ${person.name}")
+    return listOf(/*...*/)
+}
+
+class Person(val name: String) {
+    val emails by lazy { loadEmails(this) }
+}
+
+fun main(args: Array<String>) {
+    val p = Person("Alice")
+    p.emails
+    p.emails
+}
+```
+
+- lazy 함수는 코틀린 관례에 맞는 시그니처의 getValue 메서드가 들어있는 객체를 반환한다.
+- lazy와 by 키워드를 사용해 위임 프로퍼티를 만들 수 있다. 
+- lazy는 기본적으로 스레드 세이프하다.
+
+
 
 ### 위임 프로퍼티 구현
 
@@ -3638,6 +3745,18 @@ fun main(args: Array<String>) {
 ### 프레임워크에서 위임 프로퍼티 활용
 
 ## 요약
+
+- 코틀린에서는 정해진 이름의 함수를 오버로딩함으로써 표준 수학 연산자를 오버로딩할 수 있다. 하지만 직접 새로운 연산자를 만들 수는 없다.
+- 비교 연산자는 eqauls와 compareTo 메서드로 변환된다.
+- 클래스에 get, set, contains라는 함수를 정의하면 그 클래스의 인스턴스에 대해 []와 in 연산을 사용할 수 있고 그 객체를 코틀린 컬렉션 객체와 비슷하게 다룰 수 있다.
+- 미리 정해진 관례를 따라 rangeTo, iterator 함수를 정의하면 범위를 만들거나 컬렉션과 배열의 원소를 이터레이션할 수 있다.
+- 구조 분해 선언을 통해 한 객체의 상태를 분해해서 여러 변수에 대입할 수 있다. 함수가 여러 값을 한꺼번에 반환해야 하는 경우 구조 분해가 유용하다. 데이터 클래스에 대한 구조 분해는 거저 사용할 수 있지만, 커스텀 클래스의 인스턴스에서 구조 분해를 사용하려면 compoentN 함수를 정의해야 한다.
+- 위임 프로퍼티를 통해 프로퍼티 값을 저장하거나 초기화하거나 읽거나 변경할 때 사용하는 로직을 재활용 할 수 있다. 위임 프로퍼티는 프레임워크를 만들 때 아주 유용하다.
+- 표준 라이브러리 함수인 lazy를 통해 지연 초기화 프로퍼티를 쉽게 구현할 수 있다.
+- Delegates.observable 함수를 사용하면 프로퍼티 변경을 관찰할 수 있는 관찰자를 쉽게 추가할 수 있다.
+- 맵을 위임 객체로 사용하는 위임 프로퍼티를 통해 다양한 속성을 제공하는 객체를 유연하게 다룰 수 있다.
+
+
 
 
 
