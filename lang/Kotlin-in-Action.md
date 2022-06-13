@@ -3762,3 +3762,442 @@ fun main(args: Array<String>) {
 
 
 
+# #8 고차 함수: 파라미터와 반환 값으로 람다 사용
+
+## 고차 함수 정의
+
+- 고차함수는 람다나 함수 참조를 인자로 넘길 수 있거나 람다나 함수 참조를 반환하는 함수다.
+- 고차 함수를 정의하려면 먼저 함수 타입에 대해 알아야 한다.
+
+### 함수 타입
+
+```kotlin
+val sum = {x: Int, y: Int -> x + y}
+val action = {println(42)}
+
+// 함수 타입 정의했을때
+val sum: (Int, Int) -> Int = {x, y -> x + y}
+val action: () -> Unit = {println(42)}
+```
+
+- 함수 타입을 선언할 때 Unit은 생략이 불가능하다.
+- 다른 함수와 마찬가지로 함수 타입에서도 반환 타입을 널이 될 수 있는 타입으로 지정할 수 있다.
+- 널이 될 수 있는 함수 타입도 정의할 수 있다.
+
+```kotlin
+var funOrNull: ((Int, Int) -> Int)? = null
+```
+
+- 함수 타입에서 파라미터의 이름을 지정할 수도 있다.
+
+### 인자로 받은 함수 호출
+
+```kotlin
+fun twoAndThree(operation: (Int, Int) -> Int) {
+    val result = operation(2, 3)
+    println("The result is $result")
+}
+
+fun main(args: Array<String>) {
+    twoAndThree { a, b -> a + b }
+    twoAndThree { a, b -> a * b }
+}
+
+```
+
+- 인자로 받은 함수는 호출하는 구문은 일반 함수를 호출하는 구문과 같다.
+
+```kotlin
+fun String.filter(predicate: (Char) -> Boolean): String {
+    val sb = StringBuilder()
+    for (index in 0 until length) {
+        val element = get(index)
+        if (predicate(element)) sb.append(element)
+    }
+    return sb.toString()
+}
+
+fun main(args: Array<String>) {
+    println("ab1c".filter { it in 'a'..'z' })
+}
+```
+
+
+
+### 자바에서 코틀린 함수 타입 사용
+
+- 코틀린 표준 라이브러리는 함수 인자의 개수에 따라 FunctionN 인터페이스를 제공한다.
+- 함수타입을 사용하는 코틀린 함수를 자바에서도 쉽게 호출할 수 있다. 자바 8 람다를 넘기면 자동으로 함수 타입의 값으로 변환된다.
+- 자바8 이전도 되는데 패스 ..
+
+### 디폴트 값을 지정한 함수 타입 파라미터나 널이 될 수 있는 함수 파라미터
+
+- 파라미터를 함수 타입으로 선언할 때도 디폴트 값을 정할 수 있다.
+
+```kotlin
+fun <T> Collection<T>.joinToString(
+        separator: String = ", ",
+        prefix: String = "",
+        postfix: String = "",
+        transform: (T) -> String = { it.toString() } // 디폴트로 람다를 넣을 수 있음
+): String {
+    val result = StringBuilder(prefix)
+
+    for ((index, element) in this.withIndex()) {
+        if (index > 0) result.append(separator)
+        result.append(transform(element))
+    }
+
+    result.append(postfix)
+    return result.toString()
+}
+
+fun main(args: Array<String>) {
+    val letters = listOf("Alpha", "Beta")
+    println(letters.joinToString())
+    println(letters.joinToString { it.toLowerCase() })
+    println(letters.joinToString(separator = "! ", postfix = "! ",
+           transform = { it.toUpperCase() }))
+}
+```
+
+- 널이 될 수 있는 함수타입
+
+```kotlin
+fun <T> Collection<T>.joinToString(
+        separator: String = ", ",
+        prefix: String = "",
+        postfix: String = "",
+        transform: ((T) -> String)? = null
+): String {
+    val result = StringBuilder(prefix)
+
+    for ((index, element) in this.withIndex()) {
+        if (index > 0) result.append(separator)
+        val str = transform?.invoke(element)
+            ?: element.toString()
+        result.append(str)
+    }
+
+    result.append(postfix)
+    return result.toString()
+}
+
+fun main(args: Array<String>) {
+    val letters = listOf("Alpha", "Beta")
+    println(letters.joinToString())
+    println(letters.joinToString { it.toLowerCase() })
+    println(letters.joinToString(separator = "! ", postfix = "! ",
+           transform = { it.toUpperCase() }))
+}
+```
+
+
+
+### 함수를 함수에서 반환
+
+```kotlin
+enum class Delivery { STANDARD, EXPEDITED }
+
+class Order(val itemCount: Int)
+
+fun getShippingCostCalculator(
+        delivery: Delivery): (Order) -> Double {
+    if (delivery == Delivery.EXPEDITED) {
+        return { order -> 6 + 2.1 * order.itemCount }
+    }
+
+    return { order -> 1.2 * order.itemCount }
+}
+
+fun main(args: Array<String>) {
+    val calculator =
+        getShippingCostCalculator(Delivery.EXPEDITED)
+    println("Shipping costs ${calculator(Order(3))}")
+}
+```
+
+```kotlin
+data class Person(
+        val firstName: String,
+        val lastName: String,
+        val phoneNumber: String?
+)
+
+class ContactListFilters {
+    var prefix: String = ""
+    var onlyWithPhoneNumber: Boolean = false
+
+    fun getPredicate(): (Person) -> Boolean {
+        val startsWithPrefix = { p: Person ->
+            p.firstName.startsWith(prefix) || p.lastName.startsWith(prefix)
+        }
+        if (!onlyWithPhoneNumber) {
+            return startsWithPrefix
+        }
+        return { startsWithPrefix(it)
+                    && it.phoneNumber != null }
+    }
+}
+
+fun main(args: Array<String>) {
+    val contacts = listOf(Person("Dmitry", "Jemerov", "123-4567"),
+                          Person("Svetlana", "Isakova", null))
+    val contactListFilters = ContactListFilters()
+    with (contactListFilters) {
+        prefix = "Dm"
+        onlyWithPhoneNumber = true
+    }
+    println(contacts.filter(
+        contactListFilters.getPredicate()))
+}
+
+```
+
+
+
+### 람다를 활용한 중복 제거
+
+- 함수 타입과 람다 식은 재활용하기 좋은 코드를 만들 때 쓸 수 있는 훌륭한 도구다.
+
+
+
+```kotlin
+data class SiteVisit(
+    val path: String,
+    val duration: Double,
+    val os: OS
+)
+
+enum class OS { WINDOWS, LINUX, MAC, IOS, ANDROID }
+
+val log = listOf(
+    SiteVisit("/", 34.0, OS.WINDOWS),
+    SiteVisit("/", 22.0, OS.MAC),
+    SiteVisit("/login", 12.0, OS.WINDOWS),
+    SiteVisit("/signup", 8.0, OS.IOS),
+    SiteVisit("/", 16.3, OS.ANDROID)
+)
+
+val averageWindowsDuration = log
+    .filter { it.os == OS.WINDOWS }
+    .map(SiteVisit::duration)
+    .average()
+
+fun main(args: Array<String>) {
+    println(averageWindowsDuration)
+}
+```
+
+- 람다 사용하기
+
+```kotlin
+data class SiteVisit(
+    val path: String,
+    val duration: Double,
+    val os: OS
+)
+
+enum class OS { WINDOWS, LINUX, MAC, IOS, ANDROID }
+
+val log = listOf(
+    SiteVisit("/", 34.0, OS.WINDOWS),
+    SiteVisit("/", 22.0, OS.MAC),
+    SiteVisit("/login", 12.0, OS.WINDOWS),
+    SiteVisit("/signup", 8.0, OS.IOS),
+    SiteVisit("/", 16.3, OS.ANDROID)
+)
+
+fun List<SiteVisit>.averageDurationFor(os: OS) =
+        filter { it.os == os }.map(SiteVisit::duration).average()
+
+fun main(args: Array<String>) {
+    println(log.averageDurationFor(OS.WINDOWS))
+    println(log.averageDurationFor(OS.MAC))
+}
+
+```
+
+- 옵션 추가
+
+```kotlin
+data class SiteVisit(
+    val path: String,
+    val duration: Double,
+    val os: OS
+)
+
+enum class OS { WINDOWS, LINUX, MAC, IOS, ANDROID }
+
+val log = listOf(
+    SiteVisit("/", 34.0, OS.WINDOWS),
+    SiteVisit("/", 22.0, OS.MAC),
+    SiteVisit("/login", 12.0, OS.WINDOWS),
+    SiteVisit("/signup", 8.0, OS.IOS),
+    SiteVisit("/", 16.3, OS.ANDROID)
+)
+
+val averageMobileDuration = log
+    .filter { it.os in setOf(OS.IOS, OS.ANDROID) }
+    .map(SiteVisit::duration)
+    .average()
+
+fun main(args: Array<String>) {
+    println(averageMobileDuration)
+}
+```
+
+```kotlin
+data class SiteVisit(
+    val path: String,
+    val duration: Double,
+    val os: OS
+)
+
+enum class OS { WINDOWS, LINUX, MAC, IOS, ANDROID }
+
+val log = listOf(
+    SiteVisit("/", 34.0, OS.WINDOWS),
+    SiteVisit("/", 22.0, OS.MAC),
+    SiteVisit("/login", 12.0, OS.WINDOWS),
+    SiteVisit("/signup", 8.0, OS.IOS),
+    SiteVisit("/", 16.3, OS.ANDROID)
+)
+
+fun List<SiteVisit>.averageDurationFor(predicate: (SiteVisit) -> Boolean) =
+        filter(predicate).map(SiteVisit::duration).average()
+
+fun main(args: Array<String>) {
+    println(log.averageDurationFor {
+        it.os in setOf(OS.ANDROID, OS.IOS) })
+    println(log.averageDurationFor {
+        it.os == OS.IOS && it.path == "/signup" })
+}
+```
+
+
+
+## 인라인 함수: 람다의 부가 비용 없애기
+
+- 람다를 사용하는 구현은 똑같은 작업을 수행하는 일반 함수를사용한 구현보다는 덜 효율적이다. 람다가 변수를 캡쳐한 경우..
+- inline 변경자를 사용하면 컴파일러는 그 함수를 호출하는 모든 문장을 함수 본문에 해당하는 바이트코드로 바꿔치기해준다.
+
+### 인라이닝이 작동하는 방식
+
+- 어떤 함수를 inline으로 선언하면 그 함수 본문이 인라인된다.
+
+### 인라인 함수의 한계
+
+### 컬렉션 연산 인라이닝
+
+- 지연 계산을 통해 성능을 향상시키려는 이유로 모든 컬렉션 연산에 asSequence를 붙여서는 안된다.
+- 시퀀스 연산에서는 람다가 인라이닝되지 않기 떄문에 크기가 작은 컬렉션은 오히려 일반 컬렉션 연산이 더 성능이 나을 수 있다.
+- 컬렉션 크기가 클 때만 시퀀스를 사용하자.
+
+### 함수를 인라인으로 선언해야 하는 경우
+
+- inline 키워드를 사용해도 람다를 인자로 받는 함수만 성능이 좋아질 가능성이 높다.
+- inline을 사용할 때 코드 크기에 주의를 기울여야 한다. 바이크코드가 전체적으로 아주 커질 수 있다.
+
+### 자원 관리를 위해 인라인된 람다 사용
+
+- 코틀린에는 try-with-resource와 같은 기능을 제공하는 use 함수가 있다.
+- use 함수는 closeable 자원에 대한 확장 함수며, 람다를 인자로 받는다.
+
+## 고차 함수 안에서 흐름 제어
+
+### 람다 안의 return문: 람다를 둘러싼 함수로부터 반환
+
+- 람다 안에서 return을 사용하면 람다로붜만 반환되는게 아니라 그 람다를 호출하는 함수가 실행을 끝내고 반환된다.
+- 자신을 둘러싸고 있는 블록보다 더 바깥에 있는 다른 블록을 반환하게 만드는 return문을 넌 로컬 return이라고 부른다.
+- return이 바깥쪽 함수를 반환시킬 수 있는 때는 람다를 인자로 받는 함수가 인라인 함수인 경우뿐이다.
+
+### 람다로부터 반환: 레이블을 사용한 return
+
+- 람다 식에도 로컬 return을 사용할 수 있다. 람다 안에서 로컬 return은 for 루프의 break와 비슷한 역할을 한다.
+- 로컬 return고 넌로컬 return을 구분하기 위해서는 레이블을 사용해야한다.
+
+```kotlin
+data class Person(val name: String, val age: Int)
+
+val people = listOf(Person("Alice", 29), Person("Bob", 31))
+
+fun lookForAlice(people: List<Person>) {
+    people.forEach label@{
+        if (it.name == "Alice") return@label
+    }
+    println("Alice might be somewhere")
+}
+
+fun main(args: Array<String>) {
+    lookForAlice(people)
+}
+```
+
+- 람다에 레이블을 붙여서 사용하는 대신 람다를 인자로 받는 인라인 함수의 이름을 return 뒤에 레이블로 사용해도 된다.
+
+```kotlin
+data class Person(val name: String, val age: Int)
+
+val people = listOf(Person("Alice", 29), Person("Bob", 31))
+
+fun lookForAlice(people: List<Person>) {
+    people.forEach {
+        if (it.name == "Alice") return@forEach
+    }
+    println("Alice might be somewhere")
+}
+
+fun main(args: Array<String>) {
+    lookForAlice(people)
+}
+```
+
+```kotlin
+fun main(args: Array<String>) {
+    println(StringBuilder().apply sb@{
+       listOf(1, 2, 3).apply {
+           this@sb.append(this.toString())
+       }
+    })
+}
+```
+
+- 람다식에는 레이블이 2개 이상 붙을 수 없다.
+
+
+
+### 무명 함수: 기본적으로 로컬 return
+
+- 무명 함수 안에서 레이블이 붙지 않은 return 식은 무명 함수 자체를 반환시킬 뿐 무명 함수를 둘러싼 다른 함수를 반환시키지 않는다.
+
+```kotlin
+data class Person(val name: String, val age: Int)
+
+val people = listOf(Person("Alice", 29), Person("Bob", 31))
+
+fun lookForAlice(people: List<Person>) {
+    people.forEach(fun (person) {
+        if (person.name == "Alice") return
+        println("${person.name} is not Alice")
+    })
+}
+
+fun main(args: Array<String>) {
+    lookForAlice(people)
+}
+```
+
+## 요약
+
+- 함수 타입을 사용해 함수에 대한 참조를 담는 변수나 파라미터나 반환 값을 만들 수 있다.
+- 고차 함수는 다른 함수를 인자로 받거나 함수를 반환한다. 함수의 파라미터 타입이나 반환 타입으로 함수 타입을 사용하면 고차 함수를 선언할 수 있다.
+- 인라인 함수를 컴파일한 바이트코드를 모든 함수 호출 지점에 삽입해준다. 이렇게 만들어지는 바이트코드는 람다를 활용한 인라인 함수 코드를 풀어서 직접 쓴 경우와 비교할 때 아무 부가 비용이 들지 않는다.
+- 고차 함수를 사용하면 컴포넌트를 이루는 각 부분의 코드를 더 잘 재사용할 수 있다. 또 고차 함수를 활용해 강력한 제니릭 라이브러리를 만들 수 있다.
+- 인라인 함수에서는 람다 안에 있는 return 문이 바깥쪽 함수를 반환시키는 넌로컬 return을 사용할 수 있다.
+- 무명 함수는 람다 식을 대신할 수 있으며 return 식을 처리하는 규칙이 일반 람다식과는 다르다 본문 여러 곳에서 return해야 하는 코드 블록을 만들어야 한다면 람다 대신 무명 함수를 쓸 수 있다.
+
+
+
+
+
