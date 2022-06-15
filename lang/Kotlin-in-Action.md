@@ -4201,3 +4201,347 @@ fun main(args: Array<String>) {
 
 
 
+
+
+
+
+
+
+# #9 제네릭스
+
+## 제네릭 타입 파라미터
+
+- 제네릭스를 사용하면 타입 파라미터를 받는 타입을 정의할 수 있다.
+- 제네릭 타입의 인스턴스를 만들려면 타입 파라미터를 구체적인 타입 인자로 치환해야 한다.
+- 기본적인 내용은 자바와 똑같다. 코틀린은 프로그래머가 정의하던 추론으로 해주던 무조건 정확한 타입 인자가 있어야 한다.
+
+### 제네릭 함수와 프로퍼티
+
+```kotlin
+fun main(args: Array<String>) {
+    val letters = ('a'..'z').toList()
+    println(letters.slice<Char>(0..2))
+    println(letters.slice(10..13))
+}
+```
+
+- 함수를 호출할 때 타입 인자를 명시할 수 있지만 대부분 컴파일러가 추론해주기 때문에 생략이 가능하다.
+- 클래스나 인터페이스 안에 정의된 메서드, 확장 함수 또는 최상위 함수에서 타입 파라미터를 선언할 수 있다.
+
+```kotlin
+val <T> List<T>.penultimate: T
+    get() = this[size - 2]
+
+fun main(args: Array<String>) {
+    println(listOf(1, 2, 3, 4).penultimate)
+}
+
+```
+
+
+
+### 제네릭 클래스 선언
+
+- 자바와 마찬가지로 코틀린에서도 타입 파라미터를 넣은 꺽쇠기호를 클래스 이름 뒤에 붙이면 클래스를 제네릭하게 만들 수 있다. 인터페이스도 마찬가지로
+- 제네릭 클래스를 확장할때는 기반 타입의 제네릭 파라미터에 대해 타입 인자를 지정해야 한다. 이때 구체적인 타입도 되고 타입 파라미터도 가능하다.
+- 거의 자바와 비슷하다.
+
+### 타입 파라미터 제약
+
+- 타입 파라미터 제약은 클래스나 함수에 사용할 수 있는 타입 인자를 제한하는 기능이다.
+- 어떤 타입을 제네릭 타입의 타입 파라미터에 대한 상한으로 지정하면 그 제네릭 타입을 인스턴스화할 때 사용하는 타입 인자는 반드시 그 상한 타입이거나 그 상한 타입의 하위 타입이어야 한다.
+
+```kotlin
+fun <T : Number> oneHalf(value: T): Double {
+    return value.toDouble() / 2.0
+}
+
+fun main(args: Array<String>) {
+    println(oneHalf(3))
+}
+```
+
+- 타입 파라미터 T에 대한 상한을 정하고 나면 T 타입의 값을 그 상한 타입의 값으로 취급할 수 있다.
+
+```kotlin
+fun <T: Comparable<T>> max(first: T, second: T): T {
+    return if (first > second) first else second
+}
+
+fun main(args: Array<String>) {
+    println(max("kotlin", "java"))
+}
+```
+
+- 드물게 타입 파라미터에 둘 이상의 제약을 가하는 경우가 있는데 그 경우엔 약간 다른 구문을 사용한다.
+
+```kotlin
+fun <T> ensureTrailingPeriod(seq: T)
+        where T : CharSequence, T : Appendable {
+    if (!seq.endsWith('.')) {
+        seq.append('.')
+    }
+}
+
+fun main(args: Array<String>) {
+    val helloWorld = StringBuilder("Hello World")
+    ensureTrailingPeriod(helloWorld)
+    println(helloWorld)
+}
+```
+
+
+
+### 타입 파라미터를 널이 될 수 없는 타입으로 한정
+
+- 코틀린 제네릭에서는 널이 될 수 있는 타입도 타입 파라미터를 치환할 수 있다.
+- 아무런 상한을 정하지 않은 타입은 결과적으로 Any?를 상한으로 정한 파라미터와 같다. 따라서 널 처리를 해줘야 한다.
+- 상한으로 Any를 잡아준다면 null이 될 수 없는 타입 파라미터가 된다.
+
+```kotlin
+class Processor<T : Any> {
+	fun process(value: T) {
+    value.hashCode()
+  }
+}
+```
+
+- 타입 파라미터를 널이 될 수 없는 타입으로 제약하기만 하면 타입 인자로 널이 될 수 있는 타입이 들어오는 일을 막을 수 있다. 따라서 Any를 사용하지 않고도 다른 널이 될 수 없는 타입을 사용해 상한을 정해도 된다. ex `<T : Comprable<T>>` 같은?
+
+  
+
+## 실행 시 제네릭스의 동작: 소거된 타입 파라미터와 실체화된 타입 파라미터
+
+- 제네릭의 타입소거
+  - 실행 시점에 제네릭 클래스의 인스턴스에 타입 인자 정보가 들어있지 않다는 의미
+
+### 실행 시점의 제네릭: 타입 검사와 캐스트
+
+- 자바와 마찬가지로 코틀린 제네릭 타입 인자 정보는 런타임에 지워진다.
+
+  - 예를 들어 List\<String\> 객체를 만들고 그 안에 문자열을 여럿 넣더라도 실행 시점에는 그 객체를 오직 List로만 볼 수 있다.
+
+- 하지만 제네릭은 이미 컴파일타임에 올바른 타입 인자가 들어왔음을 가정할 수 있다.
+
+- 타입 소거로 인해 생기는 한계
+
+  - 타입 인자를 따로 저장하지 않기 때문에 실행 시점에 타입 인자를 검사할 수 없다. 그래서 아래 코드는 컴파일이 불가능하다.
+
+  - ```kotlin
+    if (value is List<String>) { ... } // <- 컴파일에러. 실행 시점에 제네릭 타입이 소거됨 
+    ```
+
+    
+
+- 코틀린의 스타 프로젝션
+
+  - 인자를 알 수 없는 제네릭 타입을 표현할 때 스타 프로젝션을 사용한다.
+
+  - ```kotlin
+    fun printFirst(list: List<*>) {
+        if (list.isNotEmpty()) {
+            println(list.first())
+        }
+    }
+    
+    fun main(args: Array<String>) {
+        printFirst(listOf("Svetlana", "Dmitry"))
+    }
+    ```
+
+  - as나 as? 캐스팅에도 제네릭 타입을 사용할 수 있지만 실행 시점에는 제네릭 타입의 인자를 알 수 없기 때문에 캐스팅은 항상 성공한다. 그런 타입 캐스팅을 사용하면 컴파일러가 "unchecked cask"라는 경고를 해준다.
+
+  - ```kotlin
+    fun printSum(c: Collection<*>) {
+        val intList = c as? List<Int> // <- warning
+                ?: throw IllegalArgumentException("List is expected")
+        println(intList.sum())
+    }
+    
+    fun main(args: Array<String>) {
+        printSum(listOf(1, 2, 3))
+    }
+    ```
+
+- 코틀린 컴파일러는 컴파일 시점에 타입 정보가 주어진 경우 is 검사를 수행하게 허용할 수 있을 정도로 똑똑하다.
+
+  - ```kotlin
+    fun printSum(c: Collection<Int>) {
+        if (c is List<Int>) { // 문제 없음
+            println(c.sum())
+        }
+    }
+    
+    fun main(args: Array<String>) {
+        printSum(listOf(1, 2, 3))
+    }
+    
+    ```
+
+- 일반적으로 코틀린 컴파일러는 안전하지 못한 검사와 수행할 수 있는 검사를 알려주기 위해 최대한 노력한다.
+
+### 실체화한 타입 파라미터를 사용한 함수 선언
+
+- 인라인 함수의 타입 파라미터
+
+  - 제네릭 함수의 타입도 실행시점에 지워지지만 인라인 함수의 타입 파라미터는 실체화 되기 때문에 실행 시점에 인라인 함수의 타입 인자를 알 수 있다.
+
+- 실체화한 타입 파라미터를 사용하는 함수를 정의하는 방법
+
+  - 타입 파라미터를 reified로 지정하면 value 타입의 T의 인스턴스인지 확인할 수 있다.
+
+  - ```kotlin
+    inline fun <reified T> isA(value: Any) = value is T
+    
+    fun main(args: Array<String>) {
+        println(isA<String>("abc"))
+        println(isA<String>(123))
+    }
+    
+    ```
+
+  - ```kotlin
+    fun main(args: Array<String>) {
+        val items = listOf("one", 2, "three")
+        println(items.filterIsInstance<String>())
+    }
+    
+    // return "one", "three"
+    ```
+
+- 인라인 함수에 타입 소거가 적용되지 않는 이유
+
+  - 인라인 함수의 본문을 구현한 바이트코드를 그 함수가 호출되는 모든 지점에 삽입한다.
+  - 컴파일러는 실체화한 타입 인자를 사용해 인라인 함수를 호출하는 각 부분의 정확한 타입 인자를 알 수 있다.
+  - 구체적인 타입은 바이트코드 실행시점에 벌어지는 타입 소거의 영향을 받지 않는다.
+  - 이러한 이유로 자바 코드에서는 reified 타입 파라미터를 사용하는 inline함수를 호출할 수 없다.
+
+### 실체화한 타입 파라미터로 클래스 참조 대신
+
+### 실체화한 타입 파라미터의 제약
+
+- 다음과 같은 경우에 실체화한 파라미터를 사용할 수 있다.
+  - 타입 검사와 캐스팅
+  - 10장에서 설명할 코틀린 리플렉션 API
+  - 코틀린 타입에 대응하는 java.lang.Class를 얻기
+  - 다른 함수를 호출할 때 타입 인자로 사용
+- 다음과 같은 일은 할 수 없다.
+  - 타입 파라미터 클래스의 인스턴스 생성하기
+  - 타입 파라미터 클래스의 동반 객체 메서드 호출하기
+  - 실체화한 타입 파라미터를 요구하는 함수를 호출하면서 실체화하지 않은 타입 파라미터로 받은 타입을 타입 인자로 넘기기
+  - 크랠스, 프로퍼티, 인라인 함수가 아닌 함수의 타입 파라미터를 reified로 지정하기
+
+
+
+## 변성: 제네릭과 하위 타입
+
+- 변성 개념
+  - List\<String\> 과 List\<Any\> 와 같이 기저 타입이 같고 타입 인자가 다른 여러 타입이 서로 어떤 관계가 있는지 설명하는 개념
+- 제네릭 클래스나 함수를 정의하는 경우 변성을 꼭 이해해야 한다.
+
+### 변성이 있는 이유: 인자를 함수에 넘기기
+
+- List\<Any\> 타입의 파라미터를 받는 함수에 List\<String\> 을 넘기면 안전하다.
+
+```kotlin
+fun printContents(list: List<Any>) {
+    println(list.joinToString())
+}
+
+fun main(args: Array<String>) {
+    printContents(listOf("abc", "bac"))
+}
+```
+
+- MutableList\<Any\> 타입의 파라미터를 받는 함수에 List\<String\> 을 넘기는것은 안전하지 않다.
+
+```kotlin
+fun printContents(list: MutableList<Any>) {
+    list.add(42)
+    println(list.joinToString())
+}
+
+fun main(args: Array<String>) {
+    printContents(mutableListOf("abc", "bac"))
+}
+```
+
+- 위와 같은 경우 list에 String, Integer가 동시에 들어가있는 이상한 컬렉션이 될 수 있다.
+
+  
+
+### 클래스, 타입, 하위 타입
+
+- 하위 타입의 개념
+
+  - 어떤 타입 A의 값이 필요한 모든 장소에 어떤 타입 B의 값을 넣어도 아무 문제가 없다면 타입 B는 타입 A의 하위 타입이다.
+
+- 상위 타입의 개념
+
+  - 하위 타입의 반대. A타입이 B타입의 하위 타입이라면 B는 A의 상위 타입이다.
+
+- 널이 될 수 없는 타입은 널이 될 수 있는 타입의 하위 타입이다.
+
+  - ```kotlin
+    val s: String = "abc"
+    val t: String? = s //문제 없다.
+    ```
+
+
+
+### 공변성: 하위 타입 관계를 유지
+
+- 공변
+
+  - A가 B의 하위 타입일때 `Producer<T>` 에서 `Producer<A>` 가 `Producer<B>`의 하위 타입이면 Producer는 공변적이다.
+
+- out 키워드
+
+  - 코틀린에서 제네릭 클래스가 타입 파라미터에 대해 공변적임을 표시하려면 타입 파라미터 이름 앞에 out을 넣어야 한다.
+
+  - ```kotlin
+    fun <T> copyData(source: MutableList<out T>,
+                     destination: MutableList<T>) {
+        for (item in source) {
+            destination.add(item)
+        }
+    }
+    
+    fun main(args: Array<String>) {
+        val ints = mutableListOf(1, 2, 3)
+        val anyItems = mutableListOf<Any>()
+        copyData(ints, anyItems)
+        println(anyItems)
+    }
+    ```
+
+  - 클래스의 타입 파라미터를 공변적으로 만들면 함수 정의에 사용한 파라미터 타입과 타입 인자의 타입이 정확히 일치하지 않더라도 그 클래스의 인스턴스를 함수 인자나 반환값으로 사용할 수 있다.
+
+
+
+공변 반공변은 다시 읽어볼 것
+
+### 반공변성: 뒤집힌 하위 타입 관계
+
+### 사용 지점 변성: 타입이 언급되는 지점에서 변성 지정
+
+### 스타 프로젝션: 타입 인자 대신 * 사용
+
+## 요약
+
+- 코틀린 제네릭스는 자바와 아주 비슷하다. 제네릭 함수와 클래스를 자바와 비슷하게 선언할 수 있다.
+- 자바와 마찬가지로 제네릭 타입의 타입 인자는 컴파일 시점에만 존재한다.
+- 타입 인자가 실행 시점에 지워지므로 타입 인자가 있는 타입을 is 연산자를 사용해 검사할 수 없다.
+- 인라인 함수의 타입 매개변수를 reified 표시해서 실체화하면 실행 시점에 그 타입을 is로 검사하거나 java.lang.Class 인스턴스를 얻을 수 있다.
+- 변성은 기저 클래스가 같고 타입 파라미터가 다른 두 제네릭 타입 사이의 상위/하위 타입 관계가 타입 인자 사이의 상위/하위 타입 관계에 의해 어떤 영향을 받는지 명시하는 방법이다.
+- 제네릭 클래스의 타입파라미터가 아웃 위치에서만 사용되는 경우 그 타입 파라미터를 out으로 표시해서 공변적으로 만들 수 있다.
+- 공변적인 경우와 반대로 제네릭 클래스의 타입 파라미터가 인 위치에서만 사용되는 경우 그 타입 파라미터를 in으로 표시해서 반공변적으로 만들 수 있다.
+- 코틀린의 읽기 전용 List 인터페이스는 공변적이다. 따라서 List\<String\> 은 List\<Any\>의 하위 타입이다.
+- 함수 인터페이스는 첫 번째 타입 파라미터에 대해서는 반공변적이고 두 번쨰 타입 파라미터에 대해서는 공변적이다. 그래서 (Animal) -> Int 는 (Cat) -> Number의 하위 타입이다.
+- 코틀린에서는 제네릭 클래스의 공변성을 전체적으로 지정하거나 구체적인 사용 위치에서 지정할 수 있다.
+- 제네릭 클래스의 타입 인자가 어떤 타입인지 정보가 없거나 타입 인자가 어떤 타입인지가 중요하지 않을 때 스타 프로젝션 구문을 사용할 수 있다.
+
+
+
+
+
