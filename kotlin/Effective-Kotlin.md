@@ -68,7 +68,227 @@ fun main() {
 	println(fullName) // Kim GilDong
 ```
 
+- var는 게터와 세터를 모두 제공하지만 val은 변경이 불가능하므로 getter만 제공한다. 따라서 val을 var로 오버라이드할 수 있다.
+- val은 읽기 전용이지 불변이 아니라는 점을 기억해야 한다. 정말 불변은 final을 사용하면 된다.
 
+```kotlin
+var name: String? = "GilDong"
+var surname: String = "Hong"
+val fullName: String?
+	get() = name?.let {"$it $surname"}
+
+val fullName2: String? = name?.let {"$it $surname"}
+
+fun main() {
+	if (fullName != null) {
+		println(funllName.length) // 오류
+	}
+
+	if (fullName2 != null) {
+		println(fullName2.length) // 12(Kim GilDong)
+	}
+}
+```
+
+- fullName은 게터로 정의했으므로 스마트 캐스트할 수 없다.
+- fullName2처럼 지역 변수가 아닌 프로퍼티가 final이고 사용자 정의 게터를 갖지 않을 경우 스마트 캐스트할 수 있다.
+
+
+
+**가변 컬렉션과 읽기 전용 컬렉션 구분하기**
+
+- 프로퍼티처럼 컬렉션도 읽고 쓰기 전용, 읽기 전용 컬렉션이 있다.
+
+- 읽고 쓰기 전용 컬렉션
+
+  - MutableIterable
+  - MutableCollection
+  - MutableSet
+  - MutableList
+
+- 읽기 전용 컬렉션
+
+  - Iterable
+  - Collection
+  - Set
+  - List
+
+- 코틀린은 컬렉션을 읽기 전용으로 설계해서 내부적으로 immutable하지 않은 컬렉션을 외부적으로 immutable하게 보이게 만들어서 안정성을 얻는다.
+
+- 읽기전용 -> 읽기 쓰기 전용
+
+  - 코틀린에서 읽기 전용은 읽기 전용으로만 사용해야하고 다운캐스팅을 하면안된다.
+
+  - 만약 필요하다면 읽기 전용에서 copy를 통해 새로운 mutable 컬렉션을 만드는 list.toMutableList를 활용해야 한다.
+
+  - ```kotlin
+    val list = listOf(1,2,3)
+    
+    // 이렇게 하지 마세요! 아래의 코드처럼 사용필요.
+    if (list is MutableList) {
+    	list.add(4)
+    }
+    val list = listOf(1,2,3)
+    
+    val mutableList = list.toMutableList()
+    
+    mutable.add(4)
+    ```
+
+
+
+**데이터 클래스의 copy**
+
+- immutable의 장점
+
+  - 한 번 정의된 상태가 유지되므로 코드를 이해하기 쉽다.
+  - immutable 객체는 공유했을 때도 충돌이 따로 이루어지지 않으므로, 병렬 처리를 안전하게 할 수 있다.
+  - immutable 객체에 대한 참조는 변경되지 않으므로 쉽게 캐시할 수 있다.
+  - immutable 객체는 방어적 복사본을 만들 필요가 없다. 또한 다른 객체를 복사할 때 깊은 복사를 따로 하지 않아도 된다.
+  - immutable 객체는 다른 객체를 만들 때 활용하기 좋다.
+  - immutable 객체는 set, map의 key로 사용할 수 있다.
+
+- immutable의 단점
+
+  - 객체의 상태를 변경할 수 없다.
+
+  - 자신의 일부를 수정한 새로운 객체를 만들어내는 메서드를 가져야 한다. <- 이게 지키기 어려움
+
+  - ```kotlin
+    class User (val name:String, val surname: String) {
+    	fun withSurname(surname: String) = User(name, usrname)
+    }
+    
+    var user = User("AAA", "BBB")
+    user = user.withSurname("CCC")
+    print(user) // User(name="AAA", surname="CCC")
+    ```
+
+- data 클래스와 copy
+
+  - 위와 같은 단점은 코틀린의 data 한정자와 copy 메서드로 커버가 가능하다.
+
+  - copy 메서드를 활용하면 모든 기본생성자 프로퍼티가 같은 새로운 객체를 만들어낼 수 있다.
+
+  - ```kotlin
+    data class User (val name:String, val surname: String)
+    
+    var user = User("AAA", "BBB")
+    user = user.copy("CCC")
+    print(user) // User(name="AAA", surname="CCC")
+    ```
+
+### 다른 종류의 변경 가능 지점
+
+- 변경할 수 있는 리스트를 만드는 두 가지 방법
+
+  - ```kotlin
+    val list1: MutableList<Int> = mutableListOf()
+    var list2: List<Int> = listOf()
+    
+    lsit1.add(1)
+    list2 = list2 + 1
+    
+    list1 += 1 // list1.plusAssign(1)로 변경
+    list2 += 1 // list2 = list2.plus(1)로 변경
+    ```
+
+  - 첫번째는 구체적인 리스트 구현 내부에 변경 가능 지점이 있고 두번째는 프로퍼티 자체가 변경 가능 지점이 된다.
+
+- mutable 프로퍼티로 변경사항 추적하기 (by Delegates)
+
+  - mutable 리스트 대신 mutable 프로퍼티를 사용하는 형태는 사용자 정의 세터를 활용해서 변경을 추적할 수 있다.
+
+  - ```kotlin
+    var names by Delegates.observable(listOf<String>()) { _, old, new -> 
+    	println("Names changed from $old to $new")
+    }
+    
+    names += "Fabio" // Names changed from [] to [Fabio]
+    names += "Bill" // Names changed from [Fabio] to [Fabio, Bill]
+    ```
+
+  - (이러한 기능이 필요하다면) mutable 프로퍼티(var)에 읽기 전용 컬렉션을 넣어 사용하는 것이 쉽다.
+
+- 최악의 방식
+
+  - mutable 프로퍼티 & mutable 컬렉션은 최악이다.
+
+  - ```kotlin
+    // 이렇게 하지 마세요.
+    var list3 = mutableListOf<Int>()
+    ```
+
+  - 가변성은 제한하는 것이 좋다.
+
+### 변경 가능 지점 노출하지 말기
+
+- 상태를 나타내는 mutable 객체를 외부에 노출하는 것은 굉장히 위험하다.
+
+```kotlin
+data class User(val name: String) 
+
+class UserRepository {
+	private val storedUsers: MuatableMap<Int, String> = mutableMapOf()
+
+	fun loadAll(): MutableMap<Int,String> {
+		return storedUsers
+	}
+
+	//...
+}
+
+// loadAll을 사용해서 private
+val userRepository = UserRepository()
+
+val storedUsers = userRepository.loadAll() 
+storedUsers[4] = "AAA"
+//...
+
+print(userRepository.loadAll()) // {4=AAA}
+```
+
+- 처리하는 방법
+
+  - 리턴되는 mutable 객체를 복제하기
+
+  - ```kotlin
+    class UserHolder {
+    	private val user: MutableUser()
+    
+    	fun get(): MutableUser {
+    		return user.copy()
+    
+    		//...
+    }
+    ```
+
+  - 컬렉션을 읽기 전용 슈퍼타입으로 업캐스트해서 가변성을 제한하기
+
+  - ```kotlin
+    class UserRepository {
+    	private val storedUsers: MuatableMap<Int, String> = mutableMapOf()
+    
+    	fun loadAll(): Map<Int,String> {
+    		return storedUsers
+    	}
+    
+    	//...
+    }
+    ```
+
+
+
+### 정리
+
+- 코틀린은 가변성을 제한하기 위한 도구들을 제공한다. 이를 활용해 가변 지점을 제한하며 코드를 작성하자.
+  - var 보다는 val을 사용하는 것이 좋다.
+  - mutable 프로퍼티보다는 immutable 프로퍼티를 사용하는 것이 좋다.
+  - mutable 객체와 클래스보다는 immutable 객체와 클래스를 사용하는 것이 좋다.
+  - 변경이 필요한 대상을 만들어야 한다면 immutable 데이터 클래스로 만들고 copy를 활용하는 것이 좋다.
+  - 컬렉션에 상태를 저장해야 한다면, mutable 컬렉션보다는 읽기 전용 컬렉션을 사용하는  것이 좋다.
+  - 변이 지점을 적절하계 설계하고 불필요한 변이 지점은 만들지 않는 것이 좋다.
+  - mutable 객체를 외부에 노출하지 않는 것이 좋다.
 
 
 
