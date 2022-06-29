@@ -242,7 +242,7 @@ class UserRepository {
 val userRepository = UserRepository()
 
 val storedUsers = userRepository.loadAll() 
-storedUsers[4] = "AAA"
+storedUsers[4] = "AAA"c
 //...
 
 print(userRepository.loadAll()) // {4=AAA}
@@ -295,6 +295,99 @@ print(userRepository.loadAll()) // {4=AAA}
 
 
 ## 아이템 2: 변수의 스코프를 최소화하라
+
+- 상태를 정의할 때는 변수와 프로퍼티의 스코프를 최소화하는 것이 좋다.
+  - 프로퍼티보다는 지역 변수를 사용하는 것이 좋다.
+  - 최대한 좁은 스코프를 갖게 하는 변수를 사용하자. 
+
+```kotlin
+// 나쁜 예
+var user: User
+for (i in users.indices) {
+	user = users[i]
+	print("User at $i is $user")
+}
+
+// 조금 더 좋은 예
+for (i in users.indices) {
+	val user = users[i]
+	print("User at $i is $user")
+}
+
+// 제일 좋은 예
+for ((i, user) in users.withIndex()) {
+	print("User at $i is $user")
+}
+```
+
+- 스코프가 좁으면 좋은 이유
+  - 프로그램을 추적하고 관리기 쉽다.
+  - 다른 개발자에 의해서 변수가 잘못 사용되는 것을 방지할 수 있다.
+
+
+
+- 변수는 읽기 전용 또는 읽고 쓰기 전용 여부와 상관없이 변수를 정의할 때 초기화하는 것이 좋다.
+
+```kotlin
+//나쁜 예
+val user: User
+if (hasValue) {
+	user = getValue()
+} else {
+	user = User()
+}
+
+// 조금 더 좋은 예
+val user: User = if(hasValue) {
+	getValue()
+} else {
+	User()
+}
+```
+
+- 여러 프로퍼티를 한꺼번에 설정해야 하는 경우엔 구조분해 선언을 활용하는 것이 좋다.
+
+```kotlin
+// 나쁜 예
+fun updateWeather(degrees: Int) {
+	val description: String
+	val color: Int
+	if (degrees < 5) {
+		description = "cold"
+		color = Color.BULE
+	} else if (degrees < 23) { 
+		desciption = "mild"
+		color = Color.YELLOW
+	} else {
+		desciption = "hot"
+		color = Color.RED
+	}
+}
+
+// 조금 좋은 예
+fun updateWeather(degrees: Int) {
+	val (description, color) = when {
+		degrees < 5 -> "cold" to Color.BLUE
+		degrees < 23 -> "mild" to Color.YELLOW
+		else -> "hot" to Color.RED
+	}
+}
+```
+
+
+
+### 캡쳐링
+
+- 외부에서 가져온 람다 내부에서 사용할 땐 항상 잠재적인 캡처 문제를 주의해야한다.
+- 가변성을 피하고 스코프 범위를 좁게 만들면 이런 문제를 간단히 회피할 수 있다.
+
+
+
+### 정리
+
+- 변수의 스코프는 좁게 만들어서 활용하는 것이 좋다.
+- var 보다 val이 좋다.
+- 람다에서는 변수를 캡쳐하는 것을 꼭 기억하자.
 
 ## 아이템 3: 최대한 플랫폼 타입을 사용하지 말라
 
