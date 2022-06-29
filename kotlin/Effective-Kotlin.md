@@ -389,7 +389,95 @@ fun updateWeather(degrees: Int) {
 - var 보다 val이 좋다.
 - 람다에서는 변수를 캡쳐하는 것을 꼭 기억하자.
 
+
+
 ## 아이템 3: 최대한 플랫폼 타입을 사용하지 말라
+
+- 코틀린의 대표적인 기능 중 하나는 바로 null-safety이다.
+- 플랫폼 타입
+  - 코틀린은 자바 등의 다른 프로그래밍 언어에서 넘어온 타입들을 플랫폼 타입이라는 특수한 타입으로 다룬다.
+  - 플랫폼 타입은 다른 프로그래밍 언어에서 전달되어 nullable인지 아닌지 알 수 없는 타입을 말한다.
+  - ! 표시 ex: String! 하지만 코드에 직접적으로 나타나진 않는다.
+- 실제로 코틀린에서 플랫폼 타입을 다루는 방법
+
+```kotlin
+// 자바
+public class UserRepo {
+	public User getUser() {
+		//...
+	}
+}
+
+// 코틀린
+val repo = UserRepo()
+val user1 = repo.user        // user1의 타입은 User!
+val user2: User = repo.user  // user2의 타입은 User
+val user3: User? = repo.user // user3의 타입은 User?
+
+val users: List<User> = UserRepo().users
+val users: List<List<User>> = UserRepo().groupedUsers
+```
+
+- 위 코드는 과연 안전한가?
+  - null이 아니라고 생각했던 것이 null일 가능성이 있다.
+  - 지금은 반드시 not null이라도 추후에 api가 변경될 수도 있다.
+- 자바 코드를 수정할 수 있다?
+  - 가능하면 @Nullable과 @NotNull 애너테이션을 붙여서 사용하자.
+  - 이런 애너테이션을 붙이는 작업은 코틀린을 사용하는 사람들에게 매우 중요하다.
+- 그래도 플랫폼 타입은 안좋기 때문에 최대한 빨리 제거하는 것이 좋다.
+
+```kotlin
+// 자바
+public class JavaClass {
+	public String getValue() {
+		return null;
+	}
+}
+
+// 코틀린
+fun statedType() {
+    val value: String = JavaClass().value // NPE
+    // ...
+    println(value.length)
+}
+
+fun platformType() {
+    val value = JavaClass().value
+    // ...
+    println(value.length) // NPE
+}
+```
+
+- statedType()에서는 자바에서 값을 가져올 때 NPE가 발생한다.
+- platformType()에서는 값을 활용할 때 NPE가 발생한다.
+- 플랫폼타입은 컴파일러가 오류를 검출해줄 수 없다. 그리고 이 오류를 찾는 데 오랜 시간이 걸릴 수 있다.
+
+```kotlin
+interface UserRepo {
+	fun getUserName() = JavaClass().value
+}
+
+class RepoImpl: UserRepo {
+	override fun getUserName(): String? {
+		return null
+	}
+}
+
+fun main() {
+	val repo: UserRepo = RepoImpl()
+	val text: String = repo.getUserName() // 런타임 NPE
+	print("User name length is ${text.length}")
+}
+```
+
+
+
+### 정리
+
+- 다른 프로그래밍 언어에서 와서 nullable 여부를 알 수 없는 타입을 플랫폼 타입이라고 부른다.
+- 플랫폼타입은 컴파일타임에 타입 체크를 하지 못하기 때문에 코틀린의 null-safety 기능을 제대로 활용하지 못하고 이는 곧 위험한 코드다.
+- 플랫폼 타입을 사용하는 곳이 있다면 제거하자.
+- 연결되어있는 자바 api에 nullable 여부를 지정하는 애너테이션을 활용하자.
 
 ## 아이템 4: inffered 타입으로 리턴하지 말라
 
