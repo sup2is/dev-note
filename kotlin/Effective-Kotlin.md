@@ -540,6 +540,137 @@ val DEFAULT_CAR = Fiat126P()
 
 ## 아이템 5: 예외를 활용해 코드에 제한을 걸어라
 
+- 코틀린에서 코드의 동작에 제한거는 방법
+  - require 블록: 아규먼트를 제한할 수 있다.
+  - check 블록: 상태와 관련된 동작을 제한할 수 있다.
+  - assert 블록: 어떤 것이 true인지 확인할 수 있다. assert블록은 테스트 모드에서만 작동한다.
+  - return 또는 throw와 함께 활용하는 Elvis연산자.
+- 제한을 걸었을때의 장점
+  - 제한을 걸면 문서를 읽지 않은 개발자도 문제를 확인할 수 있다.
+  - 문제가 있을 경우에 함수가 예상하지 못한 동작을 하지 않고 예외를 throw 한다. 이로 인해 코드가 더 안정적으로 작동할 수 있다.
+  - 코드가 어느 정도 자체적으로 검사된다. 따라서 단위 테스트를 줄일 수 있다.
+  - 스마트 캐스트 기능을 활용할 수 있으므로 타입 변환을 적게할 수 있다.
+
+
+
+### 아규먼트
+
+- 함수를 정의할 때 타입 시스템을 화용해서 아규먼트에 제한을 거는 코드를 많이 사용한다.
+  - 숫자가 양수여야 할 때
+  - 목록이 비어있지 않아야 할 때
+  - 이메일 형식이 올바른지
+- 위와 같은 경우엔 require 함수를 사용한다. require 함수는 제한을 확인하고, 제한을 만족하지 못할 경우 예외를 throw 한다.
+
+```kotlin
+    /**
+     * @property registrationNumber 사업자번호
+     * */
+    @Embeddable
+    data class RegistrationNumber(
+        val registrationNumber: String
+    ) {
+        init {
+            require(registrationNumber.length == 10) { "The length of registration number can only 10" }
+            require(registrationNumber.all { it.isDigit() }) { "registration number can only digit" }
+        }
+    }
+```
+
+- require함수는 조건을 만족하지 못할 때 무조건적으로 IllegalArgumentException을 발생시킨다.
+
+
+
+### 상태
+
+- 어떤 구체적인 조건을 만족해야만 함수를 사용할 수 있게 해야 할 때
+  - 객체가 미리 초기화되어 있어야만 하는 경우
+  - 객체가 특정 상태여야만 처리해야하는 경우
+
+```kotlin
+fun speak(text: String) {
+  check(isInitilized)
+  ...
+}
+
+fun getUserInfo(): UserInfo {
+  checkNotNull(token)
+  ...
+}
+```
+
+- check 함수는 지정된 예측을 만족하지 못할 때 IllegalStateException을 throw한다.
+- require와 check가 같이 있다면 require를 앞에 둔다.
+- 이런 check는 사용자가 규약을 어기거나, 사용하면 안되는 곳에서 함수를 호출하고 있다고 의심될때 한다.
+
+
+
+### Assert 계열 함수 사용
+
+- 단위 테스트로 테스트를 검증하는 방법도 있지만 함수에 assert문을 둬서 테스트하는 방법도 있다.
+- assert문을 사용하면 프로덕션 환경에서는 오류가 발생하지 않고 테스트에서만 활성화된다. 만약 이 오류가 심각하다면 check를 사용하면 된다.
+- assert문은 단위테스트를 위한 양념 느낌 ..?
+
+
+
+### nullability와 스마트 캐스팅
+
+- 스마트 캐스팅
+
+  - require와 check 블록을 사용해서 어떤 조건을 확인했다면 이후엔 스마트캐스팅이 적용된다.
+
+  - ```kotlin
+    class Person(val email: String?)
+    
+    fun sendEmail(person: Person, message: String) {
+      require(person.email != null)
+      val email: String = person.email
+    }
+    ```
+
+  - 이러한 특징은 어떤 대상이 null인지 확인할 때 굉장히 유용하다.
+
+  - 또는 requireNonNull, checkNotNull 이라는 특수한 함수를 사용해도 된다.
+
+- nullability
+
+  - nullability를 목적으로 Elvis 연산자를 활용하는 코드는 굉장히 읽기 쉽고 유연하게 사용할 수 있다.
+
+  - ```kotlin
+    fun sendEmail(person: Person, text: String) {
+      val email: String = person.email ?: return // 함수 중단
+      ...
+    }
+    ```
+
+  - ```kotlin
+    fun sendEmail(person: Person, text: String) {
+      val email: String = person.email ?: run {
+        log(" 어쩌구 .. 저쩌구 ..") // 로그 남기기
+        return
+      }
+      ...
+    }
+    ```
+
+  - return과 throw를 활용한 Elvis 연산자는 nullable을 확인할 때 굉장히 많이 사용되는 관용적인 방법이다.
+
+
+
+### 정리
+
+- 이번 절에서 활용한 내용을 기반으로 얻을 수 있는 것들
+  - 제한을 훨씬 더 쉽게 확인할 수 있다.
+  - 애플리케이션을 더안정적으로 지킬 수 있다.
+  - 코드를 잘못 쓰는 상황을 막을 수 있다.
+  - 스마트 캐스팅을 활용할 수 있다.
+- 매커니즘
+  - require 블록: 아규먼트와 관련된 예측을 정의할때 사용하는 범용적인 방법: IllegalArgumentException
+  - check 블록: 상태와 관련된 예측을 정의할 때 사용하는 범용적인 방법: IllegalStateException
+  - assert 블록: 테스트 모드에서 테스트를 할 때 사용하는 범용적인 방법
+  - return과 throw와 함께 Elvis 연산자 사용하기
+
+
+
 ## 아이템 6: 사용자 정의 오류보다는 표준 오류를 사용하라
 
 ## 아이템 7: 결과 부족이 발생할 경우 null과 Failure를 사용하라
