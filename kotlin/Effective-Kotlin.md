@@ -481,6 +481,63 @@ fun main() {
 
 ## 아이템 4: inffered 타입으로 리턴하지 말라
 
+- 코틀린의 타입 추론은 코틀린의 특징이다.
+- inferred 타입은 정확하게 오른쪽에 있는 피연산자에 맞게 설정된다는 것을 기억해야 한다.
+
+```kotlin
+open class Animal
+class Zebra: Animal()
+
+fun main() {
+	var animal = Zebra()
+	animal = Animal() // 오류: Type mismatch
+
+fun main() {
+	var animal: Animal = Zebra()
+	animal = Animal() // 성공
+```
+
+```kotlin
+// 1
+interface CarFactory {
+  fun produce(): Car
+}
+
+val DEFAULT_CAR: Car = Fiat126P()
+
+
+// 2.produce() 의 타입 제거
+interface CarFactory {
+	fun produce() = DEFAULT_CAR
+}
+
+val DEFAULT_CAR: Car = Fiat126P()
+
+// 3. DEFAULT_CAR의 타입 제거
+interface CarFactory {
+	fun produce() = DEFAULT_CAR
+}
+
+val DEFAULT_CAR = Fiat126P()
+```
+
+- 3번이 되는 경우 CarFactory는 더이상 Fiat126P 이외의 자동차를 생산할 수 없다. 만약 이 인터페이스가 외부API라면 클라이언트들이 문제를 쉽게 해결할 수 없다.
+- 리턴 타입을 쓰자.
+  - 리턴 타입은 API를 잘 모르는 사람에게 전달해줄 수 있는 중요한 정보다.
+  - 리턴 타입은 외부에서 확인할 수 있게 명시적으로 지정해주는 것이 좋다.
+
+
+
+### 정리
+
+- 타입을 확실히 지정해야 하는 경우 명시적으로 타입을 지정해야 한다는 원칙만 갖고 있으면 된다.
+- 안전을 위해서 외부 API를 만들 때는 반드시 타입을 지정하고 이렇게 지정한 타입을 특별한 이유와 확실한 확인 없이는 제거하지 말자.
+- Inferred 타입은 프로젝트가 진전될 때, 제한이 너무 많아지거나 예측하지 못한 결과를 낼 수 있다.
+
+
+
+
+
 ## 아이템 5: 예외를 활용해 코드에 제한을 걸어라
 
 ## 아이템 6: 사용자 정의 오류보다는 표준 오류를 사용하라
