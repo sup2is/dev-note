@@ -684,6 +684,83 @@ fun getUserInfo(): UserInfo {
 
 ## 아이템 7: 결과 부족이 발생할 경우 null과 Failure를 사용하라
 
+- 함수과 원하는 결과를 만들어 낼 수 없을 때
+
+  - 서버로부터 데이터를 읽어려하는데 네트웍 연결이 안될때
+  - 조건에 맞는 첫 번째 요소를 찾으려 했는데 조건에 맞는 요소가 없는 경우
+  - 텍스트를 파싱해서 객체를 만들려고 했는데 텍스트의 형식이 맞지 않는 경우
+
+- 이러한 상황을 처리하는 메커니즘
+
+  1. null 또는 실패를 나타내는 sealed 클래스(일반적으로 Failure라는 이름을 붙임)를 리턴한다.
+  2. 예외를 throw 한다.
+
+- 1번 사용하기
+
+  - 예외는 잘못된 특별한 상황을 나타내야하고 정보를 전달하는 용도로는 사용하면 안된다.
+    - 많은 개발자가 예외가 전파되는 과정을 제대로 추적하지 못한다.
+    - 코틀린의 모든 예외는 unchecked 예외다. 따라서 사용자가 예외를 처리하지 않을 수 있고 이런 내용은 문서에도 제대로 드러나지 않는다.
+    - 예외는 예외적인 상황을 처리하기 위해 만들어졌으므로 명시적인 테스트만큼 빠르게 동작하지 않는다.
+    - try-catch 블록 내부에 코드를 배치하면 컴파일러가 할 수 있는 최적화가 제한된다.
+  - 예측하기 어려운 예외적인 범위의 오류는 예외를 throw해서 처리하자.
+
+- 2번 사용하기
+
+  - 충분히 예측할 수 있는 범위의 오류는 null과 Failure를 사용하는게 좋다.
+
+  - ```kotlin
+    inline fun <reified T> String.readObjectOrNull(): T? {
+       //...
+       if (incorrectSign) {
+           return null
+       }
+       //...
+       return result
+    }
+    
+    inline fun <reified T> String.readObject(): Result<T> {
+       //...
+       if (incorrectSign) {
+           return Failure(JsonParsingException())
+       }
+       //...
+       return Success(result)
+    }
+    
+    sealed class Result<out T>
+    class Success<out T>(val result: T) : Result<T>()
+    class Failure(val throwable: Throwable) : Result<Nothing>()
+    
+    class JsonParsingException : Exception()
+    ```
+
+  - null처리를 해야 한다면 Elvis같은 다양한 널 안정성 기능을 활용하면 된다.
+
+  - ```
+    val age = userText.readObjectOrNull<Person>()?.age ?: -1
+    ```
+
+  - Result와 같은 공용체를 리턴하기로했다면 when 표현식을 사용할 수 있다.
+
+  - ```kotlin
+    val personResult = userText.readObject<Person>()
+    val age = when(personResult) {
+        is Success -> personResult.value.age
+        is Failure -> -1
+    }
+    ```
+
+  - null 값과 sealed result의 차이
+
+    - 추가적인 정보가 필요하다면 sealed result
+    - 그렇지 않으면 null
+
+- 개발자에게 null이 발생할 수 있다는 경고를 주려면 getOrNull 등을 사용해서 무엇이 리턴되는지 예측할 수 있게 하는 것이 좋다.
+
+
+
+## 아이템 8: 적절하게 null을 처리하라
+
 ## 아이템 9: use를 사용하여 리소스를 닫아라
 
 ## 아이템 10: 단위 테스트를 만들어라
