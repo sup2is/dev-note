@@ -673,6 +673,15 @@ fun getUserInfo(): UserInfo {
 
 ## 아이템 6: 사용자 정의 오류보다는 표준 오류를 사용하라
 
+- require, check, assert를 사용하면 대부분의 코틀린 오류를 처리할 수 있다.
+- 하지만 필요한 경우 사용자 정의 오류를 발생해야 하지만 가능하다면 직접 오류를 정의하는 것보다는 최대한 표준 라이브러리의 오류를 사용하는 것이 좋다.
+- 일반적으로 사용되는 예외들
+  - IllegalArgumentException, IllegalStateException
+  - IndexOutOfBoundsException: 인덱스의 파라미터의 값이 범위를 벗어난것을 의미
+  - ConcurrentModificationException: 동시 수정을 금지했는데 발생해버렸다는 의미
+  - UnsupportedOperationException: 사용자가 사용하려고 했던 메서드가 현재 객체에서는 사용할 수 없다는 것을 의미
+  - NoSuchElementException: 사용자가 사용하려고 했던 요소가 존재하지 않음을 나타내는 의미
+
 ## 아이템 7: 결과 부족이 발생할 경우 null과 Failure를 사용하라
 
 ## 아이템 9: use를 사용하여 리소스를 닫아라
