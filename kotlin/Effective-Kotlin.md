@@ -6,6 +6,8 @@
 
 코드 참고: [https://github.com/f-lab-edu/kts-effective-kotlin/](https://github.com/f-lab-edu/kts-effective-kotlin/)
 
+코드 참고: [https://github.com/MaxzMeng/Effective-Kotlin-zh-CN](https://github.com/MaxzMeng/Effective-Kotlin-zh-CN)
+
 # #1 안정성
 
 - 코틀린의 가장 큰 장점은 안전하다는 것!!!
@@ -760,6 +762,195 @@ fun getUserInfo(): UserInfo {
 
 
 ## 아이템 8: 적절하게 null을 처리하라
+
+- 기본적으로 nullable 타입을 처리하는 세가지 방법
+  - ?. , 스마트 캐스팅, Elvis 연산자 등을 활용해서 안전하게 처리
+  - 오류를 throw 하기
+  - 함수 또는 프로퍼티를 리팩터링해서 nullable 타입이 나오지 않게 바꾸기
+
+
+
+### null을 안전하게 처리하기
+
+- 코틀린은 nullable 변수와 관련된 처리를 굉장히 광범위하게 지원해준다.
+
+```kotlin
+printer?.print() // Safe call
+if (printer != null) printer.print() // Smart casting
+```
+
+```kotlin
+val printerName1 = printer?.name ?: "Unnamed"
+val printerName2 = printer?.name ?: return
+val printerName3 = printer?.name ?: 
+    throw Error("Printer must be named")
+```
+
+- 방어적 프로그래밍과 공격적 프로그래밍
+  - 방어적 프로그래밍
+    - 모든 가능성을 올바른 방식으로 처리하는 것을 방어적 프로그래밍이라 한다.
+  - 공격적 프로그래밍
+    - 예상하지 못한 상황이 발생했을 때 이러한 문제를 개발자에게 알려서 수정하게 만드는 것을 공격적 프로그래밍이라한다.
+  - 이 둘은 코드의 안전을 위해서 반드시 필요하다.
+
+### 오류 throw 하기
+
+- 다른 개발자가 어떤 코드를 보고 '당연히 그럴 것이다' 라고 생각하게 되는 부분이 있고 그 부분에서 문제가 발생할 경우에는 개발자에게 오류를 강제로 발생시켜주는 것이 좋다.
+- 오류를 강제로 발생시킬 때는 throw, !!, requireNotNull, checkNotNull 등을 활용하자.
+
+```kotlin
+fun process(user: User) {
+    requireNotNull(user.name)
+    val context = checkNotNull(context)
+    val networkService = 
+        getNetworkService(context) ?: 
+        throw NoInternetConnection()
+    networkService.getData { data, userData ->
+        show(data!!, userData!!)
+    }
+}
+```
+
+
+
+### not-null assertion(!!)과 관련된 문제
+
+- !! 사용에 대한 고찰
+
+  - !!은 사용하기 쉽지만 좋은 해결 방법이 아니다.
+  - !!타입은 nullable이지만 null이 나오지 않는다는 것이 거의 확실한 상황에서 많이 사용된다. 하지만 현재 확실하다고 미래에도 확실한건은 아니다.
+
+- !! 의 안좋은 case
+
+  - 변수를 null로 설정하고 이후에 !! 연산자를 사용하는 방법은 좋지 않다.
+
+  - ```kotlin
+    class UserControllerTest {
+    
+        private var dao: UserDao? = null
+        private var controller: UserController? = null
+    
+        @BeforeEach
+        fun init() {
+            dao = mockk()
+            controller = UserController(dao!!)
+        }
+    
+        @Test
+        fun test() {
+            controller!!.doSomething()
+        }
+    
+    }
+    ```
+
+  - 이럴때는 lateinit 또는 Delegates.notNull을 사용하자.
+
+- 일반적으로 !!연산자는 피해야한다. 최대한 피해보자!!
+
+
+
+### 의미없는 nullability 피하기
+
+- nullability 피하기
+  - 필요한 경우가 아니라면 nullability 자체는 피하는게 좋다!!
+  - 이유없이 null을 사용하면 다른 개발자들은 !!를 사용하게되고 의미없이 코드를 더럽히는 예외처리를 해야 한다.
+- nullability 피하는 방법
+  - 클래스에서 nullability에 따라 여러 함수 만들기 ex: get and getOrNull
+  - 어떤 값이 클래스 생성 이후에 확실하게 설정된다는 보장이 있다면 lateinit 프로퍼티와 notNull 델리게이트 사용하기
+  - 빈 컬렉션 대신 null 리턴하지 않기. 요소가 없다면 빈 컬렉션을 사용하기
+
+
+
+### lateinit 프로퍼티와 notNull 델리게이트
+
+```kotlin
+class UserControllerTest {
+
+    private var dao: UserDao? = null
+    private var controller: UserController? = null
+
+    @BeforeEach
+    fun init() {
+        dao = mockk()
+        controller = UserController(dao!!)
+    }
+
+    @Test
+    fun test() {
+        controller!!.doSomething()
+    }
+
+}
+```
+
+- @BeforeEach에서 반드시 프로퍼티들이 설정됨을 알 수 있기 때문에 lateinit을 사용한다.
+
+```kotlin
+class UserControllerTest {
+   private lateinit var dao: UserDao
+   private lateinit var controller: UserController
+
+   @BeforeEach
+   fun init() {
+       dao = mockk()
+       controller = UserController(dao)
+   }
+
+   @Test
+   fun test() {
+       controller.doSomething()
+   }
+}
+```
+
+- lateinit이 만병통치약?
+
+  - lateinit은 초기화 전에 값을 사용하려고 하면 예외가 발생한다.
+  - 사용하기 전에 반드시 초기화가 되어 있을 경우에만 lateinit을 붙여야 한다.
+
+- lateinit과 nullable의 차이
+
+  - !! 연산자로 언팩하지 않아도 된다.
+  - 이후에 어떤 의미를 나타내기 위해서 null을 사용하고 싶을 때 nullable로 만들 수도 있다.
+  - 프로퍼티가 초기화된 이후에는 초기화되지 않은 상태로 돌아갈 수 없다.
+
+- lateinit은 프로퍼티를 처음 사용하기 전에 반드시 초기화 될 거라고 예상되는 상황에 활용한다.
+
+- lateinit을 사용할 수 없을 때?
+
+  - Int, Long, Double과 같은 기본 타입과 연결된 타입으로 프로퍼티를 초기화해야할 때는 lateinit보다는 Delegates.notNull을 사용하자.
+
+  - ```kotlin
+    class DoctorActivity: Activity() {
+       private var doctorId: Int by Delegates.notNull()
+       private var fromNotification: Boolean by 
+           Delegates.notNull()
+    
+       override fun onCreate(savedInstanceState: Bundle?) {
+           super.onCreate(savedInstanceState)
+           doctorId = intent.extras.getInt(DOCTOR_ID_ARG)
+           fromNotification = intent.extras
+              .getBoolean(FROM_NOTIFICATION_ARG)
+       }
+    }
+    ```
+
+  - 프로퍼티 위임을 사용할 수도 있다. (자세한 설명은 아이템21에서 .. )
+
+  - ```kotlin
+    class DoctorActivity: Activity() {
+       private var doctorId: Int by arg(DOCTOR_ID_ARG)
+       private var fromNotification: Boolean by 
+           arg(FROM_NOTIFICATION_ARG)
+    }
+    ```
+
+    
+
+
+
+
 
 ## 아이템 9: use를 사용하여 리소스를 닫아라
 
