@@ -1045,3 +1045,99 @@ class UserControllerTest {
 
 - 가장 중요한 것은 애플리케이션이 진짜로 올바르게 동작하는지를 확인하는 것!
 
+
+
+
+
+# #2 가독성
+
+- 코틀린은 간결성을 목표로 설계된 프로그래밍 언어가 아니라 가독성을 좋게 하는 데 목표를 두고 설계된 프로그래밍 언어다.
+
+## 아이템 11: 가독성을 목표로 설계하라
+
+- "개발자가 코드를 작성하는 데는 1분이 걸리지만 이를 읽는 데는 10분이 걸린다." - 로버트 마틴
+- 프로그래밍은 쓰기보다 읽기가 중요하다. 항상 가독성을 생각하면서 코드를 작성해야 한다.
+
+### 인식 부하 감소
+
+- 기본적으로 인지 부하를 줄이는 방향으로 코드를 작성하자.
+
+  - 뇌는 기본적으로 짧은 코드를 빠르게 읽일 수 있지만 익숙한 코드는 더 빠르게 읽을 수 있다.
+
+  - ```kotlin
+    // Implementation A
+    if (person != null && person.isAdult) {
+       view.showPerson(person)
+    } else {
+       view.showError()
+    }
+    
+    // Implementation B
+    person?.takeIf { it.isAdult }
+       ?.let(view::showPerson)
+       ?: view.showError()
+    ```
+
+  - A가 읽기 좋고 수정하기도 좋은 코드다.
+
+### 극단적이 되지 않기
+
+- let은 좋은 코드를 만들기 위해서 다양하게 활용되는 인기있는 관용구다.
+
+- let의 활용
+
+  - 안전한 호출
+
+  - ```kotlin
+    class Person(val name: String)
+    var person: Person? = null
+    
+    fun printName() {
+        person?.let {
+            print(it.name)
+        }
+    }
+    ```
+
+  - 연산을 아규먼트 처리 후로 이동시킬 때
+
+  - ```kotlin
+    students
+         .filter { it.result >= 50 }	
+         .joinToString(separator = "\n") { 
+            "${it.name} ${it.surname}, ${it.result}" 
+         }
+         .let(::print)
+    ```
+
+  - 데코레이터를 사용해서 객체를 랩할 때
+
+  - ```kotlin
+    var obj = FileInputStream("/file.gz")
+        .let(::BufferedInputStream)
+        .let(::ZipInputStream)
+        .let(::ObjectInputStream)
+        .readObject() as SomeObject
+    ```
+
+- 관용구 등을 사용해서 어떤 코드에 비용을 지불하는것에 대한 균형을 맞추는것이 중요하다. 어떤 구조둘이 어떤 복잡성을 가져오는지 등을 파악하는 것이 좋다.
+
+- 복잡성은 1+1 = 2 가 아니다. 훨씬 커진다.
+
+
+
+### 컨벤션
+
+## 아이템 12: 연산자 오버로드를 할 때는 의미에 맞게 사용하라
+
+## 아이템 13: Unit?을 리턴하지 말라
+
+## 아이템 14: 변수 타임이 병화갛지 않은 경우 확실하게 지정하라
+
+## 아이템 15: 리시버를 명시적으로 참조하라
+
+## 아이템 16: 프로퍼티는 동작이 아니라 상태를 나타내야 한다.
+
+## 아이템 17: 이름 있는 아규먼트를 사용하라
+
+## 아이템 18: 코딩 컨벤션을 지켜라
