@@ -954,6 +954,69 @@ class UserControllerTest {
 
 ## 아이템 9: use를 사용하여 리소스를 닫아라
 
+- 더 이상 필요하지 않을 때 close 메서드를 사용해서 명시적으로 닫아야하는 리소스들
+
+  - InputStream과 OutStream
+
+  - java.sql.Connection
+
+  - java.io.Reader
+
+  - java.new.Socket
+
+  - java.util.Scanner
+
+  - 자바에서는 위와 같은 리소스들을 try-finally 블록을 사용해서 처리했다.
+
+  - ```kotlin
+    fun countCharactersInFile(path: String): Int {
+       val reader = BufferedReader(FileReader(path))
+       try {
+           return reader.lineSequence().sumBy { it.length }
+       } finally {
+           reader.close()
+       }
+    }
+    ```
+
+- use함수 사용하기
+
+  - 모든  Closeable 객체에 사용할 수 있다.
+
+  - ```kotlin
+    fun countCharactersInFile(path: String): Int {
+       val reader = BufferedReader(FileReader(path))
+       reader.use {
+           return reader.lineSequence().sumBy { it.length }
+       }
+    }
+    ```
+
+  - ```kotlin
+    fun countCharactersInFile(path: String): Int {
+       BufferedReader(FileReader(path)).use { reader ->
+           return reader.lineSequence().sumBy { it.length }
+       }
+    }
+    ```
+
+  - 파일을 한 줄씩 처리할 때 활용할 수 있는 useLines 함수
+
+  - ```kotlin
+    fun countCharactersInFile(path: String): Int =
+       File(path).useLines { lines -> 
+           lines.sumBy { it.length } 
+       }
+    ```
+
+
+
+### 정리
+
+- use를 사용하면 Closeable/AutoCloseable을 구현한 객체를 쉽고 안전하게 처리할 수 있다.
+
+
+
 ## 아이템 10: 단위 테스트를 만들어라
 
 
