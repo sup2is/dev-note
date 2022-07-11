@@ -1169,6 +1169,94 @@ val data: UserData = getSomeData()
 
 ## 아이템 15: 리시버를 명시적으로 참조하라
 
+- 스코프 내부에 리시버가 한 개라면 큰 문제가 되지 않는다.
+
+### 여러 개의 리시버
+
+- 스코프 내부에 둘 이상의 리시버가 있는 경우, 리시버를 명시적으로 나타내면 좋다.
+
+```kotlin
+class Node(val name: String) {
+
+   fun makeChild(childName: String) =
+       create("$name.$childName")
+           .apply { print("Created ${name}") }
+
+   fun create(name: String): Node? = Node(name)
+} 
+
+fun main() {
+   val node = Node("parent")
+   node.makeChild("child")
+}
+
+// 결과는 예상과 다르게 "Created parent"가 출력된다.
+```
+
+- 위 코드에 리시버를 명시적으로 붙이면 아래와 같다.
+
+```kotlin
+class Node(val name: String) {
+
+   fun makeChild(childName: String) =
+       create("$name.$childName")
+           .apply { print("Created ${this?.name}") }
+
+   fun create(name: String): Node? = Node(name)
+}
+
+fun main() {
+    val node = Node("parent")
+    node.makeChild("child") 
+    // Prints: Created parent.child
+}
+```
+
+- 사실 이는 apply의 잘못된 사용이다. also를 사용하면 명시적으로 리시버를 지정하게된다. 일반적으로 also또는 let을 사용하는 것이 nullable 값을 처리할 때 훨씬 좋은 선택지다.
+
+```kotlin
+class Node(val name: String) {
+
+   fun makeChild(childName: String) =
+       create("$name.$childName")
+           .also { print("Created ${it?.name}") }
+
+   fun create(name: String): Node? = Node(name)
+}
+```
+
+- 리시버가 명확하지 않다면 명시적으로 리시버를 적어서 이를 명확하게 하자.
+- 레이블 없이 리시버를 사용하면, 가장 가까운 리시버를 의미한다. 외부에 있는 리시버를 사용하려면, 레이블을 사용해야 한다.
+
+```kotlin
+class Node(val name: String) {
+
+    fun makeChild(childName: String) =
+        create("$name.$childName").apply { 
+           print("Created ${this?.name} in "+
+               " ${this@Node.name}") 
+        }
+
+    fun create(name: String): Node? = Node(name)
+}
+
+fun main() {
+    val node = Node("parent")
+    node.makeChild("child") 
+    // Created parent.child in parent
+}
+```
+
+- 이렇게하면 어떤 리시버를 활용하는지 의미도 명확헤지고 코드 안전성, 코드 가독성도 향상된다.
+
+### DSL 마커
+
+### 정리
+
+- 짧게 적을 수 있다는 이유만으로 리시버를 제거하지 말자.
+- 여러 개의 리시버가 있는 상황 등에는 리시버를 명시적으로 적어주는 것이 좋다. 
+- 리시버를 명시적으로 지정하면 어떤 리시버의 함수인지 명확하게 알 수 있으므로 가독성이 향상된다.
+
 ## 아이템 16: 프로퍼티는 동작이 아니라 상태를 나타내야 한다.
 
 ## 아이템 17: 이름 있는 아규먼트를 사용하라
