@@ -1259,6 +1259,87 @@ fun main() {
 
 ## 아이템 16: 프로퍼티는 동작이 아니라 상태를 나타내야 한다.
 
+- 자바의 필드와 코틀린의 프로퍼티는 비슷해보이지만 사실 완전히 다른 개념이다.
+- 코틀린의 프로퍼티는 사용자 정의 세터와 게터를 가질 수 있다.
+
+```kotlin
+var name: String? = null
+   get() = field?.toUpperCase()
+   set(value) {
+       if(!value.isNullOrBlank()) {
+           field = value
+       }
+   }
+
+```
+
+- backing field
+
+  - field라는 예약어는 프로퍼티의 데이터를 저장해두는 백킹 필드에 대한 레퍼런스다.
+  - 이러한 필드는 세터와 게터의 디폴트 구현에 사용되므로 따로 만들지 않아도 디폴트로 생성된다.
+  - val일 경우 field가 만들어지지 않는다.
+
+- 파생 프로퍼티
+
+  - var를 사용해서 만든 읽고 쓸 수 있는 프로퍼티는 게터와 세터를 정의할 수 있다.
+  - 이런 프로퍼티를 파생 프로퍼티라고하고 자주 사용된다.
+
+- 프로퍼티는 필드가 필요 없다. 오히러 프로퍼티는 개념적으로 접근자를 나타낸다. 따라서 인터페이스에도 프로퍼티를 정의할 수 있다.
+
+- 프로퍼티는 함수다.
+
+  - 프로퍼티는 본질적으로 함수이기 때문에 확장 프로퍼티를 만들 수 있다.
+
+  - ```kotlin
+    val Context.preferences: SharedPreferences
+       get() = PreferenceManager
+           .getDefaultSharedPreferences(this)
+    
+    val Context.inflater: LayoutInflater
+       get() = getSystemService(
+           Context.LAYOUT_INFLATER_SERVICE) as LayoutInflater
+    
+    val Context.notificationManager: NotificationManager
+       get() = getSystemService(Context.NOTIFICATION_SERVICE) 
+           as NotificationManager
+    ```
+
+  - 하지만 프로퍼티에서 아래와 같이 알고리즘의 동작을 나타내는것은 좋지않다.
+
+  - ```kotlin
+    // DON’T DO THIS!
+    val Tree<Int>.sum: Int
+       get() = when (this) {
+           is Leaf -> value
+           is Node -> left.sum + right.sum
+       }
+    ```
+
+  - sum은 모든 요소를 반복하므로 컬렉션이 크다면 많은 계산량이 필요하다. 사용자는 게터에 이런 계산이 필요하다고 생각하지 않기 때문에 이렁 경우엔 함수로 빼야 한다.
+
+  - ```kotlin
+    fun Tree<Int>.sum(): Int = when (this) {
+       is Leaf -> value
+       is Node -> left.sum() + right.sum()
+    }
+    ```
+
+- 원칙적으로 프로퍼티는 상태를 나타내거나 설정하기 위한 목적으로만 사용하는 것이 좋고 다른 로직 등을 포함하지 않아야 한다.
+
+- 어떤것을 프로퍼티로 해야하는지 판단할 수 있는 간단한 질문
+
+  - "이 프로퍼티를 함수로 정의할 경우 접두사로 get또는 set을 붙일 것인가?" 만약 아니라면 이를 프로퍼티로 만드는 것은 좋지 않다.
+
+- 구체적으로 프로퍼티 대신 함수를 사용하는 것이 좋은 경우
+
+  - 연산 비용이 높거나 복잡도가 O(1)보다 큰 경우
+  - 비즈니스 로직을 포함하는 경우
+  - 멱등적이지 않은 경우
+  - 변환의 경우 (Int.toDouble()같은 걸 사용할 때)
+  - 게터에서 프로퍼티의 상태 변경이 일어나는 경우
+
+- 많은 사람들은 프로퍼티는 상태 집합을 나타내고 함수는 행동을 나타낸다고 생각한다.
+
 ## 아이템 17: 이름 있는 아규먼트를 사용하라
 
 ## 아이템 18: 코딩 컨벤션을 지켜라
