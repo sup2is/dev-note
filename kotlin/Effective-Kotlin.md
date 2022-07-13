@@ -1455,3 +1455,14 @@ observable.getUsers()
 
 
 ## 아이템 18: 코딩 컨벤션을 지켜라
+
+- 코딩컨벤션을 지켜야하는 이유
+  - 어떤 프로젝트를 접해도 쉽게 이해할 수 있다.
+  - 다른 외부 개발자도 프로젝트의 코드를 쉽게 이해할 수 있다.
+  - 다른 개발자도 코드의 작동 방식을 쉽게 추측할 수 있다.
+  - 코드를 병합하고, 한 프로젝트의 코드 일부를 다른 코드로 이동하는 것이 쉽다.
+  - [https://kotlinlang.org/docs/coding-conventions.html](https://kotlinlang.org/docs/coding-conventions.html)
+- 컨벤션을 지켜주는 도구
+  - Intellij 포매터
+  - ktlint
+
