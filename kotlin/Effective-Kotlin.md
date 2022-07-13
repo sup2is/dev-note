@@ -1524,6 +1524,63 @@ observable.getUsers()
 
 ## 아이템 20: 일반적인 알고리즘을 반복해서 구현하지 말라
 
+- 수학적인 연산, 수집 처리처럼 별도의 모듈 라이브러리로 분리할 수 있는 부분같은 알고리즘을 여러번 반복해서 구현한다.
+- 반복이 아니라 이미 있는 것을 화용하면 단순하게 코드가 짧아진다는 것 이외에도 다양한 장점이 있다.
+  - 코드 작성 속도가 빨라진다. 호출을 한 번 하는 것이 알고리즘을 만드는 것보다 빠르다.
+  - 구현을 따로 읽지 않아도, 함수의 이름 등만 보고 무엇을 하는지 확실하게 알 수 있다.
+  - 직접 구현할 때 발생할 수 있는 실수를 줄일 수 있다.
+  - 제작자들이 한 번 최적화하면 이러한 함수를 활용하는 모든 곳이 최적화의 혜택을 받을 수 있다.
+
+### 표준 라이브러리 살펴보기
+
+- stdlib 함수들을 하나씩 살펴볼 것
+
+```kotlin
+override fun saveCallResult(item: SourceResponse) {
+   var sourceList = ArrayList<SourceEntity>()
+   item.sources.forEach {
+       var sourceEntity = SourceEntity()
+       sourceEntity.id = it.id
+       sourceEntity.category = it.category
+       sourceEntity.country = it.country
+       sourceEntity.description = it.description
+       sourceList.add(sourceEntity)
+   }
+   db.insertSources(sourceList)
+}
+```
+
+- 동작은 하지만 위 코드는 자바빈 패턴을 갖고 있다. map과 apply를 사용해서 아래와 같이 변경하는 것이 좋다.
+
+```kotlin
+override fun saveCallResult(item: SourceResponse) {
+   val sourceEntries = item.sources.map(::sourceToEntry)
+   db.insertSources(sourceEntries)
+}
+
+private fun sourceToEntry(source: Source) = SourceEntity()
+    .apply {
+        id = source.id
+        category = source.category
+        country = source.country
+        description = source.description
+    }
+```
+
+
+
+### 나만의 유틸리티 구현하기
+
+- 상황에 따라서 표준 라이브러리에 없는 알고리즘이 필요할 수도 있다.
+- 널리 알려진 추상화일 경우 범용 유틸리티 함수로 정의하는 것이 좋다. (누가봐도 이상하지 않아야함)
+- 여러번 사용되지 않더라도 온전히 추상화로 빼낼 수 있다면 범용 유리틸리티 함수로 빼자.
+
+### 정리
+
+- 일반적인 알고리즘을 반복해서 만들지 말자.
+- 대부분 stdlib에 이미 정의되어 있을 가능성이 높기 때문에 stdlib를 공부해두면 좋다.
+- stdlib에 없는 일반적인 알고리즘이 필요하거나, 특정 알고리즘을 반복해서 사용해야 하는 경우에는 프로젝트 내부에 직접 정의하자. 일반적으로 이런 알고리즘들은 확장 함수로 정의하는 것이 좋다.
+
 ## 아이템 21: 일반적인 프로퍼티 패턴은 프로퍼티 위임으로 만들어라
 
 ## 아이템 22: 일반적인 알고리즘을 구현할 때 제네릭을 사용하라
