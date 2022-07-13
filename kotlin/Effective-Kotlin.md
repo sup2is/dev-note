@@ -1342,4 +1342,116 @@ var name: String? = null
 
 ## 아이템 17: 이름 있는 아규먼트를 사용하라
 
+- 코드에서 아규먼트의 의미가 명확하지 않다면 이름 있는 아규먼트를 사용하자!
+
+```kotlin
+val text = (1..10).joinToString("|")
+
+val text = (1..10).joinToString(separator = "|")
+
+val separator = "|"
+val text = (1..10).joinToString(separator)
+```
+
+### 이름 있는 아규먼트는 언제 사용해야 할까?
+
+- 이름 있는 아규먼트의 장점
+  - 이름을 기반으로 값이 무엇을 나타내는지 알 수 있다.
+  - 파라미터 입력 순서와 상관 없으므로 안전하다.
+- 아래와 같은 경우 이름 있는 아규먼트를 추천한다.
+  - 디폴트 아규먼트의 경우
+  - 같은 타입의 파라미터가 많은 경우
+  - 함수 타입의 파라미터가 있는 경우 (마지막 경우 제외)
+
+### 디폴트 아규먼트의 경우
+
+- 프로퍼티가 디폴트 아규먼트를 가질 경우 항상 이름을 붙여서 사용하는 것이 좋다.
+
+### 같은 타입의 파라미터가 많은 경우
+
+- 파라미터에 같은 타입이 있다면 순서를 잘못 입력했을 때 문제를 찾아내기 어려울 수 있다. 이러한 함수가 있다면 이름 있는 아규먼트를 사용하는게 좋다.
+
+```kotlin
+sendEmail(
+   to = "contact@kt.academy",
+   message = "Hello, ..."
+)
+```
+
+### 함수 타입 파라미터
+
+- 일반적으로 함수 타입 파라미터는 마지막 위치에 배치하는 것이 좋다.
+- 그 밖의 모든 함수 타입 아규먼트는 이름 있는 아규먼트를 사용하는 것이 좋다.
+
+```kotlin
+val view = linearLayout {
+   text("Click below")
+   button({ /* 1 */ }, { /* 2 */ })
+}
+
+// 아래가 나음
+
+val view = linearLayout {
+   text("Click below")
+   button(onClick = { /* 1 */ }) {
+      /* 2 */
+   }
+}
+```
+
+```kotlin
+fun call(before: ()->Unit = {}, after: ()->Unit = {}){
+   before()
+   print("Middle")
+   after()
+}
+
+call({ print("CALL") }) // CALLMiddle
+call { print("CALL") }  // MiddleCALL
+
+//아래가 나음 
+
+call(before = { print("CALL") }) // CALLMiddle
+call(after = { print("CALL") })  // MiddleCALL
+
+```
+
+```java
+//java
+
+observable.getUsers()
+       .subscribe((List<User> users) -> { // onNext
+           // ...
+       }, (Throwable throwable) -> { // onError
+           // ...
+       }, () -> { // onCompleted
+           // ...
+       });
+```
+
+```kotlin
+//kotlin
+
+observable.getUsers()
+   .subscribeBy(
+       onNext = { users: List<User> ->
+           // ...
+       },
+       onError = { throwable: Throwable ->
+           // ...
+       },
+       onCompleted = {
+           // ...
+       })
+```
+
+
+
+### 정리
+
+- 이름 있는 아규먼트는 디폴트 값들을 생략할때만 유용한게 아니라 가독성과 코드의 안전성도 향상시킬 수 있다.
+- 함수에 같은 타입의 파라미터가 여러개 있는 경우, 함수 타입의 파라미터가 있는 경우, 옵션 파라미터가 있는 경우에는 이름 있는 아규먼트를 활용하는 것이 좋다.
+
+
+
 ## 아이템 18: 코딩 컨벤션을 지켜라
