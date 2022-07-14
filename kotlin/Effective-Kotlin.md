@@ -1583,6 +1583,44 @@ private fun sourceToEntry(source: Source) = SourceEntity()
 
 ## 아이템 21: 일반적인 프로퍼티 패턴은 프로퍼티 위임으로 만들어라
 
+- 프로퍼티 위임
+
+  - 코틀린은 코드 재사용과 관련해서 프로퍼티 위임이라는 새로운 기능을 제공한다.
+
+  - 프로퍼티 위임을 사용하면 일반적인 프로퍼티의 행위를 추출해서 재사용할 수 있다.
+
+  - 대표적인 예로 지연 프로퍼티가 있다. lazy 프로퍼티는 이후에 처음 사용하는 요청이 들어올 때 초기화되는 프로퍼티를 말한다.
+
+  - ```kotlin
+    val value by lazy { createValue() }
+    ```
+
+  - 프로퍼티 위임을 통해 observable 패턴도 쉽게 만들 수 있다.
+
+  - ```kotlin
+    var items: List<Item> by 
+       Delegates.observable(listOf()) { _, _, _ ->
+           notifyDataSetChanged()
+       }
+    
+    var key: String? by 
+       Delegates.observable(null) { _, old, new ->
+           Log.e("key changed from $old to $new")
+       }
+    ```
+
+- 코틀린 stdlib에서 다음과 같은 프로퍼티 델리게이터를 알아두면 좋다.
+
+  - lazy
+  - Delegates.observable
+  - Delegates.vetoable
+  - Delegates.notNull
+
+### 정리
+
+- 프로퍼티 델리게이트는 프로퍼티와 관련된 조작을 할 수 있으며, 컨텍스트와 관련된 대부분의 정보를 갖는다. 이러한 특징으로 인해서 다양한 프로퍼티의 동작을 추출해서 재사용할 수 있다.
+- 프로퍼티 위임은 프로퍼티 패턴을 추출하는 일반적인 방법이라 많이 사용되고 있다. 따라서 코틀린 개발자라면 프로퍼티 위임이라는 강력한 도구와 관련된 내용을 잘 알고 있어야 한다. 이를 잘 알면 일반적인 패턴을 추출하거나 더 좋은 API를 만들 때 활용할 수 있을 것이다.
+
 ## 아이템 22: 일반적인 알고리즘을 구현할 때 제네릭을 사용하라
 
 ## 아이템 23: 타입 파라미터의 섀도잉을 피하라
