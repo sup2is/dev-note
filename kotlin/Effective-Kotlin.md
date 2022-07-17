@@ -1687,6 +1687,64 @@ inline fun <T, R : Any> Iterable<T>.mapNotNull(
 
 ## 아이템 23: 타입 파라미터의 섀도잉을 피하라
 
+- 섀도잉
+
+  - 프로퍼티와 파라미터가 같은 이름을 가질 수 있다.
+
+  - ```kotlin
+    class Forest(val name: String) {
+      
+       fun addTree(name: String) {
+           // ...
+       }
+    }
+    
+    ```
+
+  - 이렇게 되면 지역 파라미터가 외부 스코프에 있는 프로퍼티를 가린다. 이를 섀도잉이라고 한다.
+
+  - 이게 만약 클래스 타입 파라미터와 함수 타입 파라미터 사이에서 발생한다면 큰 문제가 된다.
+
+  - ```kotlin
+    interface Tree
+    class Birch: Tree
+    class Spruce: Tree
+    
+    class Forest<T: Tree> {
+    
+       fun <T: Tree> addTree(tree: T) {
+           // ...
+       }
+    }
+    ```
+
+  - 이렇게 작성하면 Forest와  addTree의 타입 파라미터가 독립적으로 동작한다.
+
+  - addTree가 타입 파라미터인 T를 사용하게 하는게 좋다.
+
+  - ```kotlin
+    class Forest<T: Tree> {
+    
+       fun addTree(tree: T) {
+           // ...
+       }
+    }
+    
+    // Usage
+    val forest = Forest<Birch>()
+    forest.addTree(Birch())
+    forest.addTree(Spruce()) // ERROR, type mismatch
+    ```
+
+
+
+### 정리
+
+- 타입 파라미터 섀도잉을 피하자.
+- 타입 파라미터 섀도잉이 발생한 코드는 이해하기 어려울 수 있다.
+
+
+
 ## 아이템 24: 제네릭 타입과 variance 한정자를 활용하라
 
 ## 아이템 25: 공통 모듈을 추출해서 여러 플랫폼에서 재사용하라
