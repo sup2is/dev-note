@@ -2084,3 +2084,240 @@ class CoffeeMachine {
 
 - 프로그램을 안정적으로 유지하고 싶다면, 규약을 지키자.
 - 규약을 깰 수밖에 없다면 이를 잘 문서화하자.
+
+
+
+
+
+
+
+
+
+# #5 객체 생성
+
+## 아이템 33: 생성자 대신 팩토리 함수를 사용하라
+
+- 팩토리 함수
+  - 생성자가 객체를 만들 수 있는 유일한 방법이 아니다.
+  - 생성자의 역할을 대신 해주는 함수를 팩토리 함수라고 한다.
+- 팩토리 함수를 사용할 때의 장점
+  - 생성자와 다르게 함수에 이름을 붙일 수 있다.
+  - 생성자와 다르게 함수가 원하는 형태의 타입을 리턴할 수 있다.
+  - 생성자와 다르게 호출될 때마다 새 객체를 만들 필요가 없다.
+  - 팩토리 함수는 아직 존재하지 않는 객체를 리턴할 수도 있다.
+  - 객체 외부에 팩토리 함수를 만들면 그 가시성을 원하는 대로 제어할 수 있다.
+  - 팩토리 함수는 인라인으로 만들 수 있고 그 파라미터들을 reified로 만들 수 있다.
+  - 팩토리 함수는 생성자로 만들기 복잡한 객체도 만들어 낼 수 있다.
+  - 생성자는 즉시 슈퍼클래스 또는 기본 생성자를 호출해야하지만 팩토리함수는 원하는 때에 생성자를 호출할 수 있다.
+- 팩토리 함수의 종류
+  - companion 객체 팩토리 함수
+  - 확장 팩토리 함수
+  - 톱레벨 팩토리 함수
+  - 가짜 생성자
+  - 팩토리 클래스의 메서드
+
+
+
+### Companion 객체 팩토리 함수
+
+- 팩토리 함수를 정의하는 가장 일반적인 방법
+
+```kotlin
+class MyLinkedList<T>(
+   val head: T, 
+   val tail: MyLinkedList<T>?
+) {
+
+   companion object {
+      fun <T> of(vararg elements: T): MyLinkedList<T>? {
+          /*...*/ 
+      }
+   }
+}
+
+// Usage
+val list = MyLinkedList.of(1, 2)
+```
+
+- of 이외에도 많이 사용되는 이름들
+
+  - from: 파라미터를 하나 받고, 같은 타입의 인스턴스 하나를 리턴하는 타입 변환 함수
+
+    - ```kotlin
+      val date: Date = Date.from(instant)
+      ```
+
+  - of: 파라미터를 여러 개 받고, 이를 통합해서 인스턴스를 만들어주는 함수
+
+    - ```kotlin
+      val faceCards: Set<Rank> = EnumSet.of(JACK, QUEEN, KING)
+      ```
+
+  - valueOf: from 또는 of와 비슷한 기능을 하면서도 의미를 조금 더 쉽게 읽을 수 있게 이름을 붙인 함수
+
+    - ```kotlin
+      val prime: BigInteger = BigInteger.valueOf(Integer.MAX_VALUE)
+      ```
+
+  - instance 또는 getInstance: 싱글턴
+
+  - createInstance 또는 newInstance: 싱글턴이 아닌 호출때마다 새로운 인스턴스를 만들어서 리턴
+
+  - getType: getInstance처럼 동작하지만 팩토리 함수가 다른 클래스에 있을 때 사용하는 이름
+
+    - ```kotlin
+      val fs: FileStore = Files.getFileStore(path)
+      ```
+
+  - newType: newInstance처럼 동작하지만 팩토리 함수가 다른 클래스에 있을 때 사용하는 이름
+
+    - ```kotlin
+      val br: BufferedReader = Files.newBufferedReader(path)
+      ```
+
+- companion 객체는 많은 기능이 있다.
+
+  - companion 객체는 인터페이스를 구현할 수 있고 객체도 상속 가능하다.
+
+  - ```kotlin
+    abstract class ActivityFactory {
+       abstract fun getIntent(context: Context): Intent
+    
+       fun start(context: Context) {
+           val intent = getIntent(context)
+           context.startActivity(intent)
+       }
+    
+       fun startForResult(activity: Activity, requestCode: 
+    Int) {
+           val intent = getIntent(activity)
+           activity.startActivityForResult(intent, 
+    requestCode)
+       }
+    }
+    
+    class MainActivity : AppCompatActivity() {
+       //...
+    
+       companion object: ActivityFactory() {
+           override fun getIntent(context: Context): Intent =
+               Intent(context, MainActivity::class.java)
+       }
+    }
+    
+    // Usage
+    val intent = MainActivity.getIntent(context)
+    MainActivity.start(context)
+    MainActivity.startForResult(activity, requestCode)
+    ```
+
+  - 추상 companion 객체 팩토리는 값을 가질 수 있어서 캐싱을 구현하거나 테스트를 위한 가짜 객체 생성을 할 수 있다.
+
+  - companion 객체를 제대로 사용하는 곳을 보고싶다면 코틀린 팀 제품의 구현을 확인해보자.
+
+    - ex: 코루틴
+
+### 확장 팩토리 함수
+
+- 이미 companion 객체가 있고 수정이 불가능할 때는 다른 파일에 확장 함수를 적용하자.
+
+- ```kotlin
+  interface Tool {
+     companion object { /*...*/ }
+  }
+  
+  Tool.createBigTool()
+  ```
+
+
+
+### 톱레벨 팩토리 함수
+
+- 객체를 만드는 흔한 방법중 하나로 톱레벨 팩토리 함수를 이용하는 방법이 있다.
+  - listOf, setOf, mapOf
+- 톱레벨 함수를 만들 때는 함수의 이름을 신중하게 생각해서 잘 지정해야 한다.
+
+
+
+### 가짜 생성자
+
+- 일반적인 사용의 관점에서 대문자로 시작하는지 아닌지는 생성자와 함수를 구분하는 기준이다.
+
+  - List, MutableList는 인터페이스라서 생성자를 가질 수 없다. 하지만 코틀린 1.1부터 아래와 같은 톱레벨 함수가 추가됐다.
+
+  - ```kotlin
+    List(4) { "User$it" } // [User0, User1, User2, User3]
+    ```
+
+  - ```kotlin
+    public inline fun <T> List(
+       size: Int, 
+       init: (index: Int) -> T
+    ): List<T> = MutableList(size, init)
+    
+    public inline fun <T> MutableList(
+       size: Int, 
+       init: (index: Int) -> T
+    ): MutableList<T> {
+       val list = ArrayList<T>(size)
+       repeat(size) { index -> list.add(init(index)) }
+       return list
+    }
+    ```
+
+  - 이러한 톱레벨 함수는 팩토리 함수와 같은 모든 장점을 갖는다. 
+
+  - 이러한 톱레벨 함수를 가짜 생성자라고 부른다.
+
+- 개발자가 진짜 생성자 대신 가짜 생성자를 만드는 이유
+
+  - 인터페이스를 위한 생성자를 만들고 싶을 때
+  - reified 타입 아규먼트를 갖게 하고 싶을 때
+
+- 가짜 생성자를 선언하는 또다른 방법
+
+  - invoke 연산자를 갖는  companion 객체를 사용하면, 비슷한 결과를 얻을 수 있다.
+
+  - ```kotlin
+    class Tree<T> {
+      
+       companion object {
+           operator fun <T> invoke(size: Int, generator: 
+    (Int)->T): Tree<T>{
+               //...
+           }
+       }
+    }
+    
+    // Usage
+    Tree(10) { "$it" }
+    ```
+
+  - 방법이긴하지만 비추천
+
+- 가짜 생성자를 반드시 만들어야 하는 경우
+
+  - 기본 생성자를 만들 수 없는 상황
+  - 생성자가 제공하지 않는 기능 (reified 타입 파라미터)
+  - 이외에는 진짜 생성자로 만들자.
+
+### 팩토리 클래스의 메서드
+
+- 팩토리 클래스의 장점
+  - 팩토리 함수와 다르게 팩토리 클래스는 프로퍼티, 상태를 가질 수 있다.
+  - 캐싱을 활용할 수도 있고 이전에 만든 객체를 복제해서 객체를 생성하는 방법으로 객체 생성 속도를 높일 수 있다.
+
+
+
+### 정리
+
+- 코틀린은 팩토리 함수를 만들 수 있는 다양한 방법들을 제공한다.
+- 가짜 생성자, 톱레벨 팩토리 함수, 확장 팩토리 함수 등 일부는 신중하게 사용해야 한다.
+- 팩토리 함수를 정의하는 가장 일반적인 방법은 companion 객체를 사용하는 것이다. 이 방식은 자바 정적 팩토리 메서드 패턴과 굉장히 유사하고 대부분의 개발자에게 안전하고 익숙하다.
+
+
+
+## 아이템 34: 기본 생성자에 이름 있는 옵션 아규먼트를 사용하라
+
+## 아이템 35: 복잡한 객체를 생성하기 위한 DSL을 정의하라
+
