@@ -2319,5 +2319,125 @@ val list = MyLinkedList.of(1, 2)
 
 ## 아이템 34: 기본 생성자에 이름 있는 옵션 아규먼트를 사용하라
 
+- 객체를 정의하고 생성하는 방법을 지정할 때 사용하는 가장 기본적인 방법은 기본 생성자를 사용하는 것이다.
+
+```kotlin
+class User(var name: String, var surname: String)
+val user = User("Marcin", "Moskała")
+```
+
+```kotlin
+class QuotationPresenter(
+       private val view: QuotationView,
+       private val repo: QuotationRepository
+) {
+   private var nextQuoteId = -1
+
+   fun onStart() {
+       onNext()
+   }
+
+   fun onNext() {
+       nextQuoteId = (nextQuoteId + 1) % repo.quotesNumber
+       val quote = repo.getQuote(nextQuoteId)
+       view.showQuote(quote)
+   }
+}
+```
+
+- 프로퍼티는 초기화되기만 하면 된다.
+  - nextQuoteId는 프로퍼티는 항상 -1로 초기화된다.
+  - 기본 생성자로 초기화되어도, 디폴트 값을 기반으로 초기화되어도 어떻게든 초기화만 되면 큰 문제가 없다.
+- 생성자와 관련된 자바 패턴들
+  - 점층적 생성자 패턴
+  - 빌더 패턴
+
+### 점층적 생성자 패턴
+
+- 점층적 생성자 패턴
+  - 점층적 생성자 패턴은 '여러 가지 종류의 생성자를 사용하는' 간단한 패턴이다.
+
+```kotlin
+class Pizza {
+   val size: String
+   val cheese: Int
+   val olives: Int
+   val bacon: Int
+
+   constructor(size: String, cheese: Int, olives: Int, 
+bacon: Int) {
+       this.size = size
+       this.cheese = cheese
+       this.olives = olives
+       this.bacon = bacon
+   }
+   constructor(size: String, cheese: Int, olives: Int):
+this(size, cheese, olives, 0)
+   constructor(size: String, cheese: Int): 
+this(size, cheese, 0)
+   constructor(size: String): this(size, 0)
+}
+
+```
+
+- 코틀린의 디폴트 아규먼트를 사용하면?
+
+```kotlin
+class Pizza(
+       val size: String,
+       val cheese: Int = 0,
+       val olives: Int = 0,
+       val bacon: Int = 0
+)
+
+val myFavorite = Pizza("L", olives = 3)
+
+val myFavorite = Pizza("L", olives = 3, cheese = 1)
+
+```
+
+- 디폴트 아규먼트가 점층적 생성자보다 좋은 이유
+
+  - 파라미터들의 값을 원하는 대로 지정할 수 있다.
+
+  - 아규먼트를 원하는 순서로 지정할 수 있다.
+
+  - 명시적으로 이름을 붙여서 아규먼트를 지정하므로 의미가 훨씬 명확하다.
+
+  - ```kotlin
+    val villagePizza = Pizza(
+       size = "L", 
+       cheese = 1, 
+       olives = 2, 
+       bacon = 3
+    )
+    ```
+
+
+
+### 빌더 패턴
+
+- 빌더 패턴의 장점
+  - 파라미터에 이름을 붙일 수 있다.
+  - 파라미터를 원하는 순서로 지정할 수 있다.
+  - 디폴트 값을 지정할 수 있다.
+- 빌더 패턴을 사용하는 것보다 이름 있는 파라미터를 사용하는 것이 좋은 이유
+  - 더 짧다.
+  - 더 명확하다.
+  - 더 사용하기 쉽다.
+  - 동시성과 관련된 문제가 없다.
+- 코틀린에서는 빌더 패턴을 거의 사용하지 않는다. 하지만 그래도 사용하는 경우
+  - 빌더 패턴을 사용하는 다른 언어로 작성된 라이브러리를 그대로 옮길 때
+  - 디폴트 아규먼트와 DSL을 지원하지 않는 다른 언어에서 쉽게 사용할 수 있게 API를 설계할 때
+
+
+
+### 정리
+
+- 일반적인 프로젝트에서는 기본 생성자를 사용해 객체를 만든다.
+- 코틀린에서는 점층적 생성자 패턴, 빌더 패턴을 사용하지 않는다.
+
+
+
 ## 아이템 35: 복잡한 객체를 생성하기 위한 DSL을 정의하라
 
