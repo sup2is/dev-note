@@ -2441,3 +2441,332 @@ val myFavorite = Pizza("L", olives = 3, cheese = 1)
 
 ## 아이템 35: 복잡한 객체를 생성하기 위한 DSL을 정의하라
 
+
+
+# #6 클래스 설계
+
+## 아이템 36: 상속보다는 컴포지션을 사용하라
+
+- 상속은 굉장히 강력한 기능이다.
+  - 상속은 관계가 명확하지 않을 때 사용하면 여러가지 문제가 발생할 수 있다.
+  - 단순하게 코드 추출 또는 재사용을 위해 상속을 하려고 한다면 조금 더 신중하게 생각해야 한다.
+  - 일반적으로 이러한 경우에는 상속보다 컴포지션을 사용하는 것이 좋다.
+
+### 간단한 행위 재사용
+
+```kotlin
+class ProfileLoader {
+
+  fun load() {
+       // show progress
+       // load profile
+       // hide progress
+   }
+}
+
+class ImageLoader {
+
+   fun load() {
+       // show progress
+       // load image
+       // hide progress
+   }
+}
+
+abstract class LoaderWithProgress {
+
+   fun load() {
+       // show progress
+       innerLoad()
+       // hide progress
+   }
+  
+   abstract fun innerLoad()
+}
+
+class ProfileLoader: LoaderWithProgress() {
+
+   override fun innerLoad() {
+       // load profile
+   }
+}
+
+class ImageLoader: LoaderWithProgress() {
+
+   override fun innerLoad() {
+       // load image
+   }
+}
+```
+
+- 이러한 코드의 단점
+  - 상속은 하나의 클래스만을 대상으로 할 수 있다. 상속을 사용해서 행위를 추출하다보면 많은 함수를 갖는 거대한 BaseXXX 클래스를 만들게 되고 굉장히 깊고 복잡한 계층 구조가 만들어진다.
+  - 상속은 클래스의 모든 것을 가져오게 된다. 따라서 불필요한 함수를 갖는 클래스가 만들어질 수 있다. (ISP 원칙 위반)
+  - 상속은 이해하기 어렵다. 일반적으로 개발자가 메서드를 읽고 메서드의 작동 방식을 이해하기 위해 슈퍼클래스를 여러번 확인해야 한다면 문제가 있는거다.
+- 컴포지션이 낫다.
+  - 컴포지션을 사용한다는 것은 객체를 프로퍼티로 갖고 함수를 호출하는 형태로 재사용하는 것을 의미한다.
+
+```kotlin
+class Progress {
+   fun showProgress() { /* show progress */ }
+   fun hideProgress() { /* hide progress */ }
+}
+
+class ProfileLoader {
+   val progress = Progress()
+  
+   fun load() {
+       progress.showProgress()
+       // load profile
+       progress.hideProgress()
+   }
+}
+
+class ImageLoader {
+   val progress = Progress()
+
+   fun load() {
+       progress.showProgress()
+       // load image
+       progress.hideProgress()
+   }
+}
+```
+
+- 이런 코드의 장점
+  - 코드를 읽는 사람들이 코드의 실행을 더 명확하게 예측할 수 있다.
+  - 프로그레스 바를 훨씬 자유롭게 사용할 수 있다.
+
+
+
+### 모든 것을 가져올 수밖에 없는 상속
+
+- 상속의 특징
+  - 상속은 슈퍼클래스의 메서드, 제약, 행위 등 모든 것을 가져온다.
+  - 상속은 객체의 계층구조를 나타낼 때 굉장히 좋은 도구이다.
+  - 하지만 일부분을 재사용하기 위한 목적으로는 적합하지 않다.
+- 일부분만 재사용하고싶다면?
+  - 컴포지션 사용하기
+
+```kotlin
+abstract class Dog {
+   open fun bark() { /*...*/ }
+   open fun sniff() { /*...*/ }
+}
+```
+
+- 로봇 강아지의 등장
+
+```kotlin
+class Labrador: Dog()
+
+class RobotDog : Dog() {
+   override fun sniff() {
+       throw Error("Operation not supported")
+       // Do you really want that?
+   }
+}
+```
+
+- ISP 위반, LSP 위반
+- 컴포지션을 사용하면 이런 문제가 전혀 발생하지 않는다.
+
+
+
+### 캡슐화를 깨는 상속
+
+- 상속을 사용하면 내부적인 구현 방법 변경에 의해서 클래스의 캡슐화가 깨질 수 있다.
+
+```kotlin
+class CounterSet<T>: HashSet<T>() {
+   var elementsAdded: Int = 0
+       private set
+
+   override fun add(element: T): Boolean {
+       elementsAdded++
+       return super.add(element)
+   }
+
+   override fun addAll(elements: Collection<T>): Boolean {
+       elementsAdded += elements.size
+       return super.addAll(elements)
+   }
+}
+```
+
+- HashSet을 구현하는 CounterSet. HashSet의 내부 API가 변경되면 CounterSet은 예쌍하지 못한 형태로 동작한다.
+- 컴포지션을 사용하면 문제가 없다.
+
+```kotlin
+class CounterSet<T> {
+   private val innerSet = HashSet<T>()
+   var elementsAdded: Int = 0
+       private set
+
+   fun add(element: T) {
+       elementsAdded++
+       innerSet.add(element)
+   }
+
+   fun addAll(elements: Collection<T>) {
+       elementsAdded += elements.size
+       innerSet.addAll(elements)
+   }
+}
+
+val counterList = CounterSet<String>()
+counterList.addAll(listOf("A", "B", "C"))
+print(counterList.elementsAdded) // 3
+```
+
+- 만약 CounterSet이 반드시 Set 타입이어야 한다면 위임 패턴을 사용하면 된다.
+
+```kotlin
+class CounterSet<T> : MutableSet<T> {
+   private val innerSet = HashSet<T>()
+   var elementsAdded: Int = 0
+       private set
+
+   override fun add(element: T): Boolean {
+       elementsAdded++
+       return innerSet.add(element)
+   }
+
+   override fun addAll(elements: Collection<T>): Boolean {
+       elementsAdded += elements.size
+       return innerSet.addAll(elements)
+   }
+
+   override val size: Int
+       get() = innerSet.size
+
+   override fun contains(element: T): Boolean =
+           innerSet.contains(element)
+
+   override fun containsAll(elements: Collection<T>): 
+Boolean = innerSet.containsAll(elements)
+
+   override fun isEmpty(): Boolean = innerSet.isEmpty()
+
+   override fun iterator() =
+           innerSet.iterator()
+
+   override fun clear() =
+           innerSet.clear()
+
+   override fun remove(element: T): Boolean =
+           innerSet.remove(element)
+
+   override fun removeAll(elements: Collection<T>): 
+Boolean = innerSet.removeAll(elements)
+
+   override fun retainAll(elements: Collection<T>): 
+Boolean = innerSet.retainAll(elements)
+}
+```
+
+- 위임 패턴
+  - 위임 패턴은 클래스가 인터페이스를 상속받게 하고 포함한 객체의 메서드를 활용해서 인터페이스에서 정의한 메서드를 구현하는 패턴이다.
+  - 이렇게 구현된 메서드를 포워딩 메서드라고 한다.
+- 포워딩 메서드가 너무 많다면?
+  - 코틀린은 위임 패턴을 지원한다.
+
+```kotlin
+class CounterSet<T>(
+   private val innerSet: MutableSet<T> = mutableSetOf()
+) : MutableSet<T> by innerSet {
+
+   var elementsAdded: Int = 0
+       private set
+
+   override fun add(element: T): Boolean {
+       elementsAdded++
+       return innerSet.add(element)
+   }
+
+   override fun addAll(elements: Collection<T>): Boolean {
+       elementsAdded += elements.size
+       return innerSet.addAll(elements)
+   }
+}
+```
+
+- 간단 정리
+  - 다형성이 필요하다면? -> 위임 패턴
+  - 상속은 캡슐화를 깰 수 있다.
+  - 컴포지션을 사용하면 재사용하기 쉽고 코드는 이해하기 쉬우며 유연하다.
+
+
+
+### 오버라이딩 제한하기
+
+- 개발자가 상속용으로 설계되지 않은 클래스를 상속하지 못하게하려면 final을 사용하면 된다.
+
+- 만약 어떤 이유로는 상속을 허용하지만 메서드는 오버라이드하지 못하게 만들고 싶은 경우가 있다.
+
+  - 이럴때는 메서드에 open 키워드를 사용한다.
+
+  ```kotlin
+  open class Parent {
+     fun a() {}
+     open fun b() {}
+  }
+  
+  class Child: Parent() {
+     override fun a() {} // Error
+     override fun b() {}
+  }
+  ```
+
+- 서브클래스에서 해당 메서드에 final을 붙일 수도 있다.
+
+```kotlin
+open class ProfileLoader: InternetLoader() {
+
+   final override fun loadFromInterner() {
+       // load profile
+   }
+}
+```
+
+
+
+### 정리
+
+- 컴포지션과 상속의 차이점
+
+  - 컴포지션은 더 안전하다. 다른 클래스의 내부적인 구현에 의존하지 않고 외부에서 관찰되는 동작에만 의존하므로 안전하다.
+  - 컴포지션은 더 유연하다. 상속은 한 클래스만을 대상으로 할 수 있지만 컴포지션은 여러 클래스를 대상으로 할 수 있다. 상속은 모든 것을 받지만 컴포지션은 피룡한 것만 받을 수 있다. 슈퍼클래스의 동작을 변경하면, 서브클래스의 동작도 큰 영향을 받는다. 하지만 컴포지션을 할용하면 이러한 영향이 제한적이다.
+  - 컴포지션은 더 명시적이다. 이것은 장점이다 단점. 슈퍼 클래스의 메서드를 사용할 때는 리시버를 따로 지정하지 않아도 된다. 즉 코드가 짤방질 수 있지만 메서드가 어디서 왔는지 혼동될 수 있으므로 위험할 수 있다. 컴포지션을 화용하면 리시버를 명시적으로 활용할 수밖에 없으므로 메서드가 어디에 있는 것인지 확실하게 알 수 있다.
+  - 컴포지션은 생각보다 번거롭다. 컴포지션은 객체를 명시적으로 사용해야 하므로 대상 클래스에 일부 기능을 추가할 때 이를 포함하는 객체의 코드를 변경해야 한다. 그래서 상속을 사용할 때보다 수정해야 하는 경우가 더 많다.
+  - 상속은 다형성을 활용할 수 있다. 하지만 이건 양날의 검! 상속을 사용할 경우 슈퍼클래스와 서브클래스의 규약을 항상 잘 지켜서 코드를 작성해야 한다.
+
+- 일반적으로 OOP에서는 상속보다 컴포지션을 사용하는 것이 좋다.
+
+- 상속은 언제?
+
+  - 명확한 is-a 관계일때 상속하는 것이 좋다.
+  - 슈퍼클래스를 상속하는 모든 서브클래스는 슈퍼클래스로도 동작할 수 있어야 한다.
+
+  
+
+## 아이템 37: 데이터 집합 표현에 data 한정자를 사용하라
+
+## 아이템 38: 연산 또는 액션을 전달할 때는 인터페이스 대신 함수 타입을 사용하라
+
+## 아이템 39: 태그 클래스보다는 클래스 계층을 사용하라
+
+## 아이템 40: equals의 규약을 지켜라
+
+## 아이템 41: hashCode의 규약을 지켜라
+
+## 아이템 42: compareTo의 규약을 지켜라
+
+## 아이템 43: API의 필수적이지 않는 부분을 확장 함수로 추출하라
+
+## 아이템 44: 멤버 확장 함수의 사용을 피하라
+
+## 
+
+
+
