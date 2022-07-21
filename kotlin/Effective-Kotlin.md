@@ -2905,6 +2905,108 @@ val (firstName, lastName) = fullName.parseName() ?: return
 
 ## 아이템 38: 연산 또는 액션을 전달할 때는 인터페이스 대신 함수 타입을 사용하라
 
+- SAM(Single-Abstract Method)
+  - 연산 또는 액션을 전달할 때 메서드가 하나만 있는 인터페이스
+
+```kotlin
+interface OnClick {
+   fun clicked(view: View)
+}
+
+fun setOnClickListener(listener: OnClick) {
+   //...
+}
+
+setOnClickListener(object : OnClick {
+   override fun clicked(view: View) {
+       // ...
+   }
+})
+
+```
+
+- 함수 타입으로 변경하면 더많은 자유를 얻을 수 있다.
+
+```kotlin
+fun setOnClickListener(listener: (View) -> Unit) {
+   //... 
+}
+```
+
+- 다양한 방법들
+
+  - 람다 또는 익명 함수로 전달
+
+  - ```kotlin
+    setOnClickListener { /*...*/ }
+    setOnClickListener(fun(view) { /*...*/ })
+    ```
+
+  - 함수 레퍼런스 또는 제한된 함수 레퍼런스로 전달
+
+  - ```kotlin
+    setOnClickListener(::println)
+    setOnClickListener(this::showUsers)
+    ```
+
+  - 선언된 함수 타입을 구현한 객체로 전달
+
+  - ```kotlin
+    class ClickListener: (View)->Unit {
+       override fun invoke(view: View) {
+           // ...
+       }
+    }
+    
+    setOnClickListener(ClickListener())
+    ```
+
+- 장점
+
+  - 타입 별칭을 사용하면 함수 타입도 이름을 붙일 수 있다.
+
+  - ```kotlin
+    typealias OnClick = (View) -> Unit
+    ```
+
+  - 파라미터도 이름을 가질 수 있다.
+
+  - ```kotlin
+    fun setOnClickListener(listener: OnClick) { /*...*/ }
+    typealias OnClick = (view: View)->Unit
+    ```
+
+- 여러 옵저버를 설정할 때
+
+```kotlin
+class CalendarView {
+   var listener: Listener? = null
+
+   interface Listener {
+       fun onDateClicked(date: Date)
+       fun onPageChanged(date: Date)
+   }
+}
+```
+
+- 아래 있는 코드처럼 함수 타입을 따로 갖는 것이 훨씬 사용하기 쉽다.
+
+```kotlin
+class CalendarView {
+   var onDateClicked: ((date: Date) -> Unit)? = null
+   var onPageChanged: ((date: Date) -> Unit)? = null
+}
+```
+
+- 인터페이스를 사용해야 하는 특별한 이유가 없다면 함수 타입을 사용하는게 좋다. 함수 타입은 다양한 지원을 받을 수 있다.
+
+### 언제 SAM을 사용해야 할까?
+
+- 딱 한가지 경우
+  - 코틀린이 아닌 다른 언어에서 사용할 클래스를 설계할 때 ex: 자바
+
+
+
 ## 아이템 39: 태그 클래스보다는 클래스 계층을 사용하라
 
 ## 아이템 40: equals의 규약을 지켜라
