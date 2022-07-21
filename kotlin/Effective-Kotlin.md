@@ -2752,6 +2752,157 @@ open class ProfileLoader: InternetLoader() {
 
 ## 아이템 37: 데이터 집합 표현에 data 한정자를 사용하라
 
+```kotlin
+data class Player(
+       val id: Int,
+       val name: String,
+       val points: Int
+)
+
+val player = Player(0, "Gecko", 9999)
+```
+
+- data 한정자를 붙이면 생성되는 함수들
+
+  - toString
+  - equals와 hashCode
+  - copy
+  - componentN
+
+- toString
+
+  - toString 함수는 클래스의 이름과 기본 생성자 형태로 모든 프로퍼티와 값을 출력해준다.
+
+  - ```kotlin
+    print(player) // Player(id=0, name=Gecko, points=9999)
+    ```
+
+- equals와 hashCode
+
+  - equals는 기본 생성자의 프로퍼티가 같은지 확인해준다.
+
+  - hashCode는 equals와 같은 결과를 낸다.
+
+  - ```kotlin
+    player == Player(0, "Gecko", 9999) // true
+    player == Player(0, "Ross", 9999) // false
+    ```
+
+    
+
+- copy
+
+  - copy는 immutable 데이터 클래스를 만들 때 편리하다.
+
+  - copy는 기본 생성자 프로퍼티가 같은 새로운 객체를 복제한다.
+
+  - 새로 만들어진 객체의 값은 이름있는 아규먼트를 활용해서 변경할 수 있다.
+
+  - ```kotlin
+    val newObj = player.copy(name = "Thor")
+    print(newObj) // Player(id=0, name=Thor, points=9999)
+    ```
+
+- componentN 함수
+
+  - componentN 함수는 위치를 기반으로 객체를 해제할 수 있게 해준다.
+
+  - ```kotlin
+    val (id, name, pts) = player
+    ```
+
+  - 코틀린은 내부적으로 componentN 함수를 사용해서 다음과 같은 코드로 변환한다.
+
+  - ```kotlin
+    // After compilation
+    val id: Int  = player.component1()
+    val name: String = player.component2()
+    val pts: Int = player.component3()
+    ```
+
+  - 위치를 기반으로 객체를 해제하는 방법은 굉장히 위험하다. 따라서 객체 해제할때는 데이터 클래스의 기본 생성자에 붙어있는 프로퍼티 이름과 같은 이름을 사용하는 것이 좋다. ide에서 경고를 만들어준다.
+
+### 튜플 대신 데이터 클래스 사용하기
+
+- 튜플을 반드시 사용해야 하는 경우
+
+  - 값에 간단하게 이름을 붙일 때
+
+  - ```kotlin
+    val (description, color) = when {
+       degrees < 5 -> "cold" to Color.BLUE
+       degrees < 23 -> "mild" to Color.YELLOW
+       else -> "hot" to Color.RED
+    }
+    ```
+
+  - 표준 라이브러리에서 볼 수 있는 것처럼 미리 알 수 없는 aggregate를 표현할 때
+
+  - ```kotlin
+    val (odd, even) = numbers.partition { it % 2 == 1 }
+    val map = mapOf(1 to "San Francisco", 2 to "Amsterdam")
+    ```
+
+- 이 경우들을 제외하면 무조건 데이터클래스를 사용하는 것이 좋다.
+
+```kotlin
+// 구림 ..
+fun String.parseName(): Pair<String, String>? {
+   val indexOfLastSpace = this.trim().lastIndexOf(' ')
+   if(indexOfLastSpace < 0) return null
+   val firstName = this.take(indexOfLastSpace)
+   val lastName = this.drop(indexOfLastSpace)
+   return Pair(firstName, lastName)
+}
+
+// Usage
+val fullName = "Marcin Moskała"
+val (firstName, lastName) = fullName.parseName() ?: return
+```
+
+```
+fun String.parseName(): Pair<String, String>? {
+   val indexOfLastSpace = this.trim().lastIndexOf(' ')
+   if(indexOfLastSpace < 0) return null
+   val firstName = this.take(indexOfLastSpace)
+   val lastName = this.drop(indexOfLastSpace)
+   return Pair(firstName, lastName)
+}
+
+// Usage
+val fullName = "Marcin Moskała"
+val (firstName, lastName) = fullName.parseName() ?: return
+```
+
+```kotlin
+// 굿
+data class FullName(
+    val firstName: String, 
+    val lastName: String
+)
+
+fun String.parseName(): FullName? {
+   val indexOfLastSpace = this.trim().lastIndexOf(' ')
+   if(indexOfLastSpace < 0) return null
+   val firstName = this.take(indexOfLastSpace)
+   val lastName = this.drop(indexOfLastSpace)
+   return FullName(firstName, lastName)
+}
+
+// Usage
+val fullName = "Marcin Moskała"
+val (firstName, lastName) = fullName.parseName() ?: return
+```
+
+- 장점
+  - 이렇게 해도 추가비용이 거의 없다.
+  - 함수의 리턴 타입이 더 명확해진다.
+  - 리턴 타입이 더 짧아지며 전달하기 쉬워진다.
+  - 사용자가 데이터 클래스에 적혀 있는 것을 다른 이름을 활용해 변수를 해제하면, 경고가 출력된다.
+- 데이터 클래스를 잘 활용하자!!!
+
+
+
 ## 아이템 38: 연산 또는 액션을 전달할 때는 인터페이스 대신 함수 타입을 사용하라
 
 ## 아이템 39: 태그 클래스보다는 클래스 계층을 사용하라
