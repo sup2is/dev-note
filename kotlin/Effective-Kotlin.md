@@ -3009,6 +3009,132 @@ class CalendarView {
 
 ## 아이템 39: 태그 클래스보다는 클래스 계층을 사용하라
 
+- 태그와 태그 클래스
+
+  - 상수모드를 태그라고 부르고 태그를 포함한 클래스를 태그 클래스라고 부른다.
+
+- 태그 클래스의 문제
+
+  - 서로 다른 책임을 한 클래스에 태그로 구분해서 넣음
+  - 한 클래스에 여러 모드를 처리하기 위한 상용구가 추가된다.
+  - 여러 목적으로 사용해야 하므로 프로퍼티가 일관적이지 않게 사용될 수 있고 더 많은 프로퍼티가 필요하다. 
+  - 요소가 여러 목적을 가지고 요소를 여러 방법으로 설정할 수 있는 경우에는 상태의 일관성과 정확성을 지키기 어렵다.
+  - 팩토리 메서드를 사용해야 하는 경우가 많다. 그렇지 않으면 객체가 제대로 생성되었는지 확인하는 것 자체가 굉장히 어렵다.
+
+  ```kotlin
+  class ValueMatcher<T> private constructor(
+     private val value: T? = null,
+     private val matcher: Matcher
+  ){
+  
+     fun match(value: T?) = when(matcher) {
+         Matcher.EQUAL -> value == this.value
+         Matcher.NOT_EQUAL -> value != this.value
+         Matcher.LIST_EMPTY -> value is List<*> && 
+  value.isEmpty()
+         Matcher.LIST_NOT_EMPTY -> value is List<*> && 
+  value.isNotEmpty()
+     }
+  
+     enum class Matcher {
+         EQUAL,
+         NOT_EQUAL,
+         LIST_EMPTY,
+         LIST_NOT_EMPTY
+     }
+  
+     companion object {
+         fun <T> equal(value: T) =
+             ValueMatcher<T>(value = value, matcher = 
+  Matcher.EQUAL)
+  
+         fun <T> notEqual(value: T) =
+             ValueMatcher<T>(value = value, matcher = 
+  Matcher.NOT_EQUAL)
+  
+         fun <T> emptyList() =
+             ValueMatcher<T>(matcher = Matcher.LIST_EMPTY)
+  
+         fun <T> notEmptyList() =
+             ValueMatcher<T>(matcher = 
+  Matcher.LIST_NOT_EMPTY)
+     }
+  }
+  ```
+
+
+
+- 코틀린의 sealed 클래스
+
+  - 코틀린에서는 일반적으로 태그 클래스보다 sealed 클래스를 많이 사용한다.
+  - 한 클래스에 여러 모드를 만드는 방법 대신에 각각의 모드를 여러 클래스로 만들고 타입 시스템과 다형성을 활용한다.
+
+  ```kotlin
+  sealed class ValueMatcher<T> {
+      abstract fun match(value: T): Boolean
+  
+      class Equal<T>(val value: T) : ValueMatcher<T>() {
+          override fun match(value: T): Boolean = 
+              value == this.value
+      }
+  
+      class NotEqual<T>(val value: T) : ValueMatcher<T>() {
+          override fun match(value: T): Boolean = 
+              value != this.value
+      }
+  
+      class EmptyList<T>() : ValueMatcher<T>() {
+          override fun match(value: T) = 
+              value is List<*> && value.isEmpty()
+      }
+  
+      class NotEmptyList<T>() : ValueMatcher<T>() {
+          override fun match(value: T) = 
+              value is List<*> && value.isNotEmpty()
+      }
+  }
+  ```
+
+
+
+### sealed 한정자
+
+- sealed 한정자의 장점
+
+  - abstract를 사용할 수 있지만 sealed한정자는 외부 파일에서 서브클래스를 만드는 행위 자체를 모두 제한한다.
+
+  - 외부에서 추가적인 서브클래스를 만들 수 없으므로 타입이 추가되지 않을거라는게 보장된다.
+
+  - 이는 when을 사용할 때 else브랜치를 따로 만들 필요가 없다.
+
+  - ```kotlin
+    fun <T> ValueMatcher<T>.reversed(): ValueMatcher<T> = 
+    when (this) {
+        is ValueMatcher.EmptyList -> 
+            ValueMatcher.NotEmptyList<T>()
+        is ValueMatcher.NotEmptyList -> 
+            ValueMatcher.EmptyList<T>()
+        is ValueMatcher.Equal -> ValueMatcher.NotEqual(value)
+        is ValueMatcher.NotEqual -> ValueMatcher.Equal(value)
+    }
+    ```
+
+- abstract는 상속과 관련된 설계를 할때 사용하고 클래스의 서브클래스를 제어하려면 sealed 한정자를 사용해야 한다.
+
+### 태그 클래스와 상태 패턴의 차이
+
+- 태그 클래스 != 상태 패턴
+  - 상태 패턴은 객체의 내부 상태가 변화할 때 객체의 동작이 변하는 소프트웨어 디자인 패턴이다.
+
+
+
+### 정리
+
+- 코틀린에서는 태그 클래스보다 타입 계층을 사용하는 것이 좋다. 그리고 일반적으로 이러한 타입 계층을 만들 때는  sealed 클래스를 사용한다.
+- 이는 상태 패턴과 다르다. 타입 계층과 상태 패턴은 실질적으로 함께 사용하는 협력 관계라고 할 수 있다.
+
+
+
 ## 아이템 40: equals의 규약을 지켜라
 
 ## 아이템 41: hashCode의 규약을 지켜라
