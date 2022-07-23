@@ -3137,6 +3137,286 @@ class CalendarView {
 
 ## 아이템 40: equals의 규약을 지켜라
 
+### 동등성
+
+- 코틀린의 두가지 종류의 동등성
+  - 구조적 동등성: eqauls메서드와 이를 기반으로 만들어진 == 연산자로 확인하는 동등성 a가 nullable이 아니라면 a == b는 a.eqauls(b). a가 nullable이라면 a?.eqauls(b) ?: (b === null)
+  - 레퍼런스적 동등성: === 연산자로 확인하는 동등성 두 피연산자가 같은 객체를 가리키면 true를 리턴
+- 다른 타입의 객체끼리는 eqauls를 사용할 수 없다.
+
+```kotlin
+open class Animal
+class Book
+Animal() == Book()  // Error: Operator == cannot be 
+// applied to Animal and Book
+Animal() === Book() // Error: Operator === cannot be 
+// applied to Animal and Book
+```
+
+
+
+### equals가 필요한 이유
+
+- Any에 구현되어있는 eqauls는 === 처럼 두 인스턴스가 완전히 같은 객체인지를 비교한다.
+
+```kotlin
+class Name(val name: String)
+val name1 = Name("Marcin")
+val name2 = Name("Marcin")
+val name1Ref = name1
+
+name1 == name1 // true
+name1 == name2 // false
+name1 == name1Ref // true
+
+name1 === name1 // true
+name1 === name2 // false
+name1 === name1Ref // true
+```
+
+- 두 객체의 기본 생성자의 프로퍼티가 같다면 같은 객체로 봐야하는 경우 data한정자를 사용하면 자동으로 이와 같은 동등성으로 동작한다.
+
+```kotlin
+data class FullName(val name: String, val surname: String)
+val name1 = FullName("Marcin", "Moskała")
+val name2 = FullName("Marcin", "Moskała")
+val name3 = FullName("Maja", "Moskała")
+  
+name1 == name1 // true
+name1 == name2 // true, because data are the same
+name1 == name3 // false
+  
+name1 === name1 // true
+name1 === name2 // false
+name1 === name3 // false
+```
+
+- 데이터 클래스에서 특정 타입에 대한 equals를 제거하고싶다면 생성자 밖으로 빼면 된다.
+
+```kotlin
+data class DateTime(
+   private var millis: Long = 0L,
+   private var timeZone: TimeZone? = null
+) {
+   private var asStringCache = ""
+   private var changed = false
+  
+   //...
+}
+
+```
+
+- 위 데이터클래스는 asStringCache와 changed 필드가 eqauls에서 제거되며 copy에도 해당 필드는 제거된다.
+- 따라서 특별한 상황이 아닌 경우 코틀린에서는 eqauls를 직접 구현할 필요가 없다.
+
+```kotlin
+class User(
+   val id: Int,
+   val name: String,
+   val surname: String
+) {
+   override fun equals(other: Any?): Boolean =
+       other is User && other.id == id
+
+   override fun hashCode(): Int = id
+}
+```
+
+### eqauls의 규약
+
+- eqauls은 반드시 다음과 같은 요구사항을 충족해야 한다.
+  - 반사적 동작: x가 null이 아닌 값이라면, x.eqauls(x)는 true를 리턴해야 한다.
+  - 대칭적 동작: x와 y가 null이 아닌 값이라면, e.eqauls(y)는 y.eqauls(x)와 같은 결과를 출력해야 한다.
+  - 연속적 동작: x, y, z가 null이 아닌 값이고 x.eqauls(y)와 y.eqauls(z)가 true라면, x.equals(z)도 true여야 한다.
+  - 일관적 동작: x와 y가 null이 아닌 값이라면, x.equals(y)는 여러번 실행하더라도 항상 같은 결과를 리턴해야 한다.
+  - 널과 관련된 동작: x가 null이 아닌 값이라면 x.equals(null)은 항상 false를 리턴해야 한다.
+
+
+
+`반사적 동작`
+
+- x가 null이 아닌 값이라면, x.eqauls(x)는 true를 리턴해야 한다.
+
+```kotlin
+// DO NOT DO THIS!
+class Time(
+   val millisArg: Long = -1,
+   val isNow: Boolean = false
+) {
+   val millis: Long get() =
+       if (isNow) System.currentTimeMillis() 
+       else millisArg
+
+   override fun equals(other: Any?): Boolean =
+       other is Time && millis == other.millis
+}
+
+val now = Time(isNow = true)
+now == now // Sometimes true, sometimes false   
+List(100000) { now }.all { it == now }
+// Most likely false
+```
+
+- 이 코드는 실행할 때마다 결과가 달라질 수 있어서 일관적 동작도 위반한다
+
+- 이렇게 수정되어야 한다.
+
+  - 객체가 현재 시간을 나타내는가?를 확인하고 현재 시간을 나타내지 않는다면 같은 타임스탬프를 갖고 있는가?로 동등성을 확인해야한다.
+
+  - 이는 태그클래스의 고전적인 예다.
+
+  - ```kotlin
+    sealed class Time
+    data class TimePoint(val millis: Long): Time()
+    object Now: Time()
+    
+    ```
+
+  
+
+`대칭적 동작`
+
+- x와 y가 null이 아닌 값이라면, e.eqauls(y)는 y.eqauls(x)와 같은 결과를 출력해야 한다.
+
+```kotlin
+class Complex(
+   val real: Double,
+   val imaginary: Double
+) {
+   // DO NOT DO THIS, violates symmetry
+   override fun equals(other: Any?): Boolean {
+       if (other is Double) { 
+          return imaginary == 0.0 && real == other
+       }
+       return other is Complex &&
+               real == other.real &&
+               imaginary == other.imaginary
+   }
+}
+```
+
+```kotlin
+Complex(1.0, 0.0).equals(1.0) // true
+1.0.equals(Complex(1.0, 0.0)) // false
+```
+
+- 대칭성을 깨면 디버깅중에 찾기가 매우매우 어렵다. 동등성을 구현할 때는 항상 대칭성을 고려해야 한다.
+- 결론적으로 다른 클래스는 동등하지 않게 만드는게 좋다.
+
+
+
+`연속적 동작`
+
+- x, y, z가 null이 아닌 값이고 x.eqauls(y)와 y.eqauls(z)가 true라면, x.equals(z)도 true여야 한다.
+
+```kotlin
+open class Date(
+   val year: Int,
+   val month: Int,
+   val day: Int
+) {
+   // DO NOT DO THIS, symmetric but not transitive
+   override fun equals(o: Any?): Boolean = when (o) {
+       is DateTime -> this == o.date
+       is Date -> o.day == day && o.month == month && 
+o.year == year
+       else -> false
+   }
+
+   // ...
+}
+
+class DateTime(
+   val date: Date,
+   val hour: Int,
+   val minute: Int,
+   val second: Int
+): Date(date.year, date.month, date.day) {
+   // DO NOT DO THIS, symmetric but not transitive
+   override fun equals(o: Any?): Boolean = when (o) {
+       is DateTime -> o.date == date && o.hour == hour && 
+o.minute == minute && o.second == second
+       is Date -> date == o
+       else -> false
+   }
+
+   // ...
+}
+```
+
+```kotlin
+val o1 = DateTime(Date(1992, 10, 20), 12, 30, 0)
+val o2 = Date(1992, 10, 20)
+val o3 = DateTime(Date(1992, 10, 20), 14, 45, 30)
+
+o1 == o2 // true
+o2 == o3 // true
+o1 == o3 // false <- So equality is not transitive
+```
+
+- 상속대신 컴포지션을 사용하고 두 객체를 아예 비교하지 못하게 만드는 것이 좋다.
+
+```kotlin
+data class Date(
+   val year: Int,
+   val month: Int,
+   val day: Int
+)
+
+data class DateTime(
+   val date: Date,
+   val hour: Int,
+   val minute: Int,
+   val second: Int
+)
+
+val o1 = DateTime(Date(1992, 10, 20), 12, 30, 0)
+val o2 = Date(1992, 10, 20)
+val o3 = DateTime(Date(1992, 10, 20), 14, 45, 30)
+
+o1.equals(o2) // false
+o2.equals(o3) // false
+o1 == o3 // false
+
+o1.date.equals(o2) // true
+o2.equals(o3.date) // true
+o1.date == o3.date // true
+```
+
+`일관성 동작`
+
+- x와 y가 null이 아닌 값이라면, x.equals(y)는 여러번 실행하더라도 항상 같은 결과를 리턴해야 한다.
+- 두 객체를 비교한 결과는 한 객체를 수정하지 않는 한 항상 같은 결과를 내야한다.
+
+
+
+### URL과 관련된 equals 문제
+
+```kotlin
+import java.net.URL
+
+fun main() {
+   val enWiki = URL("https://en.wikipedia.org/")
+   val wiki = URL("https://wikipedia.org/")
+   println(enWiki == wiki)
+}
+```
+
+- 일반적이라면 결과는 true, 하지만 인터넷이 끊긴 상황이라면 false다
+- 이 설계의 문제점
+  - 동작이 일관되지 않는다. 어떤 네트워크에서는 두 URL이 같을 수 있지만 다른 네트워크에서는 또 다를 수 있다.
+  - 일반적으로 eqauls와 hashcode 처리는 빠를거라 예상하지만 네트워크 처리는 굉장히 느리다.
+  - 동작 자체에 문제가 있다. 동일한 ip주소라고해도 동일한 콘텐츠를 나타내는 것은 아니다.
+
+### eqauls 구현하기
+
+- 특별한 이유가 없는 이상 직접 eqauls를 구현하는 것은 좋지 않다.
+- 기본적으로 제공되는 것을 사용하거나 데이터 클래스로 만들어서 사용하는 것이 좋다.
+- 만약 직접 구현해야 한다면 반사적, 대칭적, 연속적, 일관적 동작을 하는지 꼭 확인하자.
+- 이러한 클래스는 final로 만드는 것이 좋다.
+
+
+
 ## 아이템 41: hashCode의 규약을 지켜라
 
 ## 아이템 42: compareTo의 규약을 지켜라
