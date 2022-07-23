@@ -3419,6 +3419,134 @@ fun main() {
 
 ## 아이템 41: hashCode의 규약을 지켜라
 
+### 해시 테이블
+
+- 해시 테이블
+  - 컬렉션에 요소를 빠르게 추가하고 컬렉션에서 요소를 빠르게 추출해야한다고 할때 사용할 수 있는 자료구조 : Map, Set
+  - Map과 Set은 중복을 허용하지 않는다.
+  - 성능을 좋게 만드는 방법은 바로 해시테이블이다.
+  - 해시 테이블은 각 요소에 숫자를 할당하는 함수가 필요하고 이 함수를 해시함수라고한다.
+- 해시 함수가 가져야할 특성
+  - 빠른 속도
+  - 충돌이 적은 알고리즘
+- 해시 함수
+  - 해시함수는 각각의 요소에 특정한 숫자를 할당하고 이를 기반으로 요소를 다른 버킷에 넣는다. 
+  - 해시 함수의 기본적인 조건에 의해서 같은 요소는 항상 동일한 버킷에 넣게 된다.
+
+
+
+### 가변성과 관련된 문제
+
+- 요소가 추가될 때만 해시 코드를 계산한다.
+- 요소가 변경되어도 해시코드는 계산되지 않으며, 배킷 재배치도 이뤄지지 않는다. 따라서 Set과 Map의 키로 mutable요소를 사용하면 안되고 사용하더라도 요소를 변경해서는 안된다.
+
+```kotlin
+data class FullName(
+   var name: String,
+   var surname: String
+)
+
+val person = FullName("Maja", "Markiewicz")
+val s = mutableSetOf<FullName>()
+s.add(person)
+person.surname = "Moskała"
+print(person) // FullName(name=Maja, surname=Moskała)
+print(person in s) // false
+print(s.first() == person) // true
+```
+
+
+
+### hashCode의 규약
+
+- hashCode의 규약
+  - 어떤 객체를 변경하지 않았다면 hashCode는 여러 번 호출해도 그 결과가 항상 같아야 한다.
+  - eqauls 메서드의 실행 결과로 두 객체가 같다고 나온다면, hashCode 메서드의 호출 결과도 같다고 나와야 한다. 필수!!
+- hashCode는 최대한 요소를 넓게 퍼뜨려야 한다. 다른 요소라면 최대한 다른 해시값을 찾는 것이 좋다.
+
+```kotlin
+class Proper(val name: String) {
+
+   override fun equals(other: Any?): Boolean {
+       equalsCounter++
+       return other is Proper && name == other.name
+   }
+
+   override fun hashCode(): Int {
+       return name.hashCode()
+   }
+
+   companion object {
+       var equalsCounter = 0
+   }
+}
+
+class Terrible(val name: String) {
+   override fun equals(other: Any?): Boolean {
+       equalsCounter++
+       return other is Terrible && name == other.name
+   }
+
+   // Terrible choice, DO NOT DO THAT
+   override fun hashCode() = 0
+
+   companion object {
+       var equalsCounter = 0
+   }
+}
+
+val properSet = List(10000) { Proper("$it") }.toSet()
+println(Proper.equalsCounter) // 0
+val terribleSet = List(10000) { Terrible("$it") }.toSet()
+println(Terrible.equalsCounter) // 50116683
+
+Proper.equalsCounter = 0
+println(Proper("9999") in properSet) // true
+println(Proper.equalsCounter) // 1
+
+Proper.equalsCounter = 0
+println(Proper("A") in properSet) // false
+println(Proper.equalsCounter) // 0
+
+Terrible.equalsCounter = 0
+println(Terrible("9999") in terribleSet) // true
+println(Terrible.equalsCounter) // 4324
+
+Terrible.equalsCounter = 0
+println(Terrible("A") in terribleSet) // false
+println(Terrible.equalsCounter) // 10001
+```
+
+### hashCode 구현하기
+
+- 그냥 data 클래스 쓰자...
+- 만약 equals를 재정의했다면 반드시 hashCode를 재정의해야 한다.
+- hashCode 는 기본적으로 eqauls에서 비교에 사용되는 프로퍼티를 기반으로 해시 코드를 만들어야한다.
+- 일반적으로 모든 해시 코드의 값을 더하고 더하는 과정마다 이전까지의 결과에 31을 곱한 뒤 더해준다. 31은 관례
+
+```kotlin
+class DateTime(
+   private var millis: Long = 0L,
+   private var timeZone: TimeZone? = null
+) {
+   private var asStringCache = ""
+   private var changed = false
+
+   override fun equals(other: Any?): Boolean =
+       other is DateTime &&
+               other.millis == millis &&
+               other.timeZone == timeZone
+
+   override fun hashCode(): Int {
+       var result = millis.hashCode()
+       result = result * 31 + timeZone.hashCode()
+       return result
+   }
+}
+```
+
+
+
 ## 아이템 42: compareTo의 규약을 지켜라
 
 ## 아이템 43: API의 필수적이지 않는 부분을 확장 함수로 추출하라
