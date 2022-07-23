@@ -3640,6 +3640,95 @@ it.name })
 
 ## 아이템 43: API의 필수적이지 않는 부분을 확장 함수로 추출하라
 
+- 클래스의 메서드를 정의할 때는 메서드를 멤버로 정의할 것인지 아니면 확잠 하수로 정의할 것인지 결정해야 한다.
+
+```kotlin
+// Defining methods as members
+class Workshop(/*...*/) {
+   //...
+
+   fun makeEvent(date: DateTime): Event = //...
+
+   val permalink
+       get() = "/workshop/$name"
+}
+
+
+// Defining methods as extensions
+class Workshop(/*...*/) {
+   //...
+}
+
+fun Workshop.makeEvent(date: DateTime): Event = //...
+
+val Workshop.permalink
+   get() = "/workshop/$name"
+```
+
+- 일단 두 방식중에 어떤 방식이 우월하다고 할 수 없다. 각자 장단점이 있으므로 필요한 경우에 잘 적절하게 활용하자.
+
+- 차이점들
+
+  - 확장 메서드의 경우 따로 가져와서 사용해야 한다. 일반적으로 확장은 다른 패키지에 위치한다.
+
+  - 확장 메서드는 임포터해서 사용한다는 특징 덕분에 같은 타입에 같은 이름으로 메서드를 여러개 만들 수 있다. 하지만 이 방법은 위험할 수 있어서 비추천
+
+  - 확장함수는 가상이 아니라서 파생 클래스에서 오버라이드할 수 없다. 상속을 목적으로 설계된 요소는 확장 함수로 사용할 수 없다.
+
+  - ```kotlin
+    open class C
+    class D: C()
+    fun C.foo() = "c"
+    fun D.foo() = "d"
+    
+    fun main() {
+       val d = D()
+       print(d.foo()) // d
+       val c: C = d
+       print(c.foo()) // c
+    
+       print(D().foo()) // d
+       print((D() as C).foo()) // c
+    }
+    ```
+
+- 확장 함수는 클래스가 아닌 타입에 정의하는것이라 nullabe 또는 구체적인 제네릭 타입에도 확장 함수를 정의할 수 있다.
+
+```kotlin
+inline fun CharSequence?.isNullOrBlank(): Boolean {
+   contract {
+       returns(false) implies (this@isNullOrBlank != null)
+   }
+
+   return this == null || this.isBlank()
+}
+
+public fun Iterable<Int>.sum(): Int {
+   var sum: Int = 0
+   for (element in this) {
+       sum += element
+   }
+   return sum
+}
+```
+
+- 확장 함수는 클래스 레퍼런스에서 멤버로 표시되지 안흔ㄴ다. 따라서 애너테이션 프로세서가 따로 처리하지 않는다. 따라서 필수적이지 않은 요소를 확장함수로 추출하면 어노테이션 프로세스로부터 숨겨진다. 이는 확장 함수가 클래스 내부에 있는 것이 아니기 때문이다.
+
+
+
+### 정리
+
+- 멤버와 확장 함수의 차이 비교
+  - 확장 함수는 import 해야 한다.
+  - 확장 함수는 virtual이 아니다.
+  - 멤버는 높은 우선순위를 갖는다.
+  - 확장 함수는 클래스 위가 아니라 타입 위에 만들어진다.
+  - 확장 함수는 클래스 레퍼런스에 나오지 않는다.
+- 확장 함수는 우리에게 더 많은 자유와 유연성을 준다. 확장 함수는 상속, 어노테이션 처리 등을 지원하지 않고 클래스 내부에 없으므로 약간 혼동을 줄 수 있다.
+- API의 필수적인 부분은 멤버로 두는 것이 좋지만 필수적이지 않은 부분은 확장 함수로 만드는 것이 여러모로 좋다.
+
+
+
 ## 아이템 44: 멤버 확장 함수의 사용을 피하라
 
 ## 
