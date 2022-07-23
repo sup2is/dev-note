@@ -3549,6 +3549,95 @@ class DateTime(
 
 ## 아이템 42: compareTo의 규약을 지켜라
 
+- compareTo 메서드는 Any 클래스에 있는 메서드가 아니다. 이는 수학적인 부등식으로 변환되는 연산자이다.
+
+```kotlin
+obj1 > obj2 // Translates to obj1.compareTo(obj2) > 0
+obj1 < obj2 // Translates to obj1.compareTo(obj2) < 0
+obj1 >= obj2 // Translates to obj1.compareTo(obj2) >= 0
+obj1 <= obj2 // Translates to obj1.compareTo(obj2) <= 0
+```
+
+- compareTo는 다음과 같이 동작해야 한다.
+  - 비대칭적 동작: a >= b 이고 b >= a 라면, a == b여야 한다. 즉 비교와ㅓ 동등성 비교에 어떠한 관계가 있어야 하며, 서로 일관성이 있어야 한다.
+  - 연속적 동작: a >= b 이고 b >= c라면 a >= c여야 한다. 마찬가지로 a > b 이고 b > c 라면  a > c여야 한다. 이러한 동작을 하지 못하면 요소 정렬이 무한 반복에 빠질 수 있다.
+  - 코넥스적 동작: 두 요소는 어떤 확실한 관계를 갖고 있어야 한다. 즉, a >= b 또는  b >=  a 중에 적어도 하나 이상은 ture 여야 한다. 두 요소 사이에 관계가 업으면 고전적인 정렬을 사용할 수 없다. 위상정렬과 같은 알고리즘은 사용할 수 있다.
+
+
+
+### compareTo는 따로 정의해야 할까?
+
+- 코틀린에서는 거~~의 없다.
+
+- 컬렉션을 정렬하는 방법
+
+  - 요소가 한개라면 sortedBy를 사용한다.
+
+  - ```kotlin
+    class User(val name: String, val surname: String)
+    val names = listOf<User>(/*...*/)
+    
+    val sorted = names.sortedBy { it.surname }
+    ```
+
+  - 여러 프로퍼티를 기반으로 정렬해야 한다면 sortedWith 함수를 사용한다. 
+
+  - ```kotlin
+    val sorted = names
+        .sortedWith(compareBy({ it.surname }, { it.name }))
+    ```
+
+- 객체가 자연스러운 순서인지 확실하지 않다면 비교기를 사용하는 것이 좋다. 이를 자주 사용한다면 클래스에 companion 객체로 만들어두는 것도 좋다.
+
+```kotlin
+class User(val name: String, val surname: String) {
+   // ...
+
+   companion object {
+       val DISPLAY_ORDER =
+               compareBy(User::surname, User::name)
+   }
+}
+
+val sorted = names.sortedWith(User.DISPLAY_ORDER)
+```
+
+
+
+### compareTo 구현하기
+
+- 두 값을 단순하게 비교하기만 한다면 compareValues 함수를 다음과 같이 활용할 수 있다.
+
+```kotlin
+class User(
+   val name: String, 
+   val surname: String
+): Comparable<User> {
+   override fun compareTo(other: User): Int =
+           compareValues(surname, other.surname)
+}
+```
+
+- 더 많은 값을 비교하거나 선택기를 활용하고싶다면 다음과 같이 compareValuesBy를 사용하면 된다.
+
+```kotlin
+class User(
+   val name: String, 
+   val surname: String
+): Comparable<User> {
+   override fun compareTo(other: User): Int =
+     compareValuesBy(this, other, { it.surname }, { 
+it.name })
+}
+```
+
+- 이 함수는 비교기를 만들때 도움이 된다. 특별한 논리를 구현해야 하는 경우 이 함수가 다음 값을 리턴해야 한다
+  - 0: 리시버와 other가 같은 경우
+  - 양수: 리시버가 other보다 큰 경우
+  - 음수: 리시버가 other보다 작은 경우
+
+
+
 ## 아이템 43: API의 필수적이지 않는 부분을 확장 함수로 추출하라
 
 ## 아이템 44: 멤버 확장 함수의 사용을 피하라
