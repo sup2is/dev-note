@@ -3800,7 +3800,279 @@ private fun String.isPhoneNumber() =
 
 
 
-## 
+# #7 비용 줄이기
+
+## 아이템 45: 불필요한 객체 생성을 피하라
+
+- 불필요한 객체 생성을 피하는 것이 최적화 관점에서 좋다.
+- JVM에서는 하나의 가상 머신에서 동일한 문자열을 처리하는 코드가 여러개라면 기존 문자열을 재사용한다.
+
+```kotlin
+val str1 = "Lorem ipsum dolor sit amet"
+val str2 = "Lorem ipsum dolor sit amet"
+print(str1 == str2) // true
+print(str1 === str2) // true
+
+// -128 ~ 127 사의의 작은 값도 캐싱한다.
+val i1: Int? = 1
+val i2: Int? = 1
+print(i1 == i2) // true
+print(i1 === i2) // true, because i2 was taken from cache 
+
+val j1: Int? = 1234
+val j2: Int? = 1234
+print(j1 == j2) // true
+print(j1 === j2) // false
+```
+
+- 기본형 예를들어 Int가 nullable한 경우 Integer로 컴파일되고 notnull이면 int형으로 컴파일된다. 이러한 메커니즘은 객체 생성 비용에 큰 영향을 준다.
+
+### 객체 생성 비용은 항상 클까?
+
+- 어떤 객체를 wrap하면 세가지 비용이 발생한다.
+  - 객체는 더 많은 용량을 차지한다. 기본 자료형 int는 4바이트지만 Integer는 16바이트다. 큰부분은 아니지만 분명의 비용은 추가된다. 많은 경우 비용이 커질 수 있다.
+  - 요소가 캡슐화되어 있다면, 접근에 추가적인 함수 호출이 필요하다. 함수를 사용하는 처리는 굉장히 빠르므로 마찬가지로 큰 비용이 발생하지는 않는다. 하지만 많은경우 비용이 커질 수 있다.
+  - 객체는 생성이되어야 한다. 생성되고 메모리에 할당되고 레퍼런스를 만드는 과정이 필요한데 적은 비용이지만 모이면 큰 비용이된다.
+
+```kotlin
+class A
+private val a = A()
+
+// Benchmark result: 2.698 ns/op
+fun accessA(blackhole: Blackhole) {
+   blackhole.consume(a)
+}
+
+// Benchmark result: 3.814 ns/op
+fun createA(blackhole: Blackhole) {
+   blackhole.consume(A())
+}
+
+// Benchmark result: 3828.540 ns/op
+fun createListAccessA(blackhole: Blackhole) {
+   blackhole.consume(List(1000) { a })
+}
+
+// Benchmark result: 5322.857 ns/op
+fun createListCreateA(blackhole: Blackhole) {
+   blackhole.consume(List(1000) { A() })
+}
+```
+
+
+
+### 객체 선언
+
+- 싱글턴 사용하기
+  - 매 순간 객체를 생성하지 않고 객체를 재사용하는 간단한 방법은 객체 선언을 사용하는 것이다.
+
+```kotlin
+sealed class LinkedList<T>
+
+class Node<T>(
+    val head: T, 
+    val tail: LinkedList<T>
+): LinkedList<T>()
+
+class Empty<T>: LinkedList<T>()
+
+// Usage
+val list: LinkedList<Int> = 
+    Node(1, Node(2, Node(3, Empty())))
+val list2: LinkedList<String> = 
+    Node("A", Node("B", Empty()))
+```
+
+- 위 코드에서 Empty는 항상 새로운 객체를 리턴한다.
+  - 싱글턴으로 만들자니 제네릭타입이 걸린다. 이때 Nothing 타입의 리스트를 만들면 해결할수 있다.
+  - Nothing은 모든 타입의 서브타입이다. 따라서 아래와 같이 변경하면 모든 코드에서 재사용할 수 있다.
+
+```kotlin
+sealed class LinkedList<out T>
+
+class Node<out T>(
+       val head: T,
+       val tail: LinkedList<T>
+) : LinkedList<T>()
+
+object Empty : LinkedList<Nothing>()
+
+// Usage
+val list: LinkedList<Int> = 
+    Node(1, Node(2, Node(3, Empty)))
+
+val list2: LinkedList<String> = 
+    Node("A", Node("B", Empty))
+```
+
+
+
+### 캐시를 활용하는 팩토리 함수
+
+- 팩토리 함수는 캐시를 가질 수 있다. 따라서 팩토리 함수는 항상 같은 객체를 리턴하게 만들 수도 있다.
+
+```kotlin
+fun <T> emptyList(): List<T> = EmptyList
+```
+
+- 모든 순수 함수는 캐싱을 활용할 수 있다. -> 메모이제이션.. 생략
+- WeakReference와 SoftReference의 차이
+  - WeakReference는 가비지 컬렉터가 값을 정리하는 것을 막지 않는다. 다른 레퍼런스가 이를 사용하지 않으면 곧바로 제거된다.
+  - SoftReference는 가비지 컬렉터가 값을 정리할 수도 있고 정리하지 않을 수도 있다. 일반적인 JVM 구현의 경우 메모리가 부족해서 추가로 필요한 경우에만 정리한다. 캐시를 만들때는 SoftReference를 활용하는 것이 좋다.
+- 참고 사항
+  - 캐시는 언제나 메모리와 성능의 트레이드 오프가 발생하므로 캐시를 잘 설계하는 것은 쉽지 않다.
+  - 성능 문제를 메모리 부족 문제로 돌리고 싶은 사람은 아무도 없기 때문에 여러가지 상황을 잘 고려해서 현명하게 사용해야 한다.
+
+
+
+### 무거운 객체를 외부 스코프로 보내기
+
+- 컬렉션 처리에서 이루어지는 무거운 연산은 컬렉션 처리 함수 내부에서 외부로 빼는 것이 좋다.
+
+- 정규식 사용하기
+
+  - ```kotlin
+    fun String.isValidIpAddress(): Boolean {
+       return this.matches("\\A(?:(?:25[0-5]|2[0-4][0-9]
+    |[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]
+    ?[0-9][0-9]?)\\z".toRegex())
+    }
+    
+    // Usage
+    print("5.173.80.254".isValidIpAddress()) // true
+    ```
+
+  - 위 함수의 문제는 함수를 사용할 떄마다 Regex 객체를 계속해서 만든다.
+
+  - ```kotlin
+    private val IS_VALID_EMAIL_REGEX = "\\A(?:(?:25[0-5]
+    |2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4]
+    [0-9]|[01]?[0-9][0-9]?)\\z".toRegex()
+    
+    fun String.isValidIpAddress(): Boolean = 
+        matches(IS_VALID_EMAIL_REGEX)
+    ```
+
+  - 이 함수가 한 파일에 다른 함수와 함께 있을 때, 함수를 사용하지 않는다면 정규 표현식이 만들어지는 것 자체가 낭비다. 이런 경우 지연 초기화를 하면 된다.
+
+  - ```kotlin
+    private val IS_VALID_EMAIL_REGEX by lazy { 
+    "\\A(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.)
+    {3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\z".toRegex() 
+    }
+    ```
+
+
+
+### 지연 초기화
+
+- 무거운 클래스를 만들 때는 지연되게 만드는 것이 좋을 때가 있다.
+
+```kotlin
+class A {
+   val b = B()
+   val c = C()
+   val d = D()
+
+   //...
+}
+
+```
+
+```kotlin
+class A {
+   val b by lazy { B() }
+   val c by lazy { C() }
+   val d by lazy { D() }
+
+   //...
+}
+```
+
+- 백엔드 에플리케이션의 지연 초기화
+  - A가 HTTP 호출에 응답하는 백엔드 애플리케이션의 컨트롤러라고 생각하면 처음 호출될 때 무거운 객체들의 초기화가 필요하다.
+  - 이런경우 첫 번째 호출 때 응답 시간이 굉장히 길어질 수 있기 때문에 백엔드 애플리케이션에서는 좋지 않다.
+  - 지연초기화는 상황에 맞게 사용해야 한다.
+
+### 기본 자료형 사용하기
+
+- 코틀린은 웬만하면 기본 자료형을 사용한다.
+
+- 아래와 같은 경우 wrap한 자료형이 사용된다.
+
+  - nullable 타입을 연산할 때 (기본 자료형은 null이 될 수 없으므로)
+  - 타입을 제네릭으로 사용할 때
+
+- 코드와 라이브러리의 성능이 매우 중요하고 숫자를 많이 다루는 컬렉션이 있다면 기본 자료형을 사용하는게 좋다.
+
+- 컬렉션 내부의 최댓값을 리턴하는 함수 예제
+
+  - 이 함수는 컬렉션이 비어있으면 null을 리턴하고 아니면 그중 최댓값을 리턴한다.
+
+  - ```kotlin
+    fun Iterable<Int>.maxOrNull(): Int? {
+       var max: Int? = null
+       for (i in this) {
+           max = if(i > (max ?: Int.MIN_VALUE)) i else max
+       }
+       return max
+    }
+    ```
+
+  - 이 구현의 두가지 심각한 단점
+
+    - 각각의 단계에서 엘비스 연산자를 사용해야 한다.
+    - nullable 값을 사용했기 때문에 JVM 내부에서 int가 아니라 Integer를 사용한다.
+
+  - 두가지 문제를 해결한 구현
+
+  - ```kotlin
+    fun Iterable<Int>.maxOrNull(): Int? {
+       val iterator = iterator()
+       if (!iterator.hasNext()) return null
+       var max: Int = iterator.next()
+       while (iterator.hasNext()) {
+           val e = iterator.next()
+           if (max < e) max = e
+       }
+       return max
+    }
+    
+    ```
+
+- 최적화가 매우매우 중요한 경우에는 위 사례가 중요할 수 있다.
+
+
+
+
+
+
+
+
+
+## 아이템 46: 함수 타입 파라미터를 갖는 함수에 inline 한정자를 붙여라
+
+## 아이템 47: 인라인 클래스의 사용을 고려하라
+
+## 아이템 48: 더 이상 사용하지 않는 객체의 레퍼런스를 제거하라
+
+
+
+# #8 효율적인 컬렉션 처리
+
+## 아이템 49: 하나 이상의 처리 단계를 가진 경우에는 시퀀스를 사용하라
+
+## 아이템 50: 컬렉션 처리 단계 수를 제한하라
+
+## 아이템 51: 성능이 중요한 부분에는 기본 자료형 배열을 사용하라
+
+## 아이템 52: mutable 컬렉션 사용을 고려하라
+
+
+
+
+
+
 
 
 
