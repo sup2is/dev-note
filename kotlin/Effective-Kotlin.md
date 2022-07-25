@@ -4772,7 +4772,46 @@ productsList.stream()
   - 각각의 단계에서 컬렉션을 만들어내지 않는다.
 - 결과적으로 무거운 객체나 규모가 큰 컬렉션을 여러 단계에 걸쳐서 처리할 때는 시퀀스를 사용하는 것이 좋다.
 
+
+
 ## 아이템 50: 컬렉션 처리 단계 수를 제한하라
+
+- 모든 컬렉션 처리 메서드는 비용이 많이 든다.
+  - 컬렉션은 내부적으로 새로운 컬렉션을 만든다.
+  - 시퀀스도 시퀀스 전체를 랩하는 객체가 만들어진다.
+- 시퀀스나 컬렉션이나 단계가 많다면 꽤 큰 비용이 들어간다.
+
+```kotlin
+class Student(val name: String?)
+
+// Works
+fun List<Student>.getNames(): List<String> = this
+   .map { it.name }
+   .filter { it != null }
+   .map { it!! }
+
+// Better
+fun List<Student>.getNames(): List<String> = this
+   .map { it.name }
+   .filterNotNull()
+
+// Best
+fun List<Student>.getNames(): List<String> = this
+   .mapNotNull { it.name }
+```
+
+- 컬렉션처리와 관련해서 비효율적인 코드를 작성하는 이유는 그것이 필요 없다고 생각해서가 아니라 어떤 메서드가 있는지 몰라서인 경우가 많다. 따라서 어떤 메서드가 있는지 확인해보는 것이 좋다.
+
+[![img](https://github.com/MaxzMeng/Effective-Kotlin-zh-CN/raw/main/assets/chapter8/chapter8-7.png)](https://github.com/MaxzMeng/Effective-Kotlin-zh-CN/blob/main/assets/chapter8/chapter8-7.png)
+
+
+
+### 정리
+
+- 대부분의 컬렉션 처리 단계는 전체 컬렉션에 대한 반복과 중간 컬렉션 생성이라는 비용이 발생한다.
+- 이 비용들은 적절한 컬렉션 처리 함수들을 활용해서 줄일 수 있다.
+
+
 
 ## 아이템 51: 성능이 중요한 부분에는 기본 자료형 배열을 사용하라
 
