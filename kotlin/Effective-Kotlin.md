@@ -4815,6 +4815,55 @@ fun List<Student>.getNames(): List<String> = this
 
 ## 아이템 51: 성능이 중요한 부분에는 기본 자료형 배열을 사용하라
 
+- 기본 자료형 특징
+  - 가볍다. 일반적인 객체와 다르게 추가적으로 포함되는것이 없다.
+  - 빠르다. 값에 접근할 때 추가 비용이 들어가지 않는다.
+- 제네릭 타입에는 기본 자료형을 사용할 수 없으므로 성능이 중요하다면 IntArray와 LongArray 등의 기본 자료형을 사용하는 배열을 사용하는게 좋다.
+
+| Kotlin type | Java type |
+| ----------- | --------- |
+| Int         | int       |
+| List        | List      |
+| Array       | Integer[] |
+| IntArray    | int[]     |
+
+```kotlin
+open class InlineFilterBenchmark {
+
+    lateinit var list: List<Int>
+    lateinit var array: IntArray
+
+    @Setup
+    fun init() {
+        list = List(1_000_000) { it }
+        array = IntArray(1_000_000) { it }
+    }
+
+    @Benchmark
+    // On average 1 260 593 ns
+    fun averageOnIntList(): Double {
+        return list.average()
+    }
+
+    @Benchmark
+    // On average 868 509 ns
+    fun averageOnIntArray(): Double {
+        return array.average()
+    }
+}
+```
+
+- 배열이 25프로 정도 빠르다 
+- 기본 자료형을 포함하는 배열은 코드 성능이 중요한 부분을 최적화할때 사용하면 좋다.
+
+
+
+### 정리
+
+- 일반적으로 Array보다 List와 Set을 사용하는 것이 좋다. 하지만 기본 자료형의 컬렉션을 굉장히 많이 보유해야 하는 경우에는 성능을 높이고, 메모리 사용량을 줄일 수 있도록 Array를 사용하는 것이 좋다.
+
+
+
 ## 아이템 52: mutable 컬렉션 사용을 고려하라
 
 
