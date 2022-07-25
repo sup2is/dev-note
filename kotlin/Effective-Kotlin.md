@@ -4578,6 +4578,200 @@ fun main() {
 
 ## 아이템 49: 하나 이상의 처리 단계를 가진 경우에는 시퀀스를 사용하라
 
+- Iterable과 Sequence의 차이
+  - Sequence는 지연처리된다. 시퀀스 처리 함수들을 사용하면 데코레이터 패턴으로 꾸며진 새로운 시퀀스가 리턴된다. 최종적인 계산은 toList 또는 count 등의 최종 연산이 이루어질 때 수행된다.
+  - Iterable은 처리 함수를 사용할 때마다 연산이 이루어져 List가 만들어진다.
+  - 컬렉션 처리 연산은 호출할 때 이뤄지지만 시퀀스는 최종 연산이 이루어지기 전까지 각 단계에서 연산이 일어나지 않는다.
+- 시퀀스 지연처리의 장점
+  - 자연스러운 처리 순서를 유지한다.
+  - 최소한만 연산한다.
+  - 무한 시퀀스 형태로 사용할 수 있다.
+  - 각각의 단계에서 컬렉션을 만들어 내지 않는다.
+
+### 순서의 중요성
+
+- 시퀀스는 element-by-element 또는 lazy order라고 부른다.
+- 이터러블은 step-by-step 또는 eager order라고 부른다.
+
+```kotlin
+ 1 sequenceOf(1,2,3)
+ 2        .filter { print("F$it, "); it % 2 == 1 }
+ 3        .map { print("M$it, "); it * 2 }
+ 4        .forEach { print("E$it, ") }
+ 5 // Prints: F1, M1, E2, F2, F3, M3, E6, 
+ 6 
+ 7 listOf(1,2,3)
+ 8        .filter { print("F$it, "); it % 2 == 1 }
+ 9        .map { print("M$it, "); it * 2 }
+10        .forEach { print("E$it, ") }
+11 // Prints: F1, F2, F3, M1, M3, E2, E6, 
+```
+
+- 컬렉션 처리 함수를 사용하지 않고 고전적인 반복문과 조건문을 활용하면 이는 시퀀스 처리와 같다.
+
+```kotlin
+for (e in listOf(1,2,3)) {
+   print("F$e, ")
+   if(e % 2 == 1) {
+       print("M$e, ")
+       val mapped = e * 2
+       print("E$mapped, ")
+   }
+}
+// Prints: F1, M1, E2, F2, F3, M3, E6,
+```
+
+
+
+### 최소 연산
+
+- 이터러블은 기본적으로 중간연산이라는 개념이 없으므로 원하는 처리를 컬렉션 전체에 적용한 뒤, 앞의 요소 10개를 사용해야 하지만 시퀀스는 중간 연산이라는 개념을 갖고 있으므로, 앞의 요소 10개에만 원하는 처리를 적용할 수 있다.
+
+```kotlin
+(1..10).asSequence()
+   .filter { print("F$it, "); it % 2 == 1 }
+   .map { print("M$it, "); it * 2 }
+   .find { it > 5 }
+// Prints: F1, M1, F2, F3, M3,
+
+(1..10)
+   .filter { print("F$it, "); it % 2 == 1 }
+   .map { print("M$it, "); it * 2 }
+   .find { it > 5 }
+// Prints: F1, F2, F3, F4, F5, F6, F7, F8, F9, F10, 
+// M1, M3, M5, M7, M9,
+```
+
+- 중간 처리 단계를 모든 요소에 적용할 필요가 없는 경우에는 시퀀스를 사용하는 것이 좋다.
+
+### 무한 시퀀스
+
+- 시퀀스는 실제로 최종 연산이 일어나기 전까지는 컬렉션에 어떠한 처리도 않기 떄문에 무한 시퀀스를 만들고 필요한 부분까지만 값을 추출하는 것도 가능하다.
+- 무한시퀀스를 만드는 방법
+  - generateSequence 사용하기
+  - sequence 사용하기
+
+```kotlin
+generateSequence(1) { it + 1 }
+       .map { it * 2 }
+       .take(10)
+       .forEach { print("$it, ") }
+// Prints: 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 
+```
+
+```kotlin
+val fibonacci = sequence {
+   yield(1)
+   var current = 1
+   var prev = 1
+   while (true) {
+       yield(current)
+       val temp = prev
+       prev = current
+       current += temp
+   }
+}
+
+print(fibonacci.take(10).toList()) 
+// [1, 1, 2, 3, 5, 8, 13, 21, 34, 55]
+```
+
+- 무한 반복
+  - 무한 시퀀스는 무한 반복에 빠지는 경우가 생각보다 많다.
+  - 가능하면 무한 시퀀스 종결 연산으로는 take와 first정도만 사용하는 것이 좋다.
+
+
+
+### 각각의 단계에서 컬렉션을 만들어 내지 않음
+
+- 표준 컬렉션 처리 함수는 각각의 단계에서 새로운 컬렉션을 만들어낸다.
+
+```kotlin
+numbers
+   .filter { it % 10 == 0 } // 1 collection here
+   .map { it * 2 } // 1 collection here
+   .sum() 
+// In total, 2 collections created under the hood
+
+numbers
+   .asSequence()
+   .filter { it % 10 == 0 }
+   .map { it * 2 }
+   .sum() 
+// No collections created 
+```
+
+- 매우 큰 파일이나 컬렉션은 시퀀스로 처리하는 것이 효율적이고 성능면에서도 우수하다.
+- 처리단계가 많아지면 많아질수록 시퀀스로 처리하는게 좋다.
+
+### 시퀀스가 빠르지 않은 경우
+
+- 컬렉션 전체를 기반으로 처리해야하는 연산은 시퀀스를 사용해도 빨라지지 않는다.
+  - ex kotlin stdlib의 sorted
+- 무한 시퀀스에는 sorted를 사용할 수 없다는점을 기억하기. 무한반복이 된다.
+- sorted만 컬렉션이 더 빠르고 나머지는 거의 시퀀스가 더 빠르다.
+
+```kotlin
+// Benchmarking measurement result: 150 482 ns 
+fun productsSortAndProcessingList(): Double {
+    return productsList.sortedBy { it.price }
+        .filter { it.bought }
+        .map { it.price }
+        .average()
+}
+
+// Benchmarking measurement result: 96 811 ns 
+fun productsSortAndProcessingSequence(): Double {
+    return productsList.asSequence()
+        .sortedBy { it.price }
+        .filter { it.bought }
+        .map { it.price }
+        .average()
+
+}
+```
+
+
+
+### 자바 스트림의 경우
+
+```kotlin
+productsList.asSequence()
+       .filter { it.bought }
+       .map { it.price }
+       .average()
+
+productsList.stream()
+       .filter { it.bought }
+       .mapToDouble { it.price }
+       .average()
+       .orElse(0.0)
+```
+
+- 자바 스트림도 시퀀스와 동일하게 lazy하게 동작한다 하지만 차이점이 있다.
+- 차이점
+  - 코틀린의 시퀀스가 더 많은 처리 함수를 갖고 있고 사용하기 쉽다.
+  - 자바 스트림은 병렬 함수를 사용해서 병렬 모드로 실행할 수 있다.
+  - 코틀린의 시퀀스는 코틀린JVM 코틀린JS, 코틀린네이티브에서 모두 사용할 수 있지만 자바 스트림은 코틀린JVM에서만 동작한다.
+- 병렬 모드로 성능적 이득을 얻을 수 있는곳에서는 자바 스트림을. 이외의 일반적인 경우에는 코틀린 시퀀스를 사용하는 것이 좋다.
+
+
+
+### 코틀린 시퀀스 디버깅
+
+- Kotlin Sequence Debugger라는 코틀린 플러그인 사용하기
+
+### 정리
+
+- 컬렉션과 시퀀스는 같은 처리 메서드를 지원하며 사용하는 형태가 거의 비슷하다.
+- 일반적으로 데이터를 컬렉션으로 저장하므로 시퀀스를 처리하려면 시퀀스로 변환하는 과정이필요하다.
+- 시퀀스는 lazy하게 처리되므로 다음과 같은 장점이 있다.
+  - 자연스러운 처리 순서를 유지한다.
+  - 최소한만의 연산만 한다.
+  - 무한 시퀀스 형태로 사용할 수 있다.
+  - 각각의 단계에서 컬렉션을 만들어내지 않는다.
+- 결과적으로 무거운 객체나 규모가 큰 컬렉션을 여러 단계에 걸쳐서 처리할 때는 시퀀스를 사용하는 것이 좋다.
+
 ## 아이템 50: 컬렉션 처리 단계 수를 제한하라
 
 ## 아이템 51: 성능이 중요한 부분에는 기본 자료형 배열을 사용하라
