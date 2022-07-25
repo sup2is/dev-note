@@ -4353,6 +4353,198 @@ class A {
 
 ## 아이템 47: 인라인 클래스의 사용을 고려하라
 
+- 하나의 값을 보유하는 객체도 inline으로 만들 수 있다.
+- 기본 생성자 프로퍼티가 하나인 클래스 앞에 inline을 붙이면, 해당 객체를 사용하는 위치가 모둔 해당 프로퍼티로 교체된다.
+
+```kotlin
+inline class Name(private val value: String) {
+   // ...
+}
+```
+
+- inline 클래스는 타입만 맞다면 아래와 같이 값을 곧바로 집어 넣는 것도 허용된다.
+
+```kotlin
+// Code
+val name: Name = Name("Marcin")
+
+// During compilation replaced with code similar to:
+val name: String = "Marcin"
+```
+
+- inline 클래스의 메서드는 모두 정적 메서드로 만들어진다.
+
+```kotlin
+inline class Name(private val value: String) {
+   // ...
+
+   fun greet() {
+       print("Hello, I am $value")
+   }
+}
+
+// Code
+val name: Name = Name("Marcin")
+name.greet()
+
+// During compilation replaced with code similar to:
+val name: String = "Marcin"
+Name.`greet-impl`(name)
+```
+
+- inline 클래스의 사용 예
+  - 측정 단위를 표현할 때
+  - 타입 오용으로 발생하는 문제를 막을 때
+- inline 클래스는 다른 자료형을 래핑해서 새로운 자료형을 만들 때 많이 사용된다.
+
+
+
+### 측정 단위를 표현할 때
+
+- 시, 분, 초와 같이 파라미터의 이름으로 타입을 결정해야 할때 컴파일타임에 결정되는 사항이 없어서 불안하다.
+- 좋은 해결 방법은 타입에 제한을 거는 인라인 클래스를 활용하는 것이다.
+
+```kotlin
+inline class Minutes(val minutes: Int) {
+   fun toMillis(): Millis = Millis(minutes * 60 * 1000)
+   // ...
+}
+
+inline class Millis(val milliseconds: Int) {
+   // ...
+}
+
+interface User {
+   fun decideAboutTime(): Minutes
+   fun wakeUp()
+}
+
+interface Timer {
+   fun callAfter(timeMillis: Millis, callback: ()->Unit)
+}
+
+fun setUpUserWakeUpUser(user: User, timer: Timer) {
+   val time: Minutes = user.decideAboutTime()
+   timer.callAfter(time) { // ERROR: Type mismatch
+       user.wakeUp()
+   }
+}
+
+//Correct
+fun setUpUserWakeUpUser(user: User, timer: Timer) {
+   val time = user.decideAboutTime()
+   timer.callAfter(time.toMillis()) {
+       user.wakeUp()
+   }
+}
+```
+
+
+
+### 타입 오용으로 발생하는 문제를 막을 때
+
+```kotlin
+@Entity(tableName = "grades")
+class Grades(
+   @ColumnInfo(name = "studentId") 
+   val studentId: Int,
+   @ColumnInfo(name = "teacherId") 
+   val teacherId: Int,
+   @ColumnInfo(name = "schoolId") 
+   val schoolId: Int,
+   // ...
+)
+```
+
+- 이런 코드는 모든 ID가 Int 자료형이므로 실수로 잘못된 값을 넣을 수 있다.
+
+```kotlin
+inline class StudentId(val studentId: Int)
+inline class TeacherId(val teacherId: Int)
+inline class SchoolId(val studentId: Int)
+
+@Entity(tableName = "grades")
+class Grades(
+   @ColumnInfo(name = "studentId") 
+   val studentId: StudentId,
+   @ColumnInfo(name = "teacherId") 
+   val teacherId: TeacherId,
+   @ColumnInfo(name = "schoolId") 
+   val schoolId: SchoolId,
+   // ...
+)
+```
+
+### 인라인 클래스와 인터페이스
+
+- 인라인 클래스도 인터페이스를 구현할 수 있다.
+
+```kotlin
+interface TimeUnit {
+   val millis: Long
+}
+
+inline class Minutes(val minutes: Long): TimeUnit {
+   override val millis: Long get() = minutes * 60 * 1000
+   // ...
+}
+
+inline class Millis(val milliseconds: Long): TimeUnit {
+   override val millis: Long get() = milliseconds
+}
+
+fun setUpTimer(time: TimeUnit) {
+   val millis = time.millis
+   //...
+}
+
+setUpTimer(Minutes(123))
+setUpTimer(Millis(456789))
+```
+
+- 하지만 이 코드는 inline으로 동작하지 않는다. 인터페이스를 구현하는 인라인 클래스는 아무런 의미가 없다.
+
+
+
+### typealias
+
+- typealias를 사용하면 타입에 새로운 이름을 붙여줄 수 있다.
+
+```kotlin
+typealias NewName = Int
+val n: NewName = 10
+```
+
+- 하지만 typealias는 안전하지 않다. 이름이 명확해서 안전해보여도 문제가 발생할 수 있고 문제를 찾는게 어려워진다.
+
+```kotlin
+typealias Seconds = Int
+typealias Millis = Int
+
+fun getTime(): Millis = 10
+fun setUpTimer(time: Seconds) {}
+
+fun main() {
+   val seconds: Seconds = 10
+   val millis: Millis = seconds // No compiler error
+  
+   setUpTimer(getTime())
+}
+```
+
+- 이런 형태의 typealias는 지양하고 단위 등을 표현하려면 파라미터 이름 또는 클래스를 사용하자.
+- 인라인 클래스를 사용하면 비용과 안전이라는 두마리 토끼를 모두 잡을 수 있다.
+
+
+
+### 정리
+
+- 인라인 클래스를 사용하면 성능적인 오버헤드 없이 타입을 래핑할 수 있다.
+- 인라인 클래스는 타입 시스템을 통해 실수로 코드를 잘못 작성하는 것을 막아주므로 코드의 안정성을 향상시켜 준다.
+- 의미가 명확하지 않은 타입, 특히 여러 측정 단위들을 함께 사용하는 경우에는 인라인 클래스를 꼭 활용하자.
+
+
+
 ## 아이템 48: 더 이상 사용하지 않는 객체의 레퍼런스를 제거하라
 
 
