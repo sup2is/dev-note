@@ -197,7 +197,7 @@ MongoDB shell version v5.0.9
 
 - 표준 자바스크립트 라이브러리의 모든 기능을 활용할 수 있다.
 
-```
+```javascript
 > Math.sin(Math.PI / 2)
 1
 > new Date("2019/1/1");
@@ -209,7 +209,7 @@ Hello, MongoDB!
 
 - 자바스크립트 함수를 정의하고 호출할 수도 있다.
 
-```
+```javascript
 > function factorial (n) {
 ... if (n <= 1) return 1;
 ... return n * factorial(n - 1);
@@ -228,7 +228,7 @@ Hello, MongoDB!
 ```
 > db
 test
-> use video
+> use vi
 switched to db video
 > db
 video
@@ -240,17 +240,225 @@ video.movies
 
 ### 셸 기본 작업
 
+`생성`
+
+- insertOne 함수는 컬렉션에 도큐먼트를 추가한다.
+
+```json
+> movie = {"title" : "Star Wars: Episode IV - A New Hope", "director" : "George Lucas", "year" : 1977}
+{
+	"title" : "Star Wars: Episode IV - A New Hope",
+	"director" : "George Lucas",
+	"year" : 1977
+}
+> db.movies.insertOne(movie)
+{
+	"acknowledged" : true,
+	"insertedId" : ObjectId("62e3e6439bac1dcffb872981")
+}
+```
+
+- find() 로 찾기
+
+```json
+> db.movies.find().pretty()
+{
+	"_id" : ObjectId("62e3e6439bac1dcffb872981"),
+	"title" : "Star Wars: Episode IV - A New Hope",
+	"director" : "George Lucas",
+	"year" : 1977
+}
+
+```
+
+`읽기`
+
+- find와 findOne은 컬렉션을 쿼리하는데 사용한다
+- 컬렉션에서 단일 도큐먼트를 읽으려면 findOne을 사용한다.
+
+```json
+> db.movies.findOne()
+{
+	"_id" : ObjectId("62e3e6439bac1dcffb872981"),
+	"title" : "Star Wars: Episode IV - A New Hope",
+	"director" : "George Lucas",
+	"year" : 1977
+}
+
+```
+
+
+
+`갱신`
+
+- 게시물을 갱신하려면 updateOne을 사용한다.
+- updateOne의 매개변수
+  - 첫번째는 수정할 도큐먼트를 찾는 기준이다.
+  - 두 번째는 갱신 작업을 설명하는 도큐먼트다.
+- 갱신을위해 set연산자를 사용한다.
+
+```json
+> db.movies.updateOne({title : "Star Wars: Episode IV - A New Hope"}, {$set : {reviews: []}})
+{ "acknowledged" : true, "matchedCount" : 1, "modifiedCount" : 1 }
+
+> db.movies.findOne()
+{
+	"_id" : ObjectId("62e3e6439bac1dcffb872981"),
+	"title" : "Star Wars: Episode IV - A New Hope",
+	"director" : "George Lucas",
+	"year" : 1977,
+	"reviews" : [ ]
+}
+```
+
+
+
+`삭제`
+
+- deleteOne과 deleteMany는 도큐먼트를 데이터베이스에서 영구적으로 삭제한다.
+
+```json
+> db.movies.deleteOne({title : "Star Wars: Episode IV - A New Hope"})
+{ "acknowledged" : true, "deletedCount" : 1 }
+
+> db.movies.findOne()
+null
+```
+
+
+
 ## 데이터형
 
 ### 기본 데이터형
 
+- 몽고DB 도큐먼트는 여섯 가지 데이터형만 갖고 있다. 간결하다는 장점이 있지만 날짜형이 없고 부동소숫점과 정수형을 표현하는 방법잉 없고 32비트와 64비트가 구별되지 않는 단점이 있다.
+
+`null`
+
+- null 값과 존재하지 않는 필드를 사용한다.
+
+```
+{"x": nul}
+```
+
+`불리언`
+
+- 참과 거짓 값에 사용한다.
+
+```
+{"x": true}
+```
+
+`숫자`
+
+- 셸은 64비트 부동소수점 수를 기본으로 사용한다.
+
+```
+{"x": 3.14}
+{"x": 3}
+```
+
+`문자열`
+
+- 어떤 UTF-8 문자열이든 문자열형으로 표현할 수 있다.
+
+```
+{"x": "foobar"}
+```
+
+`날짜`
+
+- 몽고DB는 1970년 1월 1일부터의 시간을 1/1000초 단위로 나타내는 64비트 정수로 날짜를 저장한다. 표준 시간대는 저장하지 않는다.
+
+```
+{"x": new Date()}
+```
+
+`정규 표현식`
+
+- 쿼리는 자바스크립트의 정규 표현식 문법을 사용할 수 있다.
+
+```
+{"x": /foobar/i}
+```
+
+`배열`
+
+- 값의 셋이나 리스트를 배열로 표현할 수 있다.
+
+```
+{"x": ["a", "b", "c"]}
+```
+
+`내장 도큐먼트`
+
+- 도큐먼트는 부모 도큐먼트의 값으로 내장된 도큐먼트 전체를 포함할 수 있다.
+
+```
+{"x": {"foo": "bar"}}
+```
+
+`객체 ID`
+
+- 객체 ID는 도큐먼트용 12바이트 ID다.
+
+```
+{"x": ObjectId()}
+```
+
+
+
+- 상대적으로 덜 사용되는 데이터형 목록들
+  - 이진데이터
+  - 코드
+
+
+
 ### 날짜
+
+- 자바스크립트에서 Date클래스는 몽고DB의 날짜를 표현하는 데 사용한다.
+- 새로운 Date 객체를 생성할 때는 반드시 new Date를 사용해야 한다.
 
 ### 배열
 
+```
+{"things": ["pie", 3.14]}
+```
+
+- 배열은 서로 다른 데이터형을 값으로 포함할 수 있다.
+- 배열값은 일반적인 키/값 쌍을 지원하는 어떤 데이터형 값이든 될 수 있다.
+- 몽고DB에서 배열의 장점
+  - 몽고DB는 배열의 구조를 이해해서 배열의 내용에 작업을 수행하기 위해 내부에 도달하는 방법을 알고 있다. 
+  - 따라서 인덱스를 생성해 쿼리의 속도를 향상시킬 수 있다.
+  - 배열 내부에 도달해서 원자적으로 배열의 내용을 수정하게 할 수 있다.
+
+
+
 ### 내장 도큐먼트
 
+- 내장 도큐먼트를 사용해 데이터를 키/값 쌍의 평면적인 구조보다는 좀 더 자연스러운 방법으로 구성할 수 있다.
+
+```json
+{
+  "name": "John Doe",
+  "address": {
+    "street": "123 Park Street",
+    "city": "Anytown",
+    "state": "NY"
+  }
+}
+```
+
+- 배열과 마찬가지로 몽고DB는 내장 도큐먼트의 구조를 이해하고 인덱스를 구성하고 쿼리하며 갱신하기 위해 내장 도큐먼트 내부에 접근한다.
+- 이런 내장 도큐먼트의 특징은 데이터를 다 때려박을 수 있다는건데 정규화가 있는 관계형 데이터베이스보다 유연하다는 장점이 있지만 데이터 중복과 조인에서 얻을 수 있는 간결함을 얻을 수 없다.
+
+
+
 ### _id와 ObjectId
+
+- 몽고DB에 저장된 모든 도큐먼트는 _id 키를 갖는다.
+- _id는 어떤 데이터형도 상관없지만 기본적으로 ObjectId 가 기본이다.
+- 모든 도큐먼트는 고유한 _id 값을 가지며 이 값은 컬렉션 내 모든 도큐먼트가 고유하게 식별되게 한다.
 
 ## 몽고DB 셸 사용
 
