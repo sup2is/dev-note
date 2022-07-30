@@ -460,13 +460,138 @@ null
 - _id는 어떤 데이터형도 상관없지만 기본적으로 ObjectId 가 기본이다.
 - 모든 도큐먼트는 고유한 _id 값을 가지며 이 값은 컬렉션 내 모든 도큐먼트가 고유하게 식별되게 한다.
 
+
+
+`ObjectIds`
+
+- ObjectId를 사용하는 이유
+  - 자동증가 아이디가 아니라 ObjectId를 사용하는 주요 이유는 몽고DB의 분산 특성때문이다.
+  - 여러 서버에 걸쳐서 자동으로 증가하는 기본 키를 동기화하는 작업은 어렵고 시간이 걸린다.
+  - 몽고DB는 분산 데이터베이스로 설계됐기 때문에 샤딩된 환경에서 고유 식별자를 생성하는 것이 매우 중요했다.
+- ObjectId
+  - ObjectId는 12바이트 스토리지를 사용하여 24자리 16진수 문자열 표현이 가능하다.
+  - 바이트당 2자리를 사용한다.
+  - 실제로 문자열은 저장된 데이터의 두 배만큼 길다는 점을 알아두자.
+- ObjectId의 타임스탬프
+  - ObjectId의 첫 4바이트는 1970년 1얼 1일부터의 시간을 1/1000초 단위로 저장하는 타임스탬프다.
+  - 타임스탬프의 몇가지 유용한 속성
+    - 타임스탬프는 그 다음 5바이트와 묶일 때 초 단위의 유일성을 제공한다.
+    - 타임스탬프가 맨 처음에 온다는 것은 ObjectId가 대략 입력 순서대로 정렬된다는 의미다. 이는 확실히 보장되진 않지만 ObjectId를 인덱싱하는 장점을 얻을 수 있다.
+    - 이 4바이트에는 각 도큐먼트가 생성된 때의 잠재적인 타임스탬프가 존재한다. 대부분의 드라이버는 ObjectId로부터 이런 정보를 추출하는 방법을 제공한다.
+  - 타임스탬프를 사용한다고해서 서버의 시간을 동기화해야할 필요는 없다.
+- ObjectId의 앞9바이트는 1초동안 여러 장비와 프로세스에 걸쳐 유일성을 보장한다. 마지막 3바이트는 단순히 증분하는 숫자로 1초 내 단일 프로세스의 유일성을 보장한다.
+- 고유한 ObjectId는 프로세스당 1초에 1677만개까지 생성된다.
+
+`_id 자동생성`
+
+- 도큐먼트를 입력할 때 "_id" 키를 명시하지 않으면 입력된 도큐먼트에 키가 자동으로 추가된다.
+- 이는 몽고DB 서버에서 관리할 수 있지만 일반적으로 클라이언트 쪽 드라이버에서 관리한다.
+
+
+
 ## 몽고DB 셸 사용
+
+- 셸은 사용자 시스템에서 연결할 수 있는 어떤 몽고DB 인스턴스든 연결할 수 있다.
+- 셸을 시작할 때 호스트명, 포트, 데이터베이스를 명시해야 한다.
+
+```
+mongo some-host:30000/myDB
+```
+
+
 
 ### 셸 활용 팁
 
+- mongo는 자바스크립트 셸이므로 온라인 자바스크립트 문서를 참고하면 유용하다
+- help로 셸에 내장된 도움말을 볼 수 있다.
+  - 데이터베이스 수준의 도우말은 db.help()
+  - 컬렉션 수준의 도움마을 db.foo.help()
+- 함수의 기능을 알고 싶으면 함수명을 괄호 업이 입력하면 된다.
+
+```javascript
+> db.movies.findOne
+function(query, fields, options, readConcern, collation) {
+    var cursor = this.find(query, fields, -1 /* limit */, 0 /* skip*/, 0 /* batchSize */, options);
+
+    if (readConcern) {
+        cursor = cursor.readConcern(readConcern);
+    }
+
+    if (collation) {
+        cursor = cursor.collation(collation);
+    }
+
+    if (!cursor.hasNext())
+        return null;
+    var ret = cursor.next();
+    if (cursor.hasNext())
+        throw Error("findOne has more than 1 result!");
+    if (ret.$err)
+        throw _getErrorWithCode(ret, "error " + tojson(ret));
+    return ret;
+}
+```
+
+
+
 ### 셸에서 스크립트 실행하기
 
+- 다음과 같이 자바스크립트 파일을 셸로 넘길 수도 있다.
+
+```
+mongo script1.js script2.js ...
+```
+
+- load 함수를 사용할 수도 있다.
+
+```
+load("script1.js")
+```
+
+- 스크립트는 db 변수에 대한 접근 권한을 가진다. 하지만 use db나 show collections와 같은 셸 보조자는 파일에서 작동하지 않는다.
+
+| 셸 보조자        | 같은 의미의 자바스크립트 |
+| ---------------- | ------------------------ |
+| use video        | db.getSisterDB("video")  |
+| show dbs         | db.getMongo().getDBs()   |
+| show collections | db.getCollectionNames()  |
+
+- 스크립트를 사용해 셸에 변수를 입력할 수도 있다.
+
+```javascript
+var connectTo = function(port, dbname) {
+ if (!port) {
+ port = 27017;
+ }
+ if (!dbname) {
+ dbname = "test";
+ }
+ db = connect("localhost:"+port+"/"+dbname);
+ return db;
+};
+```
+
+- 이 스크립트를 셸에 로드하면 connectTo가 비로소 정의된다.
+
+```
+> typeof connectTo
+undefined
+> load('defineConnectTo.js')
+> typeof connectTo
+function
+```
+
+- 기본적으로 셸은 셸을 시작한 디렉터리에서 스크립트를 찾는다. 셸을 시작한 디렉터리를 확인하려면 run("pwd") 명령어를 사용한다.
+- 스크립트가 현재 디렉터리에 없다면 상대 또는 절대경로를 제공하면 된다.
+
 ### .mongorc.js 만들기
+
+- 자주 로드되는 스크립트를 .mongorc.js 파일에 넣을 수 있다.
+- .mongorc.js의 역할
+  - 사용하고 싶은 전역변수 설정
+  - alias 설정
+  - 내장 함수를 재정의
+  - 위험한 셸 보조자 제거 (dropDatabase, deleteIndexes ... )
 
 ### 프롬프트 커스터마이징하기
 
