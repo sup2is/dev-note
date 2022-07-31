@@ -601,3 +601,250 @@ function
 
 
 
+# #3 도큐먼트 생성, 갱신, 삭제
+
+## 도큐먼트 삽입
+
+- 삽입은 몽고DB에 데이터를 추가하는 기본 방법이다.
+
+```
+db.movies.insertOne({"title" : "Stand by Me"})
+```
+
+- _id 키는 자동으로 저장된다.
+
+### insertMany
+
+- 여러 도큐먼트를 컬렉션에 삽입하려면 insertMany로 도큐먼트 배열을 데이터베이스에 전달한다.
+
+```
+> db.movies.drop()
+true
+> db.movies.insertMany([
+... {"title" : "Ghostbusters"},
+... {"title" : "E.T."},
+... {"title" : "Blade Runner"}]);
+{
+	"acknowledged" : true,
+	"insertedIds" : [
+		ObjectId("62e486759bac1dcffb872982"),
+		ObjectId("62e486759bac1dcffb872983"),
+		ObjectId("62e486759bac1dcffb872984")
+	]
+}
+> db.movies.find()
+{ "_id" : ObjectId("62e486759bac1dcffb872982"), "title" : "Ghostbusters" }
+{ "_id" : ObjectId("62e486759bac1dcffb872983"), "title" : "E.T." }
+{ "_id" : ObjectId("62e486759bac1dcffb872984"), "title" : "Blade Runner" }
+```
+
+- insertMany는 여러 도큐먼트를 단일 컬렉션에 삽입할 때 유용하다.
+- insertMany의 두번째 파라미터인 옵션 도큐먼트
+  - 도큐먼트가 제공된 순서대로 삽입되도록 옵션 도큐먼트에 "ordered"키에 true를 지정한다.
+  - false를 지정하면 몽고DB가 성능을 개선하려고 삽입을 재배열할 수 있다.
+  - 정렬된 삽입
+    - 순서가 지정되 않았다면 정렬된 삽입이 기본 값이다. 
+    - 정렬된 삽입의 경우 삽입에 전달된 배열이 삽입 순서를 정의한다.
+    - 도큐먼트가 삽입 오류를 생성하면, 배열에서 해당 지점을 벗어난 도큐먼트는 삽입되지 않는다.
+  - 정렬되지 않은 삽입
+    - 몽고DB는 일부 삽입이 오류를 발생시키는지 여부에 관계 없이 모든 도큐먼트 삽입을 시도한다.
+
+
+
+### 삽입 유효성 검사
+
+- 몽고DB의 삽입 전 검사
+  - _id 필드가 존재하지 않으면 새로 추가
+  - 모든 도큐먼트가 16메가 바이트보다 작아야하므로 크기를 검사
+
+### 삽입
+
+- 몽고 3.0이전에서는 insert를 사용했다.
+- 몽고 3.2이후로 insertOne과 insertMany가 들어왔다. insert를 지양하자.
+
+## 도큐먼트 삭제
+
+- 도큐먼트 삭제는 deleteOne과 deleteMany를 사용한다.
+
+```
+> db.movies.find()
+{ "_id" : ObjectId("62e486759bac1dcffb872982"), "title" : "Ghostbusters" }
+{ "_id" : ObjectId("62e486759bac1dcffb872983"), "title" : "E.T." }
+{ "_id" : ObjectId("62e486759bac1dcffb872984"), "title" : "Blade Runner" }
+> db.movies.deleteOne({"_id" : ObjectId("62e486759bac1dcffb872982")})
+{ "acknowledged" : true, "deletedCount" : 1 }
+> db.movies.find()
+{ "_id" : ObjectId("62e486759bac1dcffb872983"), "title" : "E.T." }
+{ "_id" : ObjectId("62e486759bac1dcffb872984"), "title" : "Blade Runner" }
+db.movies.deleteMany({"year" : 1984})
+db.movies.find()
+```
+
+- deleteOne은 필터와 일리하는 첫번째 도큐먼트를 삭제한다.
+  - 어떤 도큐먼트가 먼저 발견되는지는 도큐먼트가 삽입된 순서, 도큐먼트에 어떤 갱신이 이뤄졌는지, 어떤 인덱스를 지정하는지 등 몇가지 요인에 따라 달라진다.
+- deleteMany는 필터와 일치하는 모든 도큐먼트를 삭제한다.
+
+```
+db.mailing.list.delteMany({"opt-out" : true})
+```
+
+### drop
+
+- deleteMany로 전체 컬렉션을 삭제할 수도 있지만 drop을 사용하는 편이 더 빠르다.
+
+```
+db.movies.deleteMany({})
+
+db.movies.drop()
+```
+
+
+
+## 도큐먼트 갱신
+
+- 도큐먼트를 데이터베이스에 저장한 후에는 updateOne, updateMany, replaceOne과 같은 갱신 메서드를 사용해 변경한다.
+- 최후의 승리자
+  - 갱신은 원자적으로 이뤄진다. 
+  - 갱신 요청 두 개가 동시에 발생하면 서버에 먼저 도착한 요청이 적용된 후 다음 요청이 적용된다.
+  - 결국 마지막 요청이 최후의 승리자가 되므로 도큐먼트는 변질 없이 안전하게 처리된다.
+
+
+
+### 도큐먼트 치환
+
+- replaceOne은 도큐먼트를 새로운것으로 완전히 치환한다.
+- 대대적인 스키마 마이그레이션에 유용하다.
+- replaceOne 주의할점
+  - 조건절에 2개 이상의 도큐먼트가 일치되는 조건을 입력했을 경우 이때 데이터베이스는 오류를 반환하고 아무것도 변경하지 않는다.
+  - 가능하다면 _id키로 일치하는 코유한 도큐먼트를 찾아 갱신 대상으로 지정하는 것이 좋다.
+
+```
+db.people.replaceOne({"_id" : "ObjectId(1234....)"}, joe)
+```
+
+
+
+### 갱신 연산자
+
+- 부분 갱신에는 원자적 갱신연산자를 사용한다.
+
+- $inc 제한자
+
+  - 누군가가 페에지를 방문할 때마다 URL로 페이지를 찾고 "pageviews" 키의 값을 증가시키려면 $inc 제한자를 사용한다
+
+  - ```
+    db.analytics.updateOne({"url": "www.example.com"}, {"$inc": {"pageviews": 1}})
+    ```
+
+- 연산자를 사용할때 _id값은 변경할 수 없다. 변경하려면 도큐먼트 전체를 치환한다.
+
+
+
+`"$set" 제한자 사용하기`
+
+- $set 은 필드값을 설정한다. 필드가 존재하지 않으면 새 필드가 생성된다.
+- 이 기능은 스키마를 갱신하거나 사용자 정의 키를 추가할 때 편리하다.
+
+```
+db.analytics.updateOne({"url": "www.example.com"}, {"$set": {"favorite book": "AAA"}})
+```
+
+- 배열로도 입력할 수 있다.
+
+```
+db.analytics.updateOne({"url": "www.example.com"}, {"$set": {"favorite book": ["AAA", "BBB"]}})
+```
+
+- 필드를 제거하려면 $unset으로 키와 값을 모두 제거할 수 있다.
+
+```
+db.analytics.updateOne({"url": "www.example.com"}, {"$unset": {"favorite book": 1})
+```
+
+- $set은 nested 도큐먼트를 변경할 때도 사용한다.
+- 키를 추가, 변경, 삭제할 때는 항상 $ 제한자를 사용해야 한다.
+
+`증가와 감소`
+
+- $inc 연산자는 이미 존재하는 키의 값을 변경하거나 새 키를 생성하는 데 사용한다.
+- $inc는 $set과 비슷하지만 숫자를 증감하기 위해 설계됐다
+  - int, long, double, dcimal 타입에만 사용할 수 있다.
+  - 값은 반드시 숫자여야 한다.
+
+
+
+`배열 연산자`
+
+- $push는 배열이 이미 존재하면 배열 끝에 요소를 추가하고 존재하지 않으면 새로운 배열을 생성한다. 
+
+```
+db.blog.posts.findOne()
+db.blog.posts.updateOne({"title": "A blog post", 
+  {"$push" : {"commonts" : {"name" : "joe" ...}}}
+})
+```
+
+- $push와 함께 사용할 수 있는 제한자
+  - $each
+  - $slice
+  - $sort
+
+`배열을 집합으로 사용하기`
+
+- 배열을 집합처럼 처리하려면 쿼리 도큐먼트에 $ne를 사용한다.
+
+```
+db.papers.updateOne({"authors cited" : {"$ne" : "Richie"}}, {"$push": {"authors cited": "Richie"}})
+```
+
+- $addToSet을 사용할 수도 있다. $addToSet을 사용하면 무슨일이 일어났는지 더 잘 알 수 있다.
+- 고유한 값을 여러개 추가하려면 $addToSet과 $each를 결합해서 사용한다.
+
+
+
+`요소 제거하기`
+
+- $pop
+
+  - 배열을 큐나 스택처럼 사용하려면 배열의 양쪽 끝에서 요소를 제거하는 $pop을 사용한다.
+
+  - ```
+    {"$pop" : {"key" : 1}}
+    ```
+
+    - 배열의 마지막부터 요소를 제거
+
+  - ```
+    {"$pop" : {"key" : -1}}
+    ```
+
+    - 배열의 처음부터 요소를 제거
+
+- $pull
+
+  - 지정된 조건에 따라 요소를 제거할때는  $pull을 사용한다.
+
+  - ```
+    db.lists.updateOne({}, {"$pull" : {"todo": "laundry"}})
+    ```
+
+  - 지정된 조건이 일치하는 모든 요소를 제거한다.
+
+
+
+`배열의 위치 기반 변경`
+
+`배열 필터를 이용한 갱신`
+
+
+
+### 갱신 입력
+
+### 다중 도큐먼트 갱신
+
+### 갱신한 도큐먼트 반환
+
+
+
+
+
