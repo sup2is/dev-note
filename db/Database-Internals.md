@@ -1682,9 +1682,7 @@ x *= 2;
   - 만약 장군 B가 MSG(N)을 받는다 하더라도 장군 A에게 ACK(MSG(N)) 응답을 보내야한다. 이 응답은 장군 A에게 가는 동안 유실될 수 있다.
   - 장군 A가 ACK(MSG(N))를 받는다. 이때까지도 장군B는 장군A가 ACK(MSG(N))를 받았는지 정확하게 모르기때문에 ACK(ACK(MSG(N))) 를보낸다. 이 응답 메시지는 유실될 수 있다.
 
-![image-20220617212123707](/Users/a10300/Choi/Git/dev-note/db/Database-Internals.assets/image-20220617212123707.png)
-
-
+![8-4](./images/database-internals/8-4.png)
 
 ### FLP 불가능성 이론
 
