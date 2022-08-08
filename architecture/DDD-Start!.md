@@ -44,9 +44,9 @@
   - 도메인 모델을 사용하면 여러 관계자들이 동일한 모습으로 도메인을 이해하고 도메인 지식을 공유하는데 도움이 된다.
 
 
-![1-1](/Users/a10300/Choi/Git/dev-note/architecture/images/ddd-start/1-1.jpeg)
+![1-1](./images/ddd-start/1-1.jpeg)
 
-![1-2](/Users/a10300/Choi/Git/dev-note/architecture/images/ddd-start/1-2.jpeg)
+![1-2](./images/ddd-start/1-2.jpeg)
 
 - 도메인 모델의 표현 방식은 도메인을 이해하는 데 도움이 된다면 방식이 무엇인지는 중요하지 않다.
 - 개념모델과 구현모델
@@ -63,7 +63,7 @@
 
 - 일반적인 애플리케이션의 아키텍처
 
-![1-3](/Users/a10300/Choi/Git/dev-note/architecture/images/ddd-start/1-3.png)
+![1-3](./images/ddd-start/1-3.png)
 
 
 
@@ -506,15 +506,6 @@ public enum OrderState {
 - 알맞은 영어 단어 찾기
   - 도메인 용어를 정하는데 높은 허들은 바로 코드가 '영어' 라는 점이다.
   - 알맞은 영어 단어를 찾는 것은 쉽지 않은 일이지만 시간을 들여 찾는 노력을 해야 한다.
-
-
-
-
-
-- 도메인 용어를 사용해서 최대한 도메인 규칙을 코드로 작성하도록 할 것
-- 알맞은 영어 단어를 찾도록 노력해야함
-
-
 
 
 
