@@ -7,7 +7,7 @@
 예제 참고
 
 - [https://github.com/madvirus/ddd-start](https://github.com/madvirus/ddd-start)
-- [https://github.com/incheol-jung](https://github.com/incheol-jung)
+- [https://incheol-jung.gitbook.io/docs/study/ddd-start](https://incheol-jung.gitbook.io/docs/study/ddd-start)
 
 
 
@@ -513,39 +513,113 @@ public enum OrderState {
 
 ## 네 개의 영역
 
-- 아키텍처를 설계할 때 출현하는 전형적인 영역이 표현, 응용, 도메인, 인프라임
+- 아키텍처를 설계할 때 출현하는 전형적인 영역
   - 표현
     - 사용자의 요청을 받아 응용 영역에 전달하고 다시 결과를 보여주는 역할
     - ex) Spring MVC 
-    - 웹 애플리케이션의 경우 http를 사용함
   - 응용
-    - 시스템이 사용자에게 제공해야 할 기능을 구현함
-    - 도메인 영역의 도메인 모델을 사용함
-    - 응용 서비스는 로직을 직접 수행하기 보다는 도메인 모델에 로직 수행을 위임함
+    - 시스템이 사용자에게 제공해야 할 기능을 구현한다.
+    - 도메인 영역의 도메인 모델을 사용한다.
+    - 응용 서비스는 로직을 직접 수행하기 보다는 도메인 모델에 로직 수행을 위임한다.
     - ex) order.cancel() 호출
   - 도메인
-    - 도메인 영역은 실제 도메인 모델을 구현함
+    - 도메인 영역은 실제 도메인 모델을 구현한다.
+    - 도메인 모델은 도메인의 핵심 로직을 구현한다.
+    - ex) 주문 도메인의 '배송지 변경', '결제 완료', '주문 총액 계산'
   - 인프라
-    - 구현 기술에 대한 것을 다룸
-    - dbms 연동, 메시징 큐, nosql 등등을 사용하여 처리함
+    - 구현 기술에 대한 것을 다룬다.
+    - ex) dbms 연동, mq
 
 ## 계층 구조 아키텍처
 
-- 표현 -> 응용 -> 도메인 -> 인프라 순서대로 의존함 예를 들어 인프라는 표현계층은 응용계층에 의존하지만 도메인계층은 응용계층에 의존하지 않음 이런 방식으로 해야 계층 구조를 엄격하게 가져갈 수 있음
-- 구현을 조금 더 편리하게 하기 위해서 구조를 유연하게 가져갈 수 있음 예를 들어 응용 서비스 단에서 인프라 계층에 의존하기도 함
-- 인프라에 의존하면 테스트의 어려움과 기능확장의 어려움이라는 두가지 문제가 발생함 dip로 이 문제를 해결할 수 있음
+![2-1](./images/ddd-start/2-1.png)
+
+- 계층구조는 그 특성상 상위 계층에서 하위 계층으로의 의존만 존재하고 하위 계층은 상위 계층에 의존하지 않는다.
+
+- 인프라스트럭처 계층에 대한 종속
+
+  - 중요한점은 표현, 응용, 도메인 계층이 상세한 구현 기술을 다루는 인프라스트럭처 계층에 종속된다는 점이다.
+
+  - 인프라스트럭처의 직접 종속에 대한 문제점 두가지
+
+    - 테스트가 어렵다.
+    - 구현 방식을 변경하기 어렵다.
+
+  - ```java
+    public class CalculateDiscountService {
+    	private DroolsRuleEngine ruleEngine; // 인프라영역
+    
+    	public Money calculateDiscount(OrderLine orderLines, String customerId) {
+    		Customer customer = findCusotmer(customerId);
+    		MutableMoney money = new MutableMoney(0);
+    		facts.addAll(orderLines);
+    		ruleEngine.evalute("discountCalculation", facts);
+    		return money.toImmutableMoney();
+    	}
+    }
+    ```
+
+- DIP를 적용하면 이런 직접적인 의존관계에서 나오는 문제점을 해결할 수 있다.
 
 ## DIP
 
-- 고수준 모듈이 제대로 동작하려면 저수준 모듈을 사용해야함. 하지만 고수준 모듈이 저수준 모듈을 사용하면 계층 구조 아키텍처에서의 테스트의 어려움, 기능 확장의 어려움이라는 두가지 문제가 발생함
-- dip는 위 문제를 해갈하기 위해 저수준 모듈이 고수준 모듈에 의존하도록 바꿈
-- 저수준 모듈이 고수준 모듈에 의존하도록 하려면 추상화한 인터페이스를 사용하면 됨
-- 의존 계층을 중간에 하나 더 둬서 고수준 모듈이 중간 의존 계층을 사용하도록 하면 됨
+- 고수준 모듈과 저수준 모듈
+  - 고수준 모듈은 의미있는 단일 기능을 제공하는 모듈이다.
+  - 고수준 모듈의 기능을 구현하려면 여러 하위 기능이 필요하다.
+  - 저수준 모듈은 하위 기능을 실제로 구현한 것이다.
+  - 고수준 모듈이 저수준 모듈을 직접 사용하면 앞서 확인했던 두가지 문제가 발생한다.
+
+- DIP 적용하기
+  - DIP는 이 문제를 해결하기 위해 저수준 모듈이 고수준 모듈에 의존하도록 바꾼다.
+  - 고수준 모듈에서는 저수준 모듈이 수행하는 하위 기능에 대한 인프라에 대해서 직접적인 의존을 갖지 않는다.
+  - 고수준 모듈에서는 저수준 모듈의 '행위' 만 중요하다.
+
+
+```java
+public interface RuleDiscounter {
+	public Money applyRules(Customer customer, List<OrderLine> orderLines);
+}
+
+public class CalculateDiscountService {
+	private CustomerRepository customerRepository;
+	private RuleDiscounter ruleDiscounter;
+
+	public Money calculateDiscount(OrderLine orderLines, String customerId) {
+		Customer customer = customerRepository.findCusotmer(customerId);
+		return ruleDiscounter.applyRules(customer, orderLines);
+	}
+}
+
+public class DroolsRuleDiscounter implements RuleDiscounter{
+	private KieContainer kContainer;
+
+	@Override
+	public void applyRules(Customer customer, List<OrderLine> orderLines) {
+		...
+	}
+}
+```
+
+![2-2](./images/ddd-start/2-2.png)
+
+- DIP
+
+  - 고수준 모듈이 저수준 모듈을 사용하려면 고수준 모듈이 저수준 모듈에 의존해야하는데 반대로 저수준 모듈이 고수준 모듈에 의존한다고 해서 이를 DIP라고 부른다.
+
+  - DIP를 적용하면 구현 교체가 어렵다는 문제와 테스트가 어려운 문제를 해소할 수 있다.
+
+    
 
 ### DIP 주의사항
 
-- dip의 핵심은 고수준 모듈이 저수준 모듈에 의존하지 않도록 하기 위함임
-- 저수준 모듈에서 인터페이스를 추출하면 안됨 애플리케이션 개발자가 제어할 수 있도록 해야함
+- DIP의 핵심은 고수준 모듈이 저수준 모듈에 직접적인 의존을 하지 않기 위함인데 DIP를 적용한 결과 구조만 보고 저수준 모듈에서 인터페이스를 추출하는 경우가 있다.
+
+![2-3](./images/ddd-start/2-3.png)
+
+- 마치 중간에 인터페이스를 둬서 저수준 모듈에 직접적인 의존이 없는것처럼 보이지만 실제로는 의존관계를 갖고 있다.
+- 고수준 모듈에서 중요한 것은 '행위'다
+
+
 
 ### DIP와 아키텍처
 
@@ -1198,7 +1272,7 @@ public class OrderSummary{
 	private String ordererName;
 	private int totalAmounts;
 	...
-	private String productName;
+	private String productName
 
 	protected OrderSummary(){}
 	//..get 메서드
