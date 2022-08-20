@@ -1688,35 +1688,97 @@ public class DiscountCalculationService {
 
 ## 비선점 잠금
 
-- 비선점 잠금 방식은 잠금을 선점하지 않고 실제 db에 반영하는 시점에 변경 가능 여부를 확인하는 방식임
-- version이라는 필드값을 사용함
-- 수정할 애그리거트와 매핑되는 테이블의 버전 값이 현재 애그리거트의 버전 필드와 동일한 경우에만 데이터를 수정함
-- 먼저 where version = #{version} 에 맞는 트랜잭션이 업데이트를 칠 수 있음
-- jpa에선 @Version 참고
-- 응용 서비스에서는 버전에 대해 알 필요가 없음
-- 트랜잭션이 끝나고 수정될때 업데이트되는 행이 0 개라면 OptimisticLockingFailureException을 발생시킴
-- 비선점을 사용할 때는 사용자 화면쪽에도 version을 보내야한다고 책에 써져있는데 꼭 필요할지에 대한 의문이 생김..
+- 비선점 잠금 방식은 잠금을 선점하지 않고 실제 db에 반영하는 시점에 변경 가능 여부를 확인하는 방식이다.
+
+```sql
+UPDATE purchage_order SET ..., version = version + 1
+	WHERE number = ? and version = 10
+```
+
+
+
+![8-4](./images/ddd-start/8-4.png)
+
+- 수정할 애그리거트와 매핑되는 테이블의 버전 값이 현재 애그리거트의 버전 필드와 동일한 경우에만 데이터를 수정한다. 다른 트랜잭션이 먼저 데이터를 수정해서 버전 값이 바뀌면 데이터 수정에 실패하게 된다.
+- JPA에서는 @Version 애너테이션을 붙이고 매핑되는 테이블에 버전을 저장할 칼럼을 추가하기만 하면 된다.
+
+```java
+@Entity
+@Table(name = "purchage_order")
+@Access(AccessType.FIELD)
+public class Order {
+	@EmbeddedId
+	private OrderNo number;
+
+	@Version
+	private long version;
+	
+	...
+}
+```
+
+- JPA에서 트랜잭션이 끝나고 수정될때 업데이트되는 행이 0 개라면 OptimisticLockingFailureException을 발생시킨다.
+
+```java
+@Controller
+public class OrderController {
+	...
+	@RequestMapping(value = "/changeShipping", method = RequestMethod.POST)
+	public String changeShipping(ChangeShippingRequest changeReq) {
+		try {
+			changeShippingService.changeShipping(changeReq);
+			return "changeShippingSuccess";
+		} catch(optimisticLockingFailureException ex) {
+				// 누군가 먼저 같은 주문 애그리거트를 수정했으므로, 
+				// 트랜잭션 충돌이 일어났다는 메시지를 보여준다. 
+				return "changeShippingExConflic";
+		}
+}
+```
+
+
 
 ### 강제 버전 증가
 
-- 애그리거트에 애그리거트 루트 외 다른 엔티티가 존재할 때 루트가 아닌 다른 엔티티의 값만 변경됐다고 가정했을 때 jpa는 루트 엔티티의 버값을 증가시키지 않음
-- 위에서 설명한 jpa 특징은 애그리거트의 특징에서 봤을때 애그리거트의 상태가 변경되면 애그리거트는 바뀐 것임 따라서 애그리거트 내에 어떤 구성 요소가 변경되었다면 루트 애그리거트의 값을 증가해야 비선점 잠금이 올바르게 동작함
-- jpa에서는 비선점 강제 버전 증가에 대한 옵션을 제공함
+- 애그리거트 루트와 하위 애그리거트의 변화
+  - 애그리거트에 애그리거트 루트 외 다른 엔티티가 존재할 때 루트가 아닌 다른 엔티티의 값만 변경됐다고 가정했을 때 JPA는 루트 엔티티의 버값을 증가시키지 않는다.
+  - 애그리거트의 특징에서 봤을때 애그리거트의 상태가 변경되면 애그리거트는 바뀐 것이다. 따라서 애그리거트 내에 어떤 구성 요소가 변경되었다면 루트 애그리거트의 값을 증가해야 비선점 잠금이 올바르게 동작한다.
+  - JPA는 이런 문제를 처리할 수 있도록 엔티티를 구할 때 강제로 버전을 증가시키는 잠금 모드를 지원하고 있다.
+
+
+```java
+@Repository
+public class JpaOrderRepository implements OrderRepository {
+	@PersistenceContext
+	private EntityMangager entityManager;
+
+	@Override
+	public Order findbyIdOptimisticLockMode(OrderNo id) {
+		return entityManager.find(Order.class, id
+				LockModeType.OPTIMISTTIC_FORCE_INCREMENT);
+	}
+...
+```
+
+- LockModeType.OPTIMISTTIC_FORCE_INCREMENT를 사용하면 해당 엔티티의 상태가 변경되었는지 여부에 상관없이 트랜잭션 종료 시점에 버전 값 증가 처리를 한다.
 
 ## 오프라인 선점 잠금
 
-- 단일 트랜잭션 범위에서만 적용되는 선점, 비선점은 여러 사용자 요청에 대한 잠금방식을 구현할 수 없음 예를 들면 컨플루언스 위키를 수정할 때 이미 다른 사용자가 수정중인 페이지는 접근할 수 없음 이 방법은 오프라인 선점 방식으로 구현할 수 있음
-- 단일 트랜잭션에서 동시 변경을 막는 선점 잠그 방식과는 달리 으포라인 선점 잠금 방식은 여러 트랜잭션에 걸쳐 동시 변경을 막음
-- 만약 사용자 1이 오프라인 선점 방식으로 잠금을 획득하고 아무런 처리 없이 종료한다면 잠금이 해제되지 않기 때문에 오프라인 선점 방식은 유효 시간이필요함 
+- 오프라인 선점 잠금
+  - 단일 트랜잭션 범위에서만 적용되는 선점 잠금 방식과 달리 오프라인 선점 잠금은 여러 트랜잭션에 걸쳐 동시 변경을 막는다.
+
+
+![8-5](./images/ddd-start/8-5.png)
+
+- 오프라인 선점 잠금을 사용하면 이미 잠금을 선점한 상태에서 다른 사용자가 폼을 요청했을때 잠금을 구할 수 없어서 에러 화면을 보게 된다.
+
+- 무한 잠금 
+  - 오프라인 선점 잠금은 수정 과정에서 잠금이 해제되는데 만약 사용자가 잠금만 설정하고 수정하지 않고 페이지를 벗어난 경우 이 일어날 수 있다
+  - 이런 상황을 방지하기 위해 잠금의 유효시간을 가져야 한다.
 
 ### 오프라인 선점 잠금을 위한 LockManager 인터페이스와 관련 클래스
 
-- 오프라인 선점 잠금은 크게 잠금 선점 시도, 잠금 확인, 잠금 해제, 락 유효 시간 연장의 네가지 기능을 제공해야함
-- 자세한건 스킵
-
 ### DB를 이용한 LockManager 구현
-
-- 스킵 
 
 # #9 도메인 모델과 BOUNDED CONTEXT
 
