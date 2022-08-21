@@ -1061,17 +1061,28 @@ public class Product{
 
 - 리포지터리
 
-  - 애그리거트의 저장소
+  - 리포지터리는 애그리거트의 저장소이다.
   - 애그리거트를 저장하고 찾고 삭제하는 것이 리포지터리의 기본 기능이다.
 
-- 검색조건이 너무 많다면 find 메서드를사용하는 것이 불가능해지기 때문에 스펙을 활용해야한다
-- 스펙
+- 스펙 활용하기
 
-  - 애그리거트가 특정 조건을 충족하는지 여부를 검사한다
+  - 검색 조건의 조합이 다양해지면 모든 조합별로 find 메서드를 정의할 수 없다.
+
+  - 검색 조건이 다양할 경우 스펙을 활용해야한다.
+
+  - 스펙은 애그리거트가 특정 조건을 충족하는지 여부를 검사한다
 
   - ```java
     public interface Specification<T> {
       public boolean isSatisfiedBy(T agg);
+    }
+    
+    public class OrdererSpec implements Specification<Order> {
+    	private String ordererId;
+    
+    	public boolean isSatisfiedBy(Order agg) {
+    		return agg.getOrdererId().getMemberId().getId().equals(ordererId);
+    	}
     }
     ```
 
@@ -1096,7 +1107,7 @@ List<Order> orders = orderRepository.findAll(ordererSpec);
 ### 스펙 조합
 
 - 스펙의 장점
-  - 두 스펙을 AND 연산자나 OR 연산자로 조합해서 새로운 스펙을 만들 수 있따.
+  - 두 스펙을 AND 연산자나 OR 연산자로 조합해서 새로운 스펙을 만들 수 있다.
   - 조합한 스펙을 다시 조합해서 더 복잡한 스펙을 만들 수 있다.
 
 
@@ -1134,7 +1145,7 @@ List<Order> orders = orderRepository.findAll(spec);
   - 따라서 실제 구현에서는 쿼리의 where 절에 조건을 붙여서 필요한 데이터를 걸러야 한다.
 
 - Criteria-Builder와 Predicate 사용하기
-  - JPA는 다양한 검색 조건을 조합하기 위해 Criteria-Builder와 Predicate를 사용하므로 JPA를 위한 스펙은 CriteriaBuilder와  Predicate를 시용해서 검색 조건을 구현해야 한다.
+  - JPA는 다양한 검색 조건을 조합하기 위해 Criteria-Builder와 Predicate를 사용하므로 JPA를 위한 스펙은 CriteriaBuilder와  Predicate를 사용해서 검색 조건을 구현해야 한다.
 
 
 ### JPA 스펙 구현
@@ -1374,7 +1385,7 @@ List<Order> orders = findByOrdererId("madvirus", 45, 15);
 
 
 
-- Spring Data JPA를 사용하자.
+- **그냥 Spring Data JPA를 사용하자.**
   - 스펙, 정렬, 페이징을 위한 구현 코드는 모드 Spring Data JPA에 이미 구현되어 있다.
   - 따라서 직접 구현하기전에 이미 검증되고 많은곳에서 사용되는 오픈소스가 있다면 도입해보는게 좋다고 생각한다. (개인적인 생각)
 
@@ -1387,7 +1398,7 @@ List<Order> orders = findByOrdererId("madvirus", 45, 15);
   - 각종 통계 데이터 제공
 - 그럼 어떻게?
   - 이런 기능은 조회 전용 쿼리로 처리해야 하는 것들이다.
-  - JPA와 하이버네티으트를 사용하면 동적 인스턴스 생성, 하이버네이트의 @Subselect 확장 기능, 네이티브 쿼리를 이용해서 조회 전용 기능을 구현할 수 있다.
+  - JPA와 하이버네이트를 사용하면 동적 인스턴스 생성, 하이버네이트의 @Subselect 확장 기능, 네이티브 쿼리를 이용해서 조회 전용 기능을 구현할 수 있다.
 
 
 
@@ -1464,7 +1475,15 @@ public class OrderSummary{
 }
 ```
 
-
+- @Subselect
+  - 하이버네이트는 @Subselect를 사용하는 쿼리의 결과를 뷰처럼 사용한다.
+  - 뷰를 수정할 수 없듯이 @subselect로 조회한 엔티티는 수정할 수 없다.
+- @Immutable
+  - 만약 수정을 한다고하더라도 실제 매핑되는 테이블은 없기 때문에 에러가 발생하는데 이런 문제를 방지하기 위해 @Immutable을 사용한다.
+  - @Immutable을 사용한 엔티티는 해당 필드/프로퍼티가 변경되어도 DB에 반영하지 않고 무시한다.
+- @Synchronize
+  - @Synchronize에는 해당 엔티티와 관련된 테이블 목록을 명시한다.
+  - 하이버네이트는 엔티티를 로딩하기 전에 지정한 테이블과 관련된 변경이 발생하면 플러시를 먼저하고 반영이 완료된 데이터를 가져온다.
 
 # #6 응용 서비스와 표현 영역
 
