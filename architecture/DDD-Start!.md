@@ -1782,50 +1782,126 @@ public class JpaOrderRepository implements OrderRepository {
 
 # #9 도메인 모델과 BOUNDED CONTEXT
 
-- 전체적으로 bounded context는 책을 한번 더 읽어볼 것
-
 ## 도메인 모델과 경계
 
-- 처음 도메인 모델을 만들 때 빠지기 쉬운 함정이 도메인을 완벽하게 표현하는 단일 모델을 만드는 시도를 하는 것
-- 하위 도메인마다같은 용어라도 의미가 다르고 같은 대상이라도 지칭하는 용어가 다를 수 있기 때문에 한 개의 모델로 모든 하위 도메인을 ㅍ현하려는 시도는 올바른 방법이 아님
-- 모델은 특정한 컨텍스트 하에서 완전한 의므를 갖는데 이 경계를 ddd에서는 bounded context라고 부름
+- 처음 도메인 모델을 만들 때 빠지기 쉬운 함정이 도메인을 완벽하게 표현하는 단일 모델을 만드는 시도를 하는 것이다.
+  - 한 도메인은 다시 여러 하위 도메인으로 구분되기 때문에 한 개의 모델로 여러 하위 도메인을 모두 표현하려고 시도하게 되면 모든 하위 도메인에 맞지 않는 모델을 만들게 된다.
+  - 하위 도메인마다같은 용어라도 의미가 다르고 같은 대상이라도 지칭하는 용어가 다를 수 있기 때문에 한 개의 모델로 모든 하위 도메인을 표현하려는 시도는 올바른 방법이 아니다.
+
+
+![9-1](./images/ddd-start/9-1.png)
+
+- BOUNDED CONTEXT
+  - 모델은 특정한 컨텍스트하에 완전한 의미를 갖는다.
+  - 같은 제품이라도 카탈로그 컨텍스트와 재고 컨텍스트에서 의미가 서로 다르다.
+  - 이렇게 구분되는 경계를 갖는 컨텍스트를 DDD에서는 BOUNDED CONTEXT라고 한다.
+
+
+
+> BOUNDED CONTEXT가 상당히 논리적이고 추상적인 개념이라고 이해를 했는데 뒤쪽에도 나오지만 미리 첨언해둔다. (틀릴 수도 있지만 쉽게 이해할 수 있도록.. ㅎ..) 하나의 서비스에 BOUNDED CONTEXT가 정확히 n개로 구분되어 있다면 이는 msa라고 봐도 무방할 것 같다. (회원 api, 주문 api ... etc )
+
+
 
 ## BOUNDED CONTEXT
 
-- bounded context는 모델의 경계를 결정하고 bounded context는 논리적으로 한 개의 모델을 가짐
-- bounded context는 신제로 사용자에게 기능을 제공하는 물리적 시스템으로 도메인 모델은 이 bounded context안에서 도메인을 구현함
-- 규모가 작다면 여러 하위 도메인을 하나의 bounded context에서 구현하고 팀별로 구분해서 구현할 수도 있음
-- 여러 하위 도메인을 하나의 bounded context에서 개발할 때 주의할 점은 하위 도메인의 모델이 뒤썩이지 않게 하는 것
-- 비록 한 개의 bounded context에서 여러 하위 도메인을 포함하더라도 하위 도메인마다 구분되는 패키지를 갖도록 구현해야 하위 도메인을 위한 모델이 서로 뒤섞이지 않아서 하위 도메인마다 bounded context를 갖는 효과를 나타낼 수 있음
+- BOUNDED CONTEXT 경계 정하기
+  - BOUNDED CONTEXT는 모델의 경계를 결정하고 한개의 BOUNDED CONTEXT는 논리적으로 한 개의 모델을 가진다.
+  - BOUNDEX CONTEXT는 용어를 기준으로 구분한다.
+  - **BOUNDED CONTEXT는 실제로 사용자에게 기능을 제공하는 물리적 시스템**으로 도메인 모델은 이 BOUNDED CONTEXT안에서 도메인을 구현한다.
+  - 이상적으로 하위 도메인과 BOUNDED CONTEXT가 일대일 관계를 가지면 베스트지만 현실은 그렇지 않을 때가 많다.
+    - ex: 주문 하위 도메인에 주문을 처리하는팀과 복잡한 결제 금액 계산 로직을 구현하는 팀이 따로 있을때 주문 하위에 주문 BOUNDED CONTEXT, 결제 금액 계산 BOUNDED CONTEXT가 존재하게 된다.
+
+- 주의사항
+  - 서비스가 크지 않고 규모가 작다면 여러 하위 도메인을 하나의 BOUNDED CONTEXT에서 구현할 수 있다. 이런 경우 주의할 점은 하위 도메인의 모델이 뒤섞이지 않도록 하는 것이다.
+  - 비록 한 개의 BOUNDED CONTEXT에서 여러 하위 도메인을 포함하더라도 하위 도메인마다 구분되는 패키지를 갖도록 구현해야 하위 도메인을 위한 모델이 서로 뒤섞이지 않아서 하위 도메인마다 BOUNDED CONTEXT를 갖는 효과를 낼 수 있다.
+
+
+- BOUNDED CONTEXT는 도메인 모델을 구분하는 경계가 되기 때문에 BOUNDED CONTEXT는 구현하는 하위 도메인에 알맞는 모델을 포함한다.
+  - 같은 사용자라 하더라도 주문 BOUNDED CONTEXT와 회원 BOUNDED CONTEXT가 갖는 모델이 달라진다.
+  - 같은 상품이라도 카탈로그 BOUNDED CONTEXT의 Product와 재고 BOUNDED CONTEXT의 Product는 각 컨텍스트에 맞는 모델을 갖는다.
 
 ## BOUNDED CONTEX의 구현
 
-- bounded context는 도메인 모델만 포함하지 않고 표현, 응용, 서비스, 인프라 영역 등을 모두 포함함
-- 모든 bounded context를 도메인 주도로 개발할 필요는 없음
-- 한 bounded context에서 두 방식을 혼합해서 사용할 수도 있음 대표적으로 CQRS Command Query Responsibility Segregation 상태를 변경하는 명령 기능과 내용을 조회하는 쿼리 기능을 위한 모델을 구분하는 패턴
-- 각 bounded context 마다 서로 다른 구현 기술을 사용할 수 있음
+- BOUNDED CONTEXT는 도메인 모델만 포함하지 않는다.
+  - BOUNDED CONTEXT는 도메인 기능을 사용자에게 제공하는 데 필요한 표현 영역, 응용 서비스, 인프라 영역 등을 모두 포함한다.
+  - 도메인 모델의 데이터 구조가 바뀌면 DB테이블 스키마도 함께 변경해야 하므로 해당 테이블도 BOUNDED CONTEXT에 포함된다.
+
+- CQRS
+  - 한 BOUNDED CONTEXT에서 두 방식을 혼합해서 사용할 수도 있다. 대표적으로 CQRS (Command Query Responsibility Segregation) 패턴이 있다.
+  - 상태를 변경하는 명령 기능과 내용을 조회하는 쿼리 기능을 위한 모델을 구분하는 패턴이다.
+
+- 각 BOUNDED CONTEXT마다 완전히 다른 기술 사용하기
+  - 각 BOUNDED CONTEXT 마다 서로 다른 구현 기술을 사용할 수 있다.
+  - 예를들면 주문 BOUNDED CONTEXT는 스프링 MVC를 사용하고 JPA/하이버네이트를 사용하고 회원 BOUNDED CONTEXT는 몽고DB, Webflux를 사용할 수 있다.
+
 
 ## BOUNDED CONTEXT 간 통합
 
-- 온라인 쇼핑 사이트에서 매출 증대를 위해 카탈로그 하위 도메인에 개인화 추천 기능을 도입했다고 가정하고 각 팀별로 구현한다고 가정하면 카탈로그를 위한 bounded context와 추천 기능을 위한 bounded context가 생기는 것
-- 카탈로그 시스템은 추천 시스템으로부터 추천 데이터를 받아오지만 카탈로그 시스템에서는 추천의 도메인 모델을 사용하기 보다는 카탈로그 도메인 모델을 사용해서 추천 상품을 표현해야 함
-- rest api를 호출하는 것은 두 bounded context를 직접 통합하는 방식이고 메시지 큐를 사용하면 간접적으로 통합하는 방식임
-- 어떤 도메인 관점에서 모델을 사용하느냐에 따라 두 bounded context의 구현이 달라짐
-- 마이크로 서비스가 bounded context의 특징을 잘 살려낼 수 있음
+- 온라인 쇼핑 사이트에서 매출 증대를 위해 카탈로그 하위 도메인에 개인화 추천 기능을 도입하는 예제
+  - 이렇게 되면 카탈로그를 위한 BOUNDED CONTEXT와 추천 기능을 위한 BOUNDED CONTEXT가 생긴다. (별도의 물리적인 서버로 구분된다고 생각하면 편할듯?)
+  - 사용자가 카탈로그 BOUNDED CONTEXT에 추천 제품 목록을 요청하면 카탈로그 BOUNDED CONTEXT는 추천 BOUNDED CONTEXT로 부터 추천정보를 읽어와 추천 제품 목록을 제공한다.
+  - 카탈로그는 제품을 중심으로 도메인 모델을 구현하지만 추천은 추천 연산을 위한 모델을 구현한다.
+
+- 추천 BOUNDED CONTEXT는 infra 영역이다.
+  - 따라서 외부 infra요소에 접근하는 ProductRecommendationService 도메인 서비스는 인터페이스로 둔다.
+  - RecSystemClient는 외부 추천 시스템이 제공하는 REST API를 이용해서 특정 상품을 위한 추천 상품 목록을 로딩한다.
+  - RecSystemClient는 REST API로 부터 데이터를 읽어와 카탈로그 도메인에 맞는 상품 모델로 변환한다.
+
+
+![9-2](./images/ddd-start/9-2.png)
+
+- BOUNDED CONTEXT간 직접통합과 간접통합
+  - REST API를 호출하는 것은 BOUNDED CONTEXT를 직접 통합하는 방법이다.
+  - 대표적인 간접 통합 방식은 메시지 큐를 사용하는 것이다.
+  - 메시지 큐를 사용하면 두 BOUNDED CONTEXT간 메시지 정의가 필요하다.
+  - 간접 통합 방식은 pub/sub 모델을 사용한다.
+
+
 
 ## BOUNDED CONTEXT 간 관계
 
-- bounded context는 어떤 식으로든 연결되기 떄문에 두 bounded context는 다양한 방식으로 관계를 맺음 가장 일반적인게 api 서버와 클라 형태로 됨
+- BOUNDED CONTEXT는 어떤식으로든 연결된다.
+  - BOUNDED CONTEXT는 어떤 식으로든 연결되기 때문에 두 BOUNDED CONTEXT는 다양한 방식으로 관계를 맺는다.
+  - BOUNDED CONTEXT중 가장 흔한 관계는 한쪽에서 API를 제공하고 다른 한쪽에서 그 API를 호출하는 관계다.
+
+- downstream(하류)과 upstream(상류)
+  - ![9-3](/Users/a10300/Choi/Git/dev-note/architecture/images/ddd-start/9-3.png)
+  - 하류 컴포넌트인 카탈로그 컨텍스트는 상류 컴포넌트인 추천 컨텍스트가 제공하는 데이터와 기능에 의존한다.
+  - 상류 컴포넌트는 일종의 서비스 공급자 역할을 하며, 하류 컴포넌트는 그 서비스를 사용하는 고객 역할을 한다.
+  - 상류, 하류 모두 상호 협력이 필수적이다.
+  - 상류 컴포넌트는 봍통 하류 컴포넌트가 사용할 수 있는 통신 프로토콜을 정의하고 이를 공개한다.
+    - ex: google protocol buffer, apache thrift, rest api ...
+
+- 공개 호스트 서비스(OPEN HOST SERVICE)
+  - 상류 팀의 고객인 하류 팀이 다수 존재하면 상류 팀은 여러 하류 팀의 요구사항을 수용할 수 있는 API를 만들고 이를 서비스 형태로 공개해서 서비스의 일관성을 유지할 수 있다.
+  - 이런 서비스를 가리켜 공개 호스트 서비스 라고 한다.
+  - 공개 호스트 서비스의 대표적인 예: 검색 서비스
+  - ![9-4](./images/ddd-start/9-4.png)
+  - 
+
+
+
+
 - 상류 컴포는트는 일종의 서비스 공급자 역할, 하류 컴포넌트는 서비스를 사용하는 고객 역할
-- 상류 컴포넌트의 서비스는 상류 bounded context의 도메인 모델을 따름 따라서 하류 컴포넌트는 상류 서비스의 모델이 자신의 도메인 모델에 영향을 주지 않도록 보호해 주는 완충 지대를 만들어야 함 <- 안티코럽션 계층
-- 두 bounded context가 같은 모델을 공유하는 경우도 있는데 두 팀이 공유하는 모델을 공유 커널이라고 부름
+- 상류 컴포넌트의 서비스는 상류 BOUNDED CONTEXT의 도메인 모델을 따름 따라서 하류 컴포넌트는 상류 서비스의 모델이 자신의 도메인 모델에 영향을 주지 않도록 보호해 주는 완충 지대를 만들어야 함 <- 안티코럽션 계층
+- 두 BOUNDED CONTEXT가 같은 모델을 공유하는 경우도 있는데 두 팀이 공유하는 모델을 공유 커널이라고 부름
 - 공유 커널의 장점은 중복을 줄여줌 하지만 그만큼 서로간에 의존성도 생김
-- bounded context를 통합하지 않는 방식은 독립 방식이라함 서로 독립적으로 모델을 발전시킴
+- BOUNDED CONTEXT를 통합하지 않는 방식은 독립 방식이라함 서로 독립적으로 모델을 발전시킴
 
 ## 컨텍스트 맵
 
-- 전체 비지니스를 조망할 수 있는 지도를 컨텍스트 맵이라 함
-- 시스템의 전체적인 구조를 보여줌
+- 컨텍스트 맵
+  - 개별 BOUNDED CONTEXT에 매몰되면 전체를 보지 못할 때가 있다.
+  - 전체 비즈니스를 조망할 수 있는 지도가 필요한데 이를 컨텍스트 맵이라고 한다.
+  - 컨텍스트 맵은 BOUNDED CONTEXT간의 관계를 표시한 것이다.
+
+
+![9-5](./images/ddd-start/9-5.png)
+
+
+
+- 컨텍스트 맵은 시스템의 전체 구조를 보여준다.
+  - 
 
 
 
@@ -1835,7 +1911,7 @@ public class JpaOrderRepository implements OrderRepository {
 
 ## 시스템 간 강결합의 문제
 
-- bounded context간의 강결합을 해결할 수 있는 방법은 바로 이벤트를 사용하는 것임
+- BOUNDED CONTEXT간의 강결합을 해결할 수 있는 방법은 바로 이벤트를 사용하는 것임
 - 특히 비동기 이벤트를 사용하면 두 시스템 간의 결합을 크게 낮출 수 있음
 
 ## 이벤트 개요
