@@ -1825,7 +1825,7 @@ public class JpaOrderRepository implements OrderRepository {
 
 - BOUNDED CONTEXT 경계 정하기
   - BOUNDED CONTEXT는 모델의 경계를 결정하고 한개의 BOUNDED CONTEXT는 논리적으로 한 개의 모델을 가진다.
-  - BOUNDEX CONTEXT는 용어를 기준으로 구분한다.
+  - BOUNDEX CONTEXT는 용어를 기준으로 구분한다. 카탈로그 컨텍스트와 재고 컨텍스트는 서로 다른 용어를 사용하므로 이 용어를 기준으로 컨텍스트를 분리할 수 있다.
   - **BOUNDED CONTEXT는 실제로 사용자에게 기능을 제공하는 물리적 시스템**으로 도메인 모델은 이 BOUNDED CONTEXT안에서 도메인을 구현한다.
   - 이상적으로 하위 도메인과 BOUNDED CONTEXT가 일대일 관계를 가지면 베스트지만 현실은 그렇지 않을 때가 많다.
     - ex: 주문 하위 도메인에 주문을 처리하는팀과 복잡한 결제 금액 계산 로직을 구현하는 팀이 따로 있을때 주문 하위에 주문 BOUNDED CONTEXT, 결제 금액 계산 BOUNDED CONTEXT가 존재하게 된다.
@@ -1839,19 +1839,25 @@ public class JpaOrderRepository implements OrderRepository {
   - 같은 사용자라 하더라도 주문 BOUNDED CONTEXT와 회원 BOUNDED CONTEXT가 갖는 모델이 달라진다.
   - 같은 상품이라도 카탈로그 BOUNDED CONTEXT의 Product와 재고 BOUNDED CONTEXT의 Product는 각 컨텍스트에 맞는 모델을 갖는다.
 
-## BOUNDED CONTEX의 구현
+<img src="./images/ddd-start/9-2.png" alt="9-3" style="zoom:80%;" />
+
+
+
+## BOUNDED CONTEXT의 구현
 
 - BOUNDED CONTEXT는 도메인 모델만 포함하지 않는다.
   - BOUNDED CONTEXT는 도메인 기능을 사용자에게 제공하는 데 필요한 표현 영역, 응용 서비스, 인프라 영역 등을 모두 포함한다.
   - 도메인 모델의 데이터 구조가 바뀌면 DB테이블 스키마도 함께 변경해야 하므로 해당 테이블도 BOUNDED CONTEXT에 포함된다.
 
-- CQRS
-  - 한 BOUNDED CONTEXT에서 두 방식을 혼합해서 사용할 수도 있다. 대표적으로 CQRS (Command Query Responsibility Segregation) 패턴이 있다.
-  - 상태를 변경하는 명령 기능과 내용을 조회하는 쿼리 기능을 위한 모델을 구분하는 패턴이다.
+- BOUNDED CONTEXT 구현 기술
+  - 모든 BOUNDED CONTEXT를 반드시 도메인 주도로 개발할 필요는 없다. 간단한 기능은 CRUD로 구현해도 유지보수하는데 큰 문제가 없다.
+  - CQRS
+    - 한 BOUNDED CONTEXT에서 두 방식을 혼합해서 사용할 수도 있다. 대표적으로 CQRS (Command Query Responsibility Segregation) 패턴이 있다.
+    - 상태를 변경하는 명령 기능과 내용을 조회하는 쿼리 기능을 위한 모델을 구분하는 패턴이다. (11장에서 자세히 .. )
 
-- 각 BOUNDED CONTEXT마다 완전히 다른 기술 사용하기
-  - 각 BOUNDED CONTEXT 마다 서로 다른 구현 기술을 사용할 수 있다.
-  - 예를들면 주문 BOUNDED CONTEXT는 스프링 MVC를 사용하고 JPA/하이버네이트를 사용하고 회원 BOUNDED CONTEXT는 몽고DB, Webflux를 사용할 수 있다.
+  - 각 BOUNDED CONTEXT마다 완전히 다른 기술 사용하기
+    - 각 BOUNDED CONTEXT 마다 서로 다른 구현 기술을 사용할 수 있다.
+    - 예를들면 주문 BOUNDED CONTEXT는 스프링 MVC와 JPA/하이버네이트를 사용하고 회원 BOUNDED CONTEXT는 몽고DB, Webflux를 사용할 수 있다.
 
 
 ## BOUNDED CONTEXT 간 통합
@@ -1863,17 +1869,25 @@ public class JpaOrderRepository implements OrderRepository {
 
 - 추천 BOUNDED CONTEXT는 infra 영역이다.
   - 따라서 외부 infra요소에 접근하는 ProductRecommendationService 도메인 서비스는 인터페이스로 둔다.
-  - RecSystemClient는 외부 추천 시스템이 제공하는 REST API를 이용해서 특정 상품을 위한 추천 상품 목록을 로딩한다.
-  - RecSystemClient는 REST API로 부터 데이터를 읽어와 카탈로그 도메인에 맞는 상품 모델로 변환한다.
+  - ProductRecommendationService의 구현체인 RecSystemClient는 외부 시스템과의 연동을 처리하고 외부 시스템의 모델과 현재 도메인 모델 간의 변환을 책임진다.
+    - RecSystemClient는 외부 추천 시스템이 제공하는 REST API를 이용해서 특정 상품을 위한 추천 상품 목록을 로딩한다.
+    - RecSystemClient는 REST API로 부터 데이터를 읽어와 카탈로그 도메인에 맞는 상품 모델로 변환한다.
 
 
-![9-2](./images/ddd-start/9-2.png)
+![9-4](./images/ddd-start/9-3.png)
 
 - BOUNDED CONTEXT간 직접통합과 간접통합
-  - REST API를 호출하는 것은 BOUNDED CONTEXT를 직접 통합하는 방법이다.
-  - 대표적인 간접 통합 방식은 메시지 큐를 사용하는 것이다.
-  - 메시지 큐를 사용하면 두 BOUNDED CONTEXT간 메시지 정의가 필요하다.
-  - 간접 통합 방식은 pub/sub 모델을 사용한다.
+  - 직접 통합
+    - REST API를 호출하는 것은 BOUNDED CONTEXT를 직접 통합하는 방법이다.
+  - 간접통합
+    - 대표적인 간접 통합 방식은 메시지 큐를 사용하는 것이다.
+    - 메시지 큐는 보통 비동기로 메시지를 처리하기 때문에 consume하는 주체가 이 메시지를 처리할 때까지 기다리지 않고 바로 이어서 자신의 처리를 계속한다.
+    - 메시지 큐를 사용하면 두 BOUNDED CONTEXT간 메시지 정의가 필요하다. 각각의 BOUNDED CONTEXT를 담당하는 팀은 서로 만나서 주고받을 데이터 형식에 대해 협의해야 한다.
+    - 이런 간접통합 방식은 한쪽에서 메시지를 출판하고 다른 쪽에서 메시지를 구독하는 pub/sub 모델을 따른다.
+- 마이크로서비스와 BOUNDED CONTEXT
+  - 마이크로서비스의 특징은 BOUNDED CONTEXT와 잘 어울린다.
+  - 각 BOUNDED CONTEXT는 모델의 경계를 형성하는데, BOUNDED CONTEXT를 마이크로서비스로 구현하면 자연스럽게 컨텍스트별로 모델이 분리된다.
+  - 프로젝트마다 BOUNDED CONTEXT를 갖게되기때문에 BOUNDED CONTEXT의 모델이 섞이지 않도록 해준다.
 
 
 
@@ -1884,7 +1898,7 @@ public class JpaOrderRepository implements OrderRepository {
   - BOUNDED CONTEXT중 가장 흔한 관계는 한쪽에서 API를 제공하고 다른 한쪽에서 그 API를 호출하는 관계다.
 
 - downstream(하류)과 upstream(상류)
-  - ![9-3](/Users/a10300/Choi/Git/dev-note/architecture/images/ddd-start/9-3.png)
+  - ![9-3](/Users/a10300/Choi/Git/dev-note/architecture/images/ddd-start/9-4.png)
   - 하류 컴포넌트인 카탈로그 컨텍스트는 상류 컴포넌트인 추천 컨텍스트가 제공하는 데이터와 기능에 의존한다.
   - 상류 컴포넌트는 일종의 서비스 공급자 역할을 하며, 하류 컴포넌트는 그 서비스를 사용하는 고객 역할을 한다.
   - 상류, 하류 모두 상호 협력이 필수적이다.
@@ -1895,17 +1909,28 @@ public class JpaOrderRepository implements OrderRepository {
   - 상류 팀의 고객인 하류 팀이 다수 존재하면 상류 팀은 여러 하류 팀의 요구사항을 수용할 수 있는 API를 만들고 이를 서비스 형태로 공개해서 서비스의 일관성을 유지할 수 있다.
   - 이런 서비스를 가리켜 공개 호스트 서비스 라고 한다.
   - 공개 호스트 서비스의 대표적인 예: 검색 서비스
-  - ![9-4](./images/ddd-start/9-4.png)
-  - 
+  - ![9-4](./images/ddd-start/9-5.png)
 
 
 
 
-- 상류 컴포는트는 일종의 서비스 공급자 역할, 하류 컴포넌트는 서비스를 사용하는 고객 역할
-- 상류 컴포넌트의 서비스는 상류 BOUNDED CONTEXT의 도메인 모델을 따름 따라서 하류 컴포넌트는 상류 서비스의 모델이 자신의 도메인 모델에 영향을 주지 않도록 보호해 주는 완충 지대를 만들어야 함 <- 안티코럽션 계층
-- 두 BOUNDED CONTEXT가 같은 모델을 공유하는 경우도 있는데 두 팀이 공유하는 모델을 공유 커널이라고 부름
-- 공유 커널의 장점은 중복을 줄여줌 하지만 그만큼 서로간에 의존성도 생김
-- BOUNDED CONTEXT를 통합하지 않는 방식은 독립 방식이라함 서로 독립적으로 모델을 발전시킴
+- 안티코럽션 계층(Anticorruption Layer)
+  - 다시 RecSystemClient으로 ..
+  - ![9-4](./images/ddd-start/9-3.png)
+  - 이 그림에서 RecSystemClient는 외부 시스템과의 연동을 처리하는데 외부 시스템의 도메인 모델이 내 도메인 모델을 침범하지 않도록 막아주는 역할을 한다.
+  - 이런 계층을 안티코럽션 계층이라고 한다.
+  - 이 계층에서 두 BOUNDED CONTEXT간의 모델 변환을 처리해 주기 때문에 다른 BOUNDED CONTEXT의 모델에 영향을 받지 않고 내 도메인 모델을 유지할 수 있다.
+- 공유 커널
+  - 두 BOUNDED CONTEXT가 같은 모델을 공유하는 경우도 있다.
+    - ex: 운영자를 위한 주문 관리 도구를 개발하는 팀과 고객을 위한 주문 서비스를 개발하는 팀. 두 팀은 주문을 표현하는 모델을 공유함으로써 중복 개발을 막을 수 있따.
+  - 이렇게 두 팀이 공유하는 모델을 공유 커널이라고 부른다.
+  - 공유 커널은 중복을 줄일 수 있다는 장점이 있지만 반대로 두 팀은 반드시 밀접하게 유지해야한다는 단점이 있다.
+- 독립 방식
+  - 독립 방식 관계는 그냥 서로 통합하지 않는 방식이다
+  - BOUNDED CONTEXT간에 통합을 하지 않으므로 서로 독립적으로 모델을 발전시킨다.
+  - 만약 두 BOUNDED CONTEXT간에 통합이 필요하다면 수동으로 하거나 힘든 경우 통합을 위한 시스템이 필요해질 수도 있다.
+
+
 
 ## 컨텍스트 맵
 
@@ -1920,7 +1945,9 @@ public class JpaOrderRepository implements OrderRepository {
 
 
 - 컨텍스트 맵은 시스템의 전체 구조를 보여준다.
-  - 
+  - 이는 하위 도메인과 일치하지 않는 BOUNDED CONTEXT를 찾아 도메인에 도메인에 맞게 BOUNDED CONTEXT를 조절하고 사업의 핵심 도메인을 위해 어떤 BOUNDED CONTEXT에 집중할지 파악하는데 도움을 준다.
+- 컨텍스트 맵을 그리는 규칙은 따로 없다.
+- 시스템을 더 잘 이해하거나 시간이 지나면서 컨텍스트 간 관계가 바뀌면 컨텍스트 맵도 함께 바뀐다.
 
 
 
