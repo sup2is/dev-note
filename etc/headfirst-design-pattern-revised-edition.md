@@ -10,6 +10,17 @@
 
 
 
+**디자인 패턴을 적용하기 전에 참고사항**
+
+- 미래에는 무엇이 바뀔것인지 대충 예상하고 있어야한다.
+- 상속보다는 컴포지션이 낫다.
+
+
+
+
+
+
+
 # #1 디자인 패턴 소개와 전략 패턴
 
 ## 적용이 필요한 곳
@@ -292,6 +303,190 @@ public class StarbuzzCoffee {
 - 데코레이터 패턴을 사용하면 자잘한 객체가 매우 많이 추가될 수 있고 데코레이터를 너무 많이 사용하면 코드가 필요 이상으로 복잡해진다.
 
 # #4 팩토리 패턴
+
+## UML
+
+![4-1](./images/headfirst-design-pattern-revised-edition/4-1.jpeg)
+
+
+
+
+
+## 적용
+
+```java
+public abstract class Pizza {
+	String name;
+	String dough;
+	String sauce;
+	ArrayList<String> toppings = new ArrayList<String>();
+}
+
+// Pizza 하위
+public class NYStyleVeggiePizza extends Pizza {
+
+	public NYStyleVeggiePizza() {
+		name = "NY Style Veggie Pizza";
+		dough = "Thin Crust Dough";
+		sauce = "Marinara Sauce";
+ 
+		toppings.add("Grated Reggiano Cheese");
+		toppings.add("Garlic");
+		toppings.add("Onion");
+		toppings.add("Mushrooms");
+		toppings.add("Red Pepper");
+	}
+}
+
+// Pizza 하위
+public class ChicagoStylePepperoniPizza extends Pizza {
+	public ChicagoStylePepperoniPizza() {
+		name = "Chicago Style Pepperoni Pizza";
+		dough = "Extra Thick Crust Dough";
+		sauce = "Plum Tomato Sauce";
+ 
+		toppings.add("Shredded Mozzarella Cheese");
+		toppings.add("Black Olives");
+		toppings.add("Spinach");
+		toppings.add("Eggplant");
+		toppings.add("Sliced Pepperoni");
+	}
+ 
+	void cut() {
+		System.out.println("Cutting the pizza into square slices");
+	}
+}
+
+```
+
+
+
+```java
+public abstract class PizzaStore {
+ 
+	abstract Pizza createPizza(String item);
+ 
+	public Pizza orderPizza(String type) {
+		Pizza pizza = createPizza(type);
+		System.out.println("--- Making a " + pizza.getName() + " ---");
+		pizza.prepare();
+		pizza.bake();
+		pizza.cut();
+		pizza.box();
+		return pizza;
+	}
+}
+
+// PizzaStore 하위
+public class ChicagoPizzaStore extends PizzaStore {
+
+	Pizza createPizza(String item) {
+        	if (item.equals("cheese")) {
+            		return new ChicagoStyleCheesePizza();
+        	} else if (item.equals("veggie")) {
+        	    	return new ChicagoStyleVeggiePizza();
+        	} else if (item.equals("clam")) {
+        	    	return new ChicagoStyleClamPizza();
+        	} else if (item.equals("pepperoni")) {
+            		return new ChicagoStylePepperoniPizza();
+        	} else return null;
+	}
+}
+
+// PizzaStore 하위
+public class NYPizzaStore extends PizzaStore {
+
+	Pizza createPizza(String item) {
+		if (item.equals("cheese")) {
+			return new NYStyleCheesePizza();
+		} else if (item.equals("veggie")) {
+			return new NYStyleVeggiePizza();
+		} else if (item.equals("clam")) {
+			return new NYStyleClamPizza();
+		} else if (item.equals("pepperoni")) {
+			return new NYStylePepperoniPizza();
+		} else return null;
+	}
+}
+
+// 실제로 사용하기
+public class PizzaTestDrive {
+ 
+	public static void main(String[] args) {
+		PizzaStore nyStore = new NYPizzaStore();
+		PizzaStore chicagoStore = new ChicagoPizzaStore();
+ 
+		Pizza pizza = nyStore.orderPizza("cheese");
+		System.out.println("Ethan ordered a " + pizza.getName() + "\n");
+ 
+		pizza = chicagoStore.orderPizza("cheese");
+		System.out.println("Joel ordered a " + pizza.getName() + "\n");
+
+		pizza = nyStore.orderPizza("clam");
+		System.out.println("Ethan ordered a " + pizza.getName() + "\n");
+ 
+		pizza = chicagoStore.orderPizza("clam");
+		System.out.println("Joel ordered a " + pizza.getName() + "\n");
+
+		pizza = nyStore.orderPizza("pepperoni");
+		System.out.println("Ethan ordered a " + pizza.getName() + "\n");
+ 
+		pizza = chicagoStore.orderPizza("pepperoni");
+		System.out.println("Joel ordered a " + pizza.getName() + "\n");
+
+		pizza = nyStore.orderPizza("veggie");
+		System.out.println("Ethan ordered a " + pizza.getName() + "\n");
+ 
+		pizza = chicagoStore.orderPizza("veggie");
+		System.out.println("Joel ordered a " + pizza.getName() + "\n");
+	}
+}
+
+```
+
+- 의존성 역전
+  - 고수준 구성 요소가 저수준 구성 요소에 의존하면 안되고 항상 추상화에 의존하게 만들어야 한다.
+  - PizzaStore는 고수준 영역, Pizza 클래스는 저수준 영역
+- 의존성 역전 법칙을 지키는 방법
+  - 변수에 구상 클래스의 레퍼런스를 저정하지 말자
+  - 구상 클래스에서 유도된 클래스를 만들지 말자
+  - 베이스 클래스에서 이미 구현되어있는 메서드를 오버라이드하지 말자.
+
+
+
+
+
+## 정리
+
+- 팩토리 메서드 패턴에서는 객체를 생성할 때 필요한 인터페이스를 만들고 어떤 클래스의 인스턴스를 만들지는 서브클래스에서 결정한다. 팩토리 메서드 패턴을 사용하면 클래스 인스턴스 만드는 일은 서브클래스에게 맡기면 된다.
+
+# #5-1 추상 팩토리 패턴
+
+
+
+## UML
+
+![5-1](./images/headfirst-design-pattern-revised-edition/5-1.png)
+
+
+
+## 정리
+
+- 추상 팩토리 패턴은 구상 클래스에 의존하지 않고도 서로 연관되거나 의존적인 객체로 이루어진 제품군을 생산하는 인터페이스를 제공한다. 구상 클래스는 서브클래스에서 만든다.
+
+
+
+## 핵심 정리
+
+- 팩토리를 쓰면 객체 생성을 캡슐화할 수 있다.
+- 팩토리 메서드 패턴은 상속을 활용한다. 객체 생성을 서브클래스에게 맡긴다. 서브클래스는 팩토리 메서드를 구현해서 객체를 생산한다.
+- 추상 팩토리 패턴은 객체 구성을 활용한다. 팩토리 인터페이스에서 선언한 메서드에서 객체 생성이 구현된다.
+- 모든 팩토리 패턴은 애플리케이션의 구상 클래스 의존성을 줄여줌으로써 느슨한 결합을 도와준다.
+- 팩토리는 구상 클래스가 아닌 추상 클래스와 인터페이스에 맞춰서 코딩할 수 있게 해주는 기법이다.
+
+
+
+
 
 
 
