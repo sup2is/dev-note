@@ -302,7 +302,7 @@ public class StarbuzzCoffee {
 - 구성 요소의 클라이언트 데코레이터의 존재를 알 수 없다. 클라이언트가 구성 요소의 구체적인 형식에 의존하는 경우는 예외다.
 - 데코레이터 패턴을 사용하면 자잘한 객체가 매우 많이 추가될 수 있고 데코레이터를 너무 많이 사용하면 코드가 필요 이상으로 복잡해진다.
 
-# #4 팩토리 패턴
+# #4-1 팩토리 패턴
 
 ## UML
 
@@ -460,7 +460,7 @@ public class PizzaTestDrive {
 
 - 팩토리 메서드 패턴에서는 객체를 생성할 때 필요한 인터페이스를 만들고 어떤 클래스의 인스턴스를 만들지는 서브클래스에서 결정한다. 팩토리 메서드 패턴을 사용하면 클래스 인스턴스 만드는 일은 서브클래스에게 맡기면 된다.
 
-# #5-1 추상 팩토리 패턴
+# #4-2 추상 팩토리 패턴
 
 
 
@@ -491,6 +491,47 @@ public class PizzaTestDrive {
 
 
 # #5 싱글턴 패턴
+
+## 정리
+
+- 싱글턴 패턴은 클래스 인스턴스를 하나만 만들고, 그 인스턴스로의 전역 접근을 제공한다.
+
+
+
+## 핵심 정리
+
+- 어떤 클래스에 싱글턴 패턴을 적용하면 그 클래스의 인스턴스가 1개만 있도록 할 수 있다.
+
+- 멀티 스레드를 사용하는 애플리케이션에서 싱글턴을 사용하는 방법
+
+  - 메서드 레벨에서 동기화하기
+
+  - 정적 변수로 초기화하기
+
+  - DCL(volatile)로 사용하기
+
+    - ```java
+      
+      public class Singleton {
+      	private volatile static Singleton uniqueInstance;
+       
+      	private Singleton() {}
+       
+      	public static Singleton getInstance() {
+      		if (uniqueInstance == null) {
+      			synchronized (Singleton.class) {
+      				if (uniqueInstance == null) {
+      					uniqueInstance = new Singleton();
+      				}
+      			}
+      		}
+      		return uniqueInstance;
+      	}
+      }
+      
+      ```
+
+- 자바의 enum을 사용하면 간단하게 싱글턴을 구현할 수 있다.
 
 
 
