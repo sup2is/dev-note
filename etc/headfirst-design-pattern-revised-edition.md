@@ -535,7 +535,173 @@ public class PizzaTestDrive {
 
 
 
-# #6 커맨트 패턴
+# #6 커맨드 패턴
+
+## UML
+
+![6-1](./images/headfirst-design-pattern-revised-edition/6-1.png)
+
+## 정리
+
+- 커맨드 패턴을 사용하면 요청 내역을 객체로 캡슐화해서 객체를 서로 다른 요청 내역에 따라 매개변수화 할 수 있다.
+
+- 요청을 큐에 저장하거나 로그로 기럭하거나 작업 취소 기능을 사용할 수 있다.
+
+- 밖에서 볼 때 어떤 객체가 리시버 역하을 하는지 그 리시버가 어떤 일을 하는지 알 수 없고 그냥 execute() 메서드를 호출하면 해당 요청이 처리된다는 사실만 알 수 있다.
+
+  
+
+## 적용
+
+
+
+```java
+public interface Command {
+	public void execute();
+}
+
+// Command 하위
+public class LightOnCommand implements Command {
+	Light light;
+
+	public LightOnCommand(Light light) {
+		this.light = light;
+	}
+
+	public void execute() {
+		light.on();
+	}
+}
+
+// Command 하위
+public class LightOffCommand implements Command {
+	Light light;
+ 
+	public LightOffCommand(Light light) {
+		this.light = light;
+	}
+ 
+	public void execute() {
+		light.off();
+	}
+}
+
+```
+
+
+
+
+
+```java
+
+//
+// This is the invoker
+//
+public class RemoteControl {
+	Command[] onCommands;
+	Command[] offCommands;
+ 
+	public RemoteControl() {
+		onCommands = new Command[7];
+		offCommands = new Command[7];
+ 
+		Command noCommand = new NoCommand();
+		for (int i = 0; i < 7; i++) {
+			onCommands[i] = noCommand;
+			offCommands[i] = noCommand;
+		}
+	}
+  
+	public void setCommand(int slot, Command onCommand, Command offCommand) {
+		onCommands[slot] = onCommand;
+		offCommands[slot] = offCommand;
+	}
+ 
+	public void onButtonWasPushed(int slot) {
+		onCommands[slot].execute();
+	}
+ 
+	public void offButtonWasPushed(int slot) {
+		offCommands[slot].execute();
+	}
+  
+	public String toString() {
+		StringBuffer stringBuff = new StringBuffer();
+		stringBuff.append("\n------ Remote Control -------\n");
+		for (int i = 0; i < onCommands.length; i++) {
+			stringBuff.append("[slot " + i + "] " + onCommands[i].getClass().getName()
+				+ "    " + offCommands[i].getClass().getName() + "\n");
+		}
+		return stringBuff.toString();
+	}
+}
+
+```
+
+
+
+```java
+public class RemoteLoader {
+ 
+   public static void main(String[] args) {
+      RemoteControl remoteControl = new RemoteControl();
+ 
+      Light livingRoomLight = new Light("Living Room");
+      Light kitchenLight = new Light("Kitchen");
+      CeilingFan ceilingFan= new CeilingFan("Living Room");
+      GarageDoor garageDoor = new GarageDoor("Garage");
+      Stereo stereo = new Stereo("Living Room");
+  
+      LightOnCommand livingRoomLightOn = 
+            new LightOnCommand(livingRoomLight);
+      LightOffCommand livingRoomLightOff = 
+            new LightOffCommand(livingRoomLight);
+      LightOnCommand kitchenLightOn = 
+            new LightOnCommand(kitchenLight);
+      LightOffCommand kitchenLightOff = 
+            new LightOffCommand(kitchenLight);
+  
+      CeilingFanOnCommand ceilingFanOn = 
+            new CeilingFanOnCommand(ceilingFan);
+      CeilingFanOffCommand ceilingFanOff = 
+            new CeilingFanOffCommand(ceilingFan);
+ 
+      GarageDoorUpCommand garageDoorUp =
+            new GarageDoorUpCommand(garageDoor);
+      GarageDoorDownCommand garageDoorDown =
+            new GarageDoorDownCommand(garageDoor);
+ 
+      StereoOnWithCDCommand stereoOnWithCD =
+            new StereoOnWithCDCommand(stereo);
+      StereoOffCommand  stereoOff =
+            new StereoOffCommand(stereo);
+ 
+      remoteControl.setCommand(0, livingRoomLightOn, livingRoomLightOff);
+      remoteControl.setCommand(1, kitchenLightOn, kitchenLightOff);
+      remoteControl.setCommand(2, ceilingFanOn, ceilingFanOff);
+      remoteControl.setCommand(3, stereoOnWithCD, stereoOff);
+  
+      System.out.println(remoteControl);
+ 
+      remoteControl.onButtonWasPushed(0);
+      remoteControl.offButtonWasPushed(0);
+      remoteControl.onButtonWasPushed(1);
+      remoteControl.offButtonWasPushed(1);
+      remoteControl.onButtonWasPushed(2);
+      remoteControl.offButtonWasPushed(2);
+      remoteControl.onButtonWasPushed(3);
+      remoteControl.offButtonWasPushed(3);
+   }
+}
+```
+
+
+
+## 핵심 정리
+
+- 커맨드 패턴을 사용하면 요청하는 객체와 요청을 수행하는 객체를 분리할 수 있다.
+- Invoker는 무언가 요청할 때 커맨드 객체의 execute() 메서드를 호출한다. execute() 메서드는 리시버에 있는 행동을 호출한다.
+- Command는 Invoker를 매개변수화 할 수 있다. 실행 중에 동적으로 매개변수화를 설정할 수도 있다.
 
 
 
