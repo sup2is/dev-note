@@ -707,7 +707,147 @@ public class RemoteLoader {
 
 # #7 어댑터 패턴과 퍼사드 패턴
 
+## 어댑터 패턴 UML
 
+![7-1](./images/headfirst-design-pattern-revised-edition/7-1.png)
+
+
+
+## 어댑터 패턴 정의
+
+- 특정 클래스 인터페이스를 클라이언트에서 요구하는 다른 인터페이스로 변환한다.
+- 인터페이스가 호환되지 않아 같이 쓸 수 없었던 클래스를 사용할 수 있게 도와준다.
+
+
+
+## 어댑터 패턴 적용
+
+```java
+
+/**
+*
+* Target은 Iterator
+* Adapter는 EnumerationIterator
+* Adaptee는 Enumeration
+*
+**/
+public class EnumerationIterator implements Iterator<Object> {
+   Enumeration<?> enumeration;
+ 
+   public EnumerationIterator(Enumeration<?> enumeration) {
+      this.enumeration = enumeration;
+   }
+ 
+   public boolean hasNext() {
+      return enumeration.hasMoreElements();
+   }
+ 
+   public Object next() {
+      return enumeration.nextElement();
+   }
+ 
+   public void remove() {
+      throw new UnsupportedOperationException();
+   }
+}
+```
+
+
+
+## 퍼사드 패턴 정의
+
+- 서브시스템에 있는 일련의 인터페이스를 통합 인터페이스로 묶어준다.
+- 고수준 인터페이스도 정의하므로 서브시스템을 더 편리하게 사용할 수 있다. 
+
+## 퍼사드 패턴 UML
+
+![7-2](./images/headfirst-design-pattern-revised-edition/7-2.png)
+
+## 퍼사드 패턴 적용
+
+```java
+
+public class HomeTheaterFacade {
+	Amplifier amp;
+	Tuner tuner;
+	StreamingPlayer player;
+	CdPlayer cd;
+	Projector projector;
+	TheaterLights lights;
+	Screen screen;
+	PopcornPopper popper;
+ 
+	public HomeTheaterFacade(Amplifier amp, 
+				 Tuner tuner, 
+				 StreamingPlayer player, 
+				 Projector projector, 
+				 Screen screen,
+				 TheaterLights lights,
+				 PopcornPopper popper) {
+ 
+		this.amp = amp;
+		this.tuner = tuner;
+		this.player = player;
+		this.projector = projector;
+		this.screen = screen;
+		this.lights = lights;
+		this.popper = popper;
+	}
+ 
+	public void watchMovie(String movie) {
+		System.out.println("Get ready to watch a movie...");
+		popper.on();
+		popper.pop();
+		lights.dim(10);
+		screen.down();
+		projector.on();
+		projector.wideScreenMode();
+		amp.on();
+		amp.setStreamingPlayer(player);
+		amp.setSurroundSound();
+		amp.setVolume(5);
+		player.on();
+		player.play(movie);
+	}
+ 
+ 
+	public void endMovie() {
+		System.out.println("Shutting movie theater down...");
+		popper.off();
+		lights.on();
+		screen.up();
+		projector.off();
+		amp.off();
+		player.stop();
+		player.off();
+	}
+
+	public void listenToRadio(double frequency) {
+		System.out.println("Tuning in the airwaves...");
+		tuner.on();
+		tuner.setFrequency(frequency);
+		amp.on();
+		amp.setVolume(5);
+		amp.setTuner(tuner);
+	}
+
+	public void endRadio() {
+		System.out.println("Shutting down the tuner...");
+		tuner.off();
+		amp.off();
+	}
+}
+
+```
+
+
+
+
+
+## 핵심 정리
+
+- 기존 클래스를 사용하려고 하는데 인터페이스가 맞지 않으면 어댑터를 쓰면 된다.
+- 큰 인터페이스와 여러 인터페이스를 단순하게 바꾸거나 통합해야 하면 퍼사드를 쓰면 된다.
 
 # #8 템플릿 메소드 패턴
 
