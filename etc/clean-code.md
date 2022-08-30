@@ -132,3 +132,115 @@
 - flag 변수 사용하지 마세요
 - 인수의 개수는 가장 작게 유지하세요
 
+
+
+## 부수 효과를 일으키지 마라!
+
+```java
+public class UserValidator {
+  private Cryptographer cryptographer;
+  public boolean checkPassword(String userName, String password) { 
+    User user = UserGateway.findByName(userName);
+    if (user != User.NULL) {
+      String codedPhrase = user.getPhraseEncodedByPassword(); 
+      String phrase = cryptographer.decrypt(codedPhrase, password); 
+      if ("Valid Password".equals(phrase)) {
+        Session.initialize();
+        return true; 
+      }
+    }
+    return false; 
+  }
+}
+```
+
+- Session.initialize() 는 부수 효과다. checkPassword() 메서드 이름에 알맞게 이런 부수효과는 없어야한다. 만약 필요하다면 메서드 명을 변경해야 한다.
+
+
+
+## 명령과 조회를 분리하라!
+
+- 함수는 뭔가를 수행하거나 뭔가에 답하거나 둘 중 하나만 해야 한다.
+
+```java
+
+// worse
+if(set(“username”, “unclebob”)) {
+  ...
+}
+
+// better
+if(attributeExists(“username”)) {
+  setAttribute("username", "unclebob")
+  ...
+}
+```
+
+
+
+
+
+## 오류 코드보다 예외를 사용하라!
+
+- 오류 코드 대신 예외를 사용하면 오류 처리 코드가 원래 코드에서 분리되므로 코드가 깔끔해진다.
+
+```java
+
+// worse
+if (deletePage(page) == E_OK) {
+  if (registry.deleteReference(page.name) == E_OK) {
+    if (configKeys.deleteKey(page.name.makeKey()) == E_OK) {
+      logger.log("page deleted");
+    } else {
+      logger.log("configKey not deleted");
+    }
+  } else {
+    logger.log("deleteReference from registry failed"); 
+  } 
+} else {
+  logger.log("delete failed"); return E_ERROR;
+}
+
+
+// better
+public void delete(Page page) {
+  try {
+      deletePageAndAllReferences(page);
+    } catch (Exception e) {
+      logError(e);
+    }
+}
+
+private void deletePageAndAllReferences(Page page) throws Exception { 
+  deletePage(page);
+  registry.deleteReference(page.name); 
+  configKeys.deleteKey(page.name.makeKey());
+}
+
+private void logError(Exception e) { 
+  logger.log(e.getMessage());
+}
+```
+
+- 함수는 한 가지 작업만 처리해야 하기 때문에 오류 처리도 오류 처리만 하는 함수가 처리해야 마땅하다. try catch만 하는 함수로 분리하자.
+
+## 반복하지 마라!
+
+- 중복의 문제
+  - 코드 길이가 늘어남
+  - 알고리즘이 변하면 중복된 곳 모두 수정해야 함
+  - 위 문제로 버그가 발생할 확률도 높아짐
+- 정말 같은 역할을 하는 메서드의 중복은 반드시 피하자.
+
+
+
+## 구조적 프로그래밍
+
+## 함수를 어떻게 짜죠?
+
+## 결론
+
+- 진짜 목표
+  - 진짜 목표는 시스템이라는 이야기를 풀어가는데 있다는 사실을 명심하자.
+  - 함수가 분명하고 정확한 언어로 깔끔하게 같이 맞아떨어져야 이야기를 풀어가기가 쉬워진다.
+
