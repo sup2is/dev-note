@@ -4,7 +4,8 @@
 
 # Clean Code
 
-
+- 예제 참고
+  - [https://github.com/Yooii-Studios/Clean-Code](https://github.com/Yooii-Studios/Clean-Code)
 
 
 
@@ -243,4 +244,200 @@ private void logError(Exception e) {
 - 진짜 목표
   - 진짜 목표는 시스템이라는 이야기를 풀어가는데 있다는 사실을 명심하자.
   - 함수가 분명하고 정확한 언어로 깔끔하게 같이 맞아떨어져야 이야기를 풀어가기가 쉬워진다.
+
+
+
+
+
+# #4 주석
+
+- 잘 달린 주석은 유용하지만 근거 없는 주석은 코드를 이해하기 어렵게 만든다.
+- 코드만이 정확한 정보를 제공하는 유일한 출처다. 그러므로 우리는 주석을 가능한 줄이도록 꾸준히 노력해야 한다.
+
+
+
+## 주석은 나쁜 코드를 보완하지 못한다
+
+- 코드에 주석을 추가하는 일반적인 이유는 코드 품질이 나쁘기 때문이다.
+
+## 코드로 의도를 표현하라!
+
+```java
+
+//worse
+// 직원에게 복지 혜택을 받을 자격이 있는지 검사한다. 
+if ((emplotee.flags & HOURLY_FLAG) && (employee.age > 65)
+
+//better
+if (employee.isEligibleForFullBenefits())
+```
+
+
+
+## 좋은 주석
+
+- ### 법적인 주석
+
+- 저작권 정보, 소유권 정보
+
+```java
+// Copyright (C) 2003, 2004, 2005 by Object Montor, Inc. All right reserved.
+// GNU General Public License
+```
+
+### 정보를 제공하는 주석
+
+```java
+// 테스트 중인 Responder 인스턴스를 반환
+protected abstract Responder responderInstance();
+```
+
+### 의도를 설명하는 주석
+
+```java
+// 스레드를 대량 생성하는 방법으로 어떻게든 경쟁 조건을 만들려 시도한다. 
+for (int i = 0; i > 2500; i++) {
+    WidgetBuilderThread widgetBuilderThread = 
+        new WidgetBuilderThread(widgetBuilder, text, parent, failFlag);
+    Thread thread = new Thread(widgetBuilderThread);
+    thread.start();
+}
+```
+
+### 의미를 명료하게 밝히는 주석
+
+### 결과를 경고하는 주석
+
+```java
+// 여유 시간이 충분하지 않다면 실행하지 마십시오.
+public void _testWithReallyBigFile() {
+
+}
+```
+
+### TODO 주석
+
+```java
+// TODO-MdM 현재 필요하지 않다.
+// 체크아웃 모델을 도입하면 함수가 필요 없다.
+protected VersionInfo makeVersion() throws Exception {
+    return null;
+}
+```
+
+### 중요성을 강조하는 주석
+
+```java
+String listItemContent = match.group(3).trim();
+// 여기서 trim은 정말 중요하다. trim 함수는 문자열에서 시작 공백을 제거한다.
+// 문자열에 시작 공백이 있으면 다른 문자열로 인식되기 때문이다. 
+new ListItemWidget(this, listItemContent, this.level + 1);
+return buildList(text.substring(match.end()));
+```
+
+### 공개 API에서 javadocs
+
+
+
+
+
+## 나쁜 주석
+
+### 주절거리는 주석
+
+### 같은 이야기를 반복하는 주석
+
+### 오해할 여지가 있는 주석
+
+### 의무적으로 다는 주석
+
+### 이력을 기록하는 주석
+
+### 있으나 마나 한 주석
+
+### 무서운 잡음
+
+### 함수나 변수로 표현할 수 있다면 주석을 달지 마라
+
+```java
+// worse
+// 전역 목록 <smodule>에 속하는 모듈이 우리가 속한 하위 시스템에 의존하는가?
+if (module.getDependSubsystems().contains(subSysMod.getSubSystem()))
+
+
+// better
+ArrayList moduleDependencies = smodule.getDependSubSystems();
+String ourSubSystem = subSysMod.getSubSystem();
+if (moduleDependees.contains(ourSubSystem))
+
+```
+
+### 위치를 표시하는 주석
+
+```java
+// Actions /////////////////////////////////////////////
+```
+
+- 극히 드물게 위와 같은 배너 아래 특정 기능을 모아놓으면 유용한 경우가 있지만 제거하는게 좋을 것 같다.
+
+
+
+### 닫는 괄호에 다는 주석
+
+```java
+try {
+  if() {
+  	while() {
+  	
+  	} //while
+  } //if
+} // try
+
+```
+
+- 이런 닫는 괄호에 다는 주석이 있다면 함수로 분리하자.
+
+### 공로를 돌리거나 저자를 표시하는 주석
+
+- git이 알아서 기록해준다. 필요없다.
+
+### 주석으로 처리한 코드
+
+- git이 알아서 기록해준다. 필요없다.
+
+### HTML 주석
+
+### 전역 정보
+
+### 너무 많은 정보
+
+### 모호환 관계
+
+### 함수 헤더
+
+### 비공개 코드에서의  javadocs
+
+### 예제
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
