@@ -423,7 +423,84 @@ try {
 
 
 
+# #5 형식 맞추기
 
+- 프로그래머라면 형식을 깔끔하게 맞춰 코드를 짜야 한다. 코드 형식을 맞추기 위한 간단한 규칙을 정하고 그 규칙을 착실히 따라야 한다.
+- 팀으로 일한다면 팀이 합의해 규칙을 정하고 모두가 그 규칙을 따라야 한다. 필요하다면 규칙을 자동으로 적용하는 도구를 활용한다.
+
+
+
+## 형식을 맞추는 목적
+
+- 코드 형식은 중요하다!!!
+- 오늘 구현한 코드의 가독성은 앞으로 바뀔 코드의 품질에 지대한 영향을 미친다.
+
+
+
+## 적절한 행 길이를 유지하라
+
+- 일반적으로 큰 파일보다 작은 파일이 이해하기 쉽다.
+- 작은 행으로도 충분히 커다란 프로그램을 만들 수 있다.
+
+
+
+### 신문 기사처럼 작성하라
+
+- 이름은 간단하게. 설명이 가능하게.
+- 이름만 보고도 올바른 모듈을 살펴보고 있는지 아닌지 판단할 정도로 신경써서 짓자.
+- 소스 파일 첫 부분은 고차원 개념과 알고리즘을 설명해야한다.
+
+
+
+### 개념은 빈 행으로 분리하라
+
+```java
+
+// worse
+package fitnesse.wikitext.widgets;
+import java.util.regex.*;
+public class BoldWidget extends ParentWidget {
+	public static final String REGEXP = "'''.+?'''";
+	private static final Pattern pattern = Pattern.compile("'''(.+?)'''",
+		Pattern.MULTILINE + Pattern.DOTALL);
+	public BoldWidget(ParentWidget parent, String text) throws Exception {
+		super(parent);
+		Matcher match = pattern.matcher(text); match.find(); 
+		addChildWidgets(match.group(1));}
+	public String render() throws Exception { 
+		StringBuffer html = new StringBuffer("<b>"); 		
+		html.append(childHtml()).append("</b>"); 
+		return html.toString();
+	} 
+}
+
+// better
+
+// 빈 행을 넣을 경우
+package fitnesse.wikitext.widgets;
+
+import java.util.regex.*;
+
+public class BoldWidget extends ParentWidget {
+	public static final String REGEXP = "'''.+?'''";
+	private static final Pattern pattern = Pattern.compile("'''(.+?)'''", 
+		Pattern.MULTILINE + Pattern.DOTALL
+	);
+	
+	public BoldWidget(ParentWidget parent, String text) throws Exception { 
+		super(parent);
+		Matcher match = pattern.matcher(text);
+		match.find();
+		addChildWidgets(match.group(1)); 
+	}
+	
+	public String render() throws Exception { 
+		StringBuffer html = new StringBuffer("<b>"); 
+		html.append(childHtml()).append("</b>"); 
+		return html.toString();
+	} 
+}
+```
 
 
 
