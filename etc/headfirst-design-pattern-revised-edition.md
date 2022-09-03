@@ -851,6 +851,78 @@ public class HomeTheaterFacade {
 
 # #8 템플릿 메소드 패턴
 
+## UML
+
+![8-1](./images/headfirst-design-pattern-revised-edition/8-1.png)
+
+
+
+## 정리
+
+- 템플릿 메소드 패턴은 알고리즘의 골격을 정의한다.
+- 템플릿 메서드를 사용하면 알고리즘의 일부 단계를 서브클래스에서 구현할 수 있으며 알고리즘의 구조는 그대로 유지하면서 알고리즘의 특정 단계를 서브클래스에서 재정의할 수도 있다.
+
+
+
+## 적용
+
+
+
+```java
+public abstract class CaffeineBeverage {
+  
+	final void prepareRecipe() {
+		boilWater();
+		brew();
+		pourInCup();
+		addCondiments();
+	}
+ 
+	abstract void brew();
+  
+	abstract void addCondiments();
+ 
+	void boilWater() {
+		System.out.println("Boiling water");
+	}
+  
+	void pourInCup() {
+		System.out.println("Pouring into cup");
+	}
+}
+
+// CaffeineBeverage 하위
+public class Coffee extends CaffeineBeverage {
+	public void brew() {
+		System.out.println("Dripping Coffee through filter");
+	}
+	public void addCondiments() {
+		System.out.println("Adding Sugar and Milk");
+	}
+}
+
+// CaffeineBeverage 하위
+public class Tea extends CaffeineBeverage {
+	public void brew() {
+		System.out.println("Steeping the tea");
+	}
+	public void addCondiments() {
+		System.out.println("Adding Lemon");
+	}
+}
+
+```
+
+
+
+
+
+## 핵심 정리
+
+- 템플릿 메서드는 알고리즘의 단계를 정의하며 일부 단계를 서브 클래스에서 구현하도록 할 수 있다.
+- 템플릿 메서드 패턴은 코드 재사용에 큰 도움이 된다.
+- 후크를 사용해서 기본 행동을 정의하고 후크를 오버라이드해서 서브클래스별로 특정행동을 정의할 수 있다.
+
 
 
 # #9 반복자 패턴과 컴포지트 패턴
