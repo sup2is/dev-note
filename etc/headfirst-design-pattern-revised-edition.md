@@ -965,6 +965,219 @@ public class Tea extends CaffeineBeverage {
 
 
 
+## UML
+
+![10-1](./images/headfirst-design-pattern-revised-edition/10-1.png)
+
+
+
+## 정리
+
+- 상태패턴을 사용하면 객체의 내부 상태가 바뀜에 따라서 객체의 행동을 바꿀 수 있다.
+
+## 적용
+
+
+
+
+
+```java
+public interface State {
+ 
+	public void insertQuarter();
+	public void ejectQuarter();
+	public void turnCrank();
+	public void dispense();
+	
+	public void refill();
+}
+
+// State 하위
+public class SoldState implements State {
+ 
+    GumballMachine gumballMachine;
+ 
+    public SoldState(GumballMachine gumballMachine) {
+        this.gumballMachine = gumballMachine;
+    }
+       
+	public void insertQuarter() {
+		System.out.println("Please wait, we're already giving you a gumball");
+	}
+ 
+	public void ejectQuarter() {
+		System.out.println("Sorry, you already turned the crank");
+	}
+ 
+	public void turnCrank() {
+		System.out.println("Turning twice doesn't get you another gumball!");
+	}
+ 
+	public void dispense() {
+		gumballMachine.releaseBall();
+		if (gumballMachine.getCount() > 0) {
+			gumballMachine.setState(gumballMachine.getNoQuarterState());
+		} else {
+			System.out.println("Oops, out of gumballs!");
+			gumballMachine.setState(gumballMachine.getSoldOutState());
+		}
+	}
+	
+	public void refill() { }
+ 
+	public String toString() {
+		return "dispensing a gumball";
+	}
+}
+
+// State 하위
+public class SoldOutState implements State {
+    GumballMachine gumballMachine;
+ 
+    public SoldOutState(GumballMachine gumballMachine) {
+        this.gumballMachine = gumballMachine;
+    }
+ 
+	public void insertQuarter() {
+		System.out.println("You can't insert a quarter, the machine is sold out");
+	}
+ 
+	public void ejectQuarter() {
+		System.out.println("You can't eject, you haven't inserted a quarter yet");
+	}
+ 
+	public void turnCrank() {
+		System.out.println("You turned, but there are no gumballs");
+	}
+ 
+	public void dispense() {
+		System.out.println("No gumball dispensed");
+	}
+	
+	public void refill() { 
+		gumballMachine.setState(gumballMachine.getNoQuarterState());
+	}
+ 
+	public String toString() {
+		return "sold out";
+	}
+}
+
+
+...
+
+```
+
+
+
+```java
+public class GumballMachine {
+ 
+	State soldOutState;
+	State noQuarterState;
+	State hasQuarterState;
+	State soldState;
+ 
+	State state;
+	int count = 0;
+ 
+	public GumballMachine(int numberGumballs) {
+		soldOutState = new SoldOutState(this);
+		noQuarterState = new NoQuarterState(this);
+		hasQuarterState = new HasQuarterState(this);
+		soldState = new SoldState(this);
+
+		this.count = numberGumballs;
+ 		if (numberGumballs > 0) {
+			state = noQuarterState;
+		} else {
+			state = soldOutState;
+		}
+	}
+ 
+	public void insertQuarter() {
+		state.insertQuarter();
+	}
+ 
+	public void ejectQuarter() {
+		state.ejectQuarter();
+	}
+ 
+	public void turnCrank() {
+		state.turnCrank();
+		state.dispense();
+	}
+ 
+	void releaseBall() {
+		System.out.println("A gumball comes rolling out the slot...");
+		if (count > 0) {
+			count = count - 1;
+		}
+	}
+ 
+	int getCount() {
+		return count;
+	}
+ 
+	void refill(int count) {
+		this.count += count;
+		System.out.println("The gumball machine was just refilled; its new count is: " + this.count);
+		state.refill();
+	}
+
+	void setState(State state) {
+		this.state = state;
+	}
+    public State getState() {
+        return state;
+    }
+
+    public State getSoldOutState() {
+        return soldOutState;
+    }
+
+    public State getNoQuarterState() {
+        return noQuarterState;
+    }
+
+    public State getHasQuarterState() {
+        return hasQuarterState;
+    }
+
+    public State getSoldState() {
+        return soldState;
+    }
+ 
+	public String toString() {
+		StringBuffer result = new StringBuffer();
+		result.append("\nMighty Gumball, Inc.");
+		result.append("\nJava-enabled Standing Gumball Model #2004");
+		result.append("\nInventory: " + count + " gumball");
+		if (count != 1) {
+			result.append("s");
+		}
+		result.append("\n");
+		result.append("Machine is " + state + "\n");
+		return result.toString();
+	}
+}
+
+```
+
+
+
+## 핵심 정리
+
+- 상태 패턴을 사용하면 내부 상태를 바탕으로 여러가지 서로 다른 행동을 사용할 수 있다.
+- Context 객체는 현재 상테에게 행동을 위임하고 각 상태를 클래스로 캡슐화해서 나중에 변경해야 하는 내용을 국지화할 수 있다.
+- 상태 패턴과 전략 패턴의 클래스 다이어그램은 똑같지만 그 용도가 다르다.
+
+
+
+
+
+
+
 # #11 프록시 패턴
 
 
