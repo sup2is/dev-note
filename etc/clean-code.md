@@ -649,7 +649,90 @@ public class BoldWidget extends ParentWidget {
 
 
 
+# #7 오류 처리
 
+- 뭔가 잘못되면 바로 잡을 책임은 바로 우리 프로그래머에게 있다.
+
+## 오류 코드보다 예외를 사용하라
+
+```java
+// Bad
+public class DeviceController {
+  ...
+  public void sendShutDown() {
+    DeviceHandle handle = getHandle(DEV1);
+    // Check the state of the device
+    if (handle != DeviceHandle.INVALID) {
+      // Save the device status to the record field
+      retrieveDeviceRecord(handle);
+      // If not suspended, shut down
+      if (record.getStatus() != DEVICE_SUSPENDED) {
+        pauseDevice(handle);
+        clearDeviceWorkQueue(handle);
+        closeDevice(handle);
+      } else {
+        logger.log("Device suspended. Unable to shut down");
+      }
+    } else {
+      logger.log("Invalid handle for: " + DEV1.toString());
+    }
+  }
+  ...
+}
+```
+
+```java
+// Good
+public class DeviceController {
+  ...
+  public void sendShutDown() {
+    try {
+      tryToShutDown();
+    } catch (DeviceShutDownError e) {
+      logger.log(e);
+    }
+  }
+    
+  private void tryToShutDown() throws DeviceShutDownError {
+    DeviceHandle handle = getHandle(DEV1);
+    DeviceRecord record = retrieveDeviceRecord(handle);
+    pauseDevice(handle); 
+    clearDeviceWorkQueue(handle); 
+    closeDevice(handle);
+  }
+  
+  private DeviceHandle getHandle(DeviceID id) {
+    ...
+    throw new DeviceShutDownError("Invalid handle for: " + id.toString());
+    ...
+  }
+  ...
+}
+```
+
+
+
+## Try-Catch-Finally 문부터 작성하라
+
+- 먼저 강제로 예외를 일으키는 테스트케이스를 작성한 후 테스트를 통과하게 코드를 작성하는 방법을 권장한다.
+- 자연스럽게 try 블록의 트랜잭션 범위부터 구현하게 되므로 범위 내에서 트랜잭션 본질을 유지하기 쉬워진다.
+
+
+
+## unchecked 예외를 사용하라
+
+- checked예외 없이도 안정적인 프로그램을 만들 수 있다.
+- 때로는 checked이 유용한 경우가 있긴하지만 모든 함수가 최하위 함수에서 던지는 예외를 알아야하므로 캡슐화가 깨진다.
+
+
+
+## 예외에 의미를 제공하라
+
+- 예외에는 충분한 오류 메시지와 로깅이 필요하다.
+
+
+
+## 호출자를 고려해 예외 클래스를 정의하라
 
 
 
