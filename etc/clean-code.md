@@ -734,6 +734,190 @@ public class DeviceController {
 
 ## 호출자를 고려해 예외 클래스를 정의하라
 
+- 오류를 분류하는 방법은 많지만 가장 중요한 관심사는 오류를 잡아내는 방법이 되어야 한다.
+
+
+
+```java
+  // Bad
+  // catch문의 내용이 거의 같다.
+  
+  ACMEPort port = new ACMEPort(12);
+  try {
+    port.open();
+  } catch (DeviceResponseException e) {
+    reportPortError(e);
+    logger.log("Device response exception", e);
+  } catch (ATM1212UnlockedException e) {
+    reportPortError(e);
+    logger.log("Unlock exception", e);
+  } catch (GMXError e) {
+    reportPortError(e);
+    logger.log("Device response exception");
+  } finally {
+    ...
+  }
+```
+
+```java
+  // Good
+  // ACME 클래스를 LocalPort 클래스로 래핑해 new ACMEPort().open() 메소드에서 던질 수 있는 exception들을 간략화
+  
+  LocalPort port = new LocalPort(12);
+  try {
+    port.open();
+  } catch (PortDeviceFailure e) {
+    reportError(e);
+    logger.log(e.getMessage(), e);
+  } finally {
+    ...
+  }
+  
+  public class LocalPort {
+    private ACMEPort innerPort;
+    public LocalPort(int portNumber) {
+      innerPort = new ACMEPort(portNumber);
+    }
+    
+    public void open() {
+      try {
+        innerPort.open();
+      } catch (DeviceResponseException e) {
+        throw new PortDeviceFailure(e);
+      } catch (ATM1212UnlockedException e) {
+        throw new PortDeviceFailure(e);
+      } catch (GMXError e) {
+        throw new PortDeviceFailure(e);
+      }
+    }
+    ...
+  }
+```
+
+- 외부 API를 감싸면서 얻는 장점
+  - 프로그램 사이에 의존성이 줄어듦
+  - 나중에 다른 라이브러리로 갈아타도 비용이 적음
+  - 테스트가 쉬워짐
+
+
+
+## 정상 흐름을 정의하라
+
+```java
+  // Bad
+
+  try {
+    MealExpenses expenses = expenseReportDAO.getMeals(employee.getID());
+    m_total += expenses.getTotal();
+  } catch(MealExpensesNotFound e) {
+    m_total += getMealPerDiem();
+  }
+```
+
+- 예외가 논리를 따라가기 어렵게하는 경우. 특수한 상황을 처리할 필요가 없다면 더 좋을 수 있다.
+
+```java
+  // Good
+
+  // caller logic.
+  ...
+  MealExpenses expenses = expenseReportDAO.getMeals(employee.getID());
+  m_total += expenses.getTotal();
+  ...
+  
+  public class PerDiemMealExpenses implements MealExpenses {
+    public int getTotal() {
+      // return the per diem default
+    }
+  }
+  
+  // 이해를 돕기 위해 직접 추가한 클래스
+  public class ExpenseReportDAO {
+    ...
+    public MealExpenses getMeals(int employeeId) {
+      MealExpenses expenses;
+      try {
+        expenses = expenseReportDAO.getMeals(employee.getID());
+      } catch(MealExpensesNotFound e) {
+        expenses = new PerDiemMealExpenses();
+      }
+      
+      return expenses;
+    }
+    ...
+  }
+```
+
+- 특수 사례 패턴
+  - 클래스를 만들거나 객체를 조작해 특수 사례를 처리하는 방식
+  - 클래스나 객체가 예외적인 상황을 캡슐화 하기 때문에 클라이언트 코드가 예외적인 상황을 처리할 필요가 없어진다.
+
+
+
+## null을 반환하지 마라
+
+```java
+  // BAD!!!!
+
+  public void registerItem(Item item) {
+    if (item != null) {
+      ItemRegistry registry = peristentStore.getItemRegistry();
+      if (registry != null) {
+        Item existing = registry.getItem(item.getID());
+        if (existing.getBillingPeriod().hasRetailOwner()) {
+          existing.register(item);
+        }
+      }
+    }
+  }
+  
+```
+
+- null을 반환하는 코드와 습관은 매우매우 좋지 않다.
+- 메서드에 null을 반환하고 싶은 유혹이 든다면 그 대신 예외를 던지거나 특수 사례 객체를 반환하는게 해결책이다.
+
+```java
+// BAD
+List<Employee> employees = getEmployees();
+if (emloyees != null) {
+  for(Employee e : employees) {
+    totalPay += e.getPay();
+  }
+} 
+
+// GOOD
+// 빈 리스트를 반환하는게 더 낫다.
+List<Employee> employees = getEmployees();
+for(Employee e : employees) {
+  totalPay += e.getPay();
+}
+
+public List<Employee> getEmployees() {
+  if ( ... ) 
+    return Collections.emptyList();
+}
+
+```
+
+
+
+
+
+## null을 전달하지 마라
+
+- 메서드의 null을 반환하는것도 나쁜데 메서드로 null을 전달하는건 더 나쁘다.
+- 코틀린 사용하자 ..! ㅎㅎ..
+
+
+
+
+
+## 결론
+
+- 깨끗한 코드는 읽기도 좋아야 하지만 안정성도 높아야 한다.
+- 오류 처리를 프로그램 논리와 분리해 독자적인 사안으로 고려하면 튼튼하고 깨끗한 코드를 작성할 수 있다.
+- 오류 처리를 프로그램 논리와 분리하면 독립적인 추론이 가능해지며 코드 유지보수성도 크게 높아진다.
+
 
 
 
