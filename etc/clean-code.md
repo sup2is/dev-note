@@ -968,7 +968,152 @@ public List<Employee> getEmployees() {
 
 
 
+# #9 단위 테스트
 
+## TDD 법칙 세가지
+
+- 첫째 법칙: 실패하는 단위 테스트를 작성할 때까지 식제 코드를 작성하지 않는다.
+- 둘째 법칙: 컴파일은 실패하지 않으면서 실행이 실패하는 정도로만 단위 테스트를 작성한다.
+- 셋째 법칙: 현재 실패하는 테스트를 통과할 정도로만 실제 코드를 작성한다.
+- 위 세가지 규칙을 따르면 개발과 테스트가 대략 30초 주기로 묶인다.
+- 테스트 커버리지는 높아지지만 테스트 코드의 심각한 관리 문제를 유발할 수도 있다.
+
+
+
+## 깨끗한 테스트 코드 유지하기
+
+- 실제 코드가 변경되면 테스트도 변경되어야 한다. 따라서 테스트도 변경이 쉽도록 깨끗해야 한다.
+- 테스트코드는 실제 코드 못지 않게 중요하다. 깨끗하게 짜야 한다.
+
+
+
+### 테스트는 유연성, 유지보수성, 재사용성을 제공한다
+
+- 자동화된 단위 테스트 슈트는 설계와 아키텍처를 최대한 깨끗하게 보존하는 열쇠다.
+- 테스트케이스가 있으면 변경이 쉬워지기 때문에 유연성, 유지보수성, 재사용성을 제공해준다.
+
+
+
+## 깨끗한 테스트 코드
+
+- 깨끗한 테스트 코드는 가독성이 매우매우 중요하다.
+
+
+
+```java
+// BAD
+public void testGetPageHieratchyAsXml() throws Exception {
+  crawler.addPage(root, PathParser.parse("PageOne"));
+  crawler.addPage(root, PathParser.parse("PageOne.ChildOne"));
+  crawler.addPage(root, PathParser.parse("PageTwo"));
+
+  request.setResource("root");
+  request.addInput("type", "pages");
+  Responder responder = new SerializedPageResponder();
+  SimpleResponse response =
+    (SimpleResponse) responder.makeResponse(new FitNesseContext(root), request);
+  String xml = response.getContent();
+
+  assertEquals("text/xml", response.getContentType());
+  assertSubString("<name>PageOne</name>", xml);
+  assertSubString("<name>PageTwo</name>", xml);
+  assertSubString("<name>ChildOne</name>", xml);
+}
+
+public void testGetPageHieratchyAsXmlDoesntContainSymbolicLinks() throws Exception {
+  WikiPage pageOne = crawler.addPage(root, PathParser.parse("PageOne"));
+  crawler.addPage(root, PathParser.parse("PageOne.ChildOne"));
+  crawler.addPage(root, PathParser.parse("PageTwo"));
+
+  PageData data = pageOne.getData();
+  WikiPageProperties properties = data.getProperties();
+  WikiPageProperty symLinks = properties.set(SymbolicPage.PROPERTY_NAME);
+  symLinks.set("SymPage", "PageTwo");
+  pageOne.commit(data);
+
+  request.setResource("root");
+  request.addInput("type", "pages");
+  Responder responder = new SerializedPageResponder();
+  SimpleResponse response =
+    (SimpleResponse) responder.makeResponse(new FitNesseContext(root), request);
+  String xml = response.getContent();
+
+  assertEquals("text/xml", response.getContentType());
+  assertSubString("<name>PageOne</name>", xml);
+  assertSubString("<name>PageTwo</name>", xml);
+  assertSubString("<name>ChildOne</name>", xml);
+  assertNotSubString("SymPage", xml);
+}
+
+public void testGetDataAsHtml() throws Exception {
+  crawler.addPage(root, PathParser.parse("TestPageOne"), "test page");
+
+  request.setResource("TestPageOne"); request.addInput("type", "data");
+  Responder responder = new SerializedPageResponder();
+  SimpleResponse response =
+    (SimpleResponse) responder.makeResponse(new FitNesseContext(root), request);
+  String xml = response.getContent();
+
+  assertEquals("text/xml", response.getContentType());
+  assertSubString("test page", xml);
+  assertSubString("<Test", xml);
+}
+
+
+// GOOD
+
+public void testGetPageHierarchyAsXml() throws Exception {
+  makePages("PageOne", "PageOne.ChildOne", "PageTwo");
+
+  submitRequest("root", "type:pages");
+
+  assertResponseIsXML();
+  assertResponseContains(
+    "<name>PageOne</name>", "<name>PageTwo</name>", "<name>ChildOne</name>");
+}
+
+public void testSymbolicLinksAreNotInXmlPageHierarchy() throws Exception {
+  WikiPage page = makePage("PageOne");
+  makePages("PageOne.ChildOne", "PageTwo");
+
+  addLinkTo(page, "PageTwo", "SymPage");
+
+  submitRequest("root", "type:pages");
+
+  assertResponseIsXML();
+  assertResponseContains(
+    "<name>PageOne</name>", "<name>PageTwo</name>", "<name>ChildOne</name>");
+  assertResponseDoesNotContain("SymPage");
+}
+
+public void testGetDataAsXml() throws Exception {
+  makePageWithContent("TestPageOne", "test page");
+
+  submitRequest("TestPageOne", "type:data");
+
+  assertResponseIsXML();
+  assertResponseContains("test page", "<Test");
+}
+```
+
+- BUILD-OPERATE-CHECK 패턴 (given when then)
+  1. 테스트 자료 만들기
+  2. 테스트 자료 조작하기
+  3. 조작한 결과가 올바른지 확인하기
+
+
+
+### 도메인에 특화된 테스트 언어
+
+### 이중 표준
+
+- 테스트는 간결하고 표현력이 풍부해야 하지만, 실제 코드만큼 효율적일 필요는 없다. 
+
+
+
+### 테스트 당 assert 하나
+
+- 
 
 
 
