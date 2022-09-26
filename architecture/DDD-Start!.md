@@ -1811,6 +1811,9 @@ public class JpaOrderRepository implements OrderRepository {
 
 - 올바른 도메인 모델을 개발하려면 하위 도메인마다 모델을 만들어야 한다.
   - 각 모델은 명시적으로 구분되는 경계를 가져서 섞이지 않도록 해야 한다.
+  - 여러 하위 도메인의 모델이 섞이기 시작하면 모델의 의미가 약해질 뿐만 아니라 여러 도메인의 모델이 서로 얽혀 있기 때문에 각 하위 도메인별로 다르게 발전하는 요구사항을 모델에 반영하기 어려워진다.
+
+
 
 - BOUNDED CONTEXT
   - 모델은 특정한 컨텍스트하에 완전한 의미를 갖는다.
@@ -1819,7 +1822,7 @@ public class JpaOrderRepository implements OrderRepository {
 
 
 
-> BOUNDED CONTEXT가 상당히 논리적이고 추상적인 개념이라고 이해를 했는데 뒤쪽에도 나오지만 미리 첨언해둔다. (틀릴 수도 있지만 쉽게 이해할 수 있도록.. ㅎ..) 하나의 서비스에 BOUNDED CONTEXT가 정확히 n개로 구분되어 있다면 이는 msa라고 봐도 무방할 것 같다. (회원 api, 주문 api ... etc )
+> BOUNDED CONTEXT가 상당히 논리적이고 추상적인 개념이라고 이해를 했는데 그냥 물리적인 개념이라고 생각해도 좋을 것 같다. (빠른 이해를 위해) 하나의 서비스에 BOUNDED CONTEXT가 n개로 구분되어 있다면 이는 msa라고 봐도 무방하다. (회원 api, 주문 api ... etc )
 
 
 
@@ -1829,9 +1832,10 @@ public class JpaOrderRepository implements OrderRepository {
   - BOUNDED CONTEXT는 모델의 경계를 결정하고 한개의 BOUNDED CONTEXT는 논리적으로 한 개의 모델을 가진다.
   - BOUNDEX CONTEXT는 용어를 기준으로 구분한다. 카탈로그 컨텍스트와 재고 컨텍스트는 서로 다른 용어를 사용하므로 이 용어를 기준으로 컨텍스트를 분리할 수 있다.
   - **BOUNDED CONTEXT는 실제로 사용자에게 기능을 제공하는 물리적 시스템**으로 도메인 모델은 이 BOUNDED CONTEXT안에서 도메인을 구현한다.
-  - 이상적으로 하위 도메인과 BOUNDED CONTEXT가 일대일 관계를 가지면 베스트지만 현실은 그렇지 않을 때가 많다.
-
-- 주의사항
+  - 이상적으로 하위 도메인과 BOUNDED CONTEXT가 일대일 관계를 가지면 베스트지만 현실은 그렇지 않을 때가 많다. BOUNDED CONTEXT는 팀의 규모나 구조에 따라 결정되기도 한다.
+    - ex: 카탈로그와 재고 관리가 아직 명확하게 구분되어있지 않거나 한 팀에서 관리하는 경우 한 BOUNDED CONTEXT에서 구현하기도 한다.
+  
+- 한 BOUNDED CONTEXT에서 구현할 경우 주의사항
   - 서비스가 크지 않고 규모가 작다면 여러 하위 도메인을 하나의 BOUNDED CONTEXT에서 구현할 수 있다. 이런 경우 주의할 점은 하위 도메인의 모델이 뒤섞이지 않도록 하는 것이다.
   - 비록 한 개의 BOUNDED CONTEXT에서 여러 하위 도메인을 포함하더라도 하위 도메인마다 구분되는 패키지를 갖도록 구현해야 하위 도메인을 위한 모델이 서로 뒤섞이지 않아서 하위 도메인마다 BOUNDED CONTEXT를 갖는 효과를 낼 수 있다.
 
@@ -1839,7 +1843,7 @@ public class JpaOrderRepository implements OrderRepository {
 - BOUNDED CONTEXT는 도메인 모델을 구분하는 경계가 되기 때문에 BOUNDED CONTEXT는 구현하는 하위 도메인에 알맞는 모델을 포함한다.
   - 같은 사용자라 하더라도 주문 BOUNDED CONTEXT와 회원 BOUNDED CONTEXT가 갖는 모델이 달라진다.
   - 같은 상품이라도 카탈로그 BOUNDED CONTEXT의 Product와 재고 BOUNDED CONTEXT의 Product는 각 컨텍스트에 맞는 모델을 갖는다.
-  - 카탈로그의 Product는 상품이 속할 Category와 연관을 갖지만 재고의 Product는 카탈로그의 Caregory와 연관을 맺지 않는다.
+    - 카탈로그의 Product는 상품이 속할 Category와 연관을 갖지만 재고의 Product는 카탈로그의 Caregory와 연관을 맺지 않는다.
 
 <img src="./images/ddd-start/9-2.png" alt="9-3" style="zoom:80%;" />
 
@@ -1868,11 +1872,11 @@ public class JpaOrderRepository implements OrderRepository {
   - 이렇게 되면 카탈로그를 위한 BOUNDED CONTEXT와 추천 기능을 위한 BOUNDED CONTEXT를 담당하는 팀이 생긴다.
   - 두 팀이 관련된 BOUNDED CONTEXT를 개발하다보면 자연스럽게 두 BOUNDED CONTEXT간 통합이 발생한다.
   - 사용자가 카탈로그 BOUNDED CONTEXT에 추천 제품 목록을 요청하면 카탈로그 BOUNDED CONTEXT는 추천 BOUNDED CONTEXT로 부터 추천정보를 읽어와 추천 제품 목록을 제공한다.
-  - 카탈로그는 제품을 중심으로 도메인 모델을 구현하지만 추천은 추천 연산을 위한 모델을 구현한다.
+  - 이때 카탈로그는 제품을 중심으로 도메인 모델을 구현하지만 추천은 추천 연산을 위한 모델을 구현한다.
 
-- 추천 BOUNDED CONTEXT는 infra 영역이다.
-  - 따라서 외부 infra요소에 접근하는 ProductRecommendationService 도메인 서비스는 인터페이스로 둔다.
-  - ProductRecommendationService의 구현체인 RecSystemClient는 외부 시스템과의 연동을 처리하고 외부 시스템의 모델과 현재 도메인 모델 간의 변환을 책임진다.
+- 카탈로그 BOUNDED CONTEXT의 입장에서 추천 BOUNDED CONTEXT는 infra 영역이다.
+  - 따라서 ProductRecommendationService 도메인 서비스를 구현한 RecSystemClient는 인프라스트럭처 영역에 위치한다.
+  - RecSystemClient는 외부 시스템과의 연동을 처리하고 외부 시스템의 모델과 현재 도메인 모델 간의 변환을 책임진다.
     - RecSystemClient는 외부 추천 시스템이 제공하는 REST API를 이용해서 특정 상품을 위한 추천 상품 목록을 로딩한다.
     - RecSystemClient는 REST API로 부터 데이터를 읽어와 카탈로그 도메인에 맞는 상품 모델로 변환한다.
 
@@ -1891,6 +1895,7 @@ public class JpaOrderRepository implements OrderRepository {
   - 마이크로서비스의 특징은 BOUNDED CONTEXT와 잘 어울린다.
   - 각 BOUNDED CONTEXT는 모델의 경계를 형성하는데, BOUNDED CONTEXT를 마이크로서비스로 구현하면 자연스럽게 컨텍스트별로 모델이 분리된다.
   - 프로젝트마다 BOUNDED CONTEXT를 갖게되기때문에 BOUNDED CONTEXT의 모델이 섞이지 않도록 해준다.
+  - 별도 프로세스로 개발한 BOUNDED CONTEXT는 독립적으로 배포,모니터링, 확장하게 되는데 이 역시 마이크로 서비스의 특징이다.
 
 
 
@@ -1899,10 +1904,11 @@ public class JpaOrderRepository implements OrderRepository {
 - BOUNDED CONTEXT는 어떤식으로든 연결된다.
   - BOUNDED CONTEXT는 어떤 식으로든 연결되기 때문에 두 BOUNDED CONTEXT는 다양한 방식으로 관계를 맺는다.
   - BOUNDED CONTEXT중 가장 흔한 관계는 한쪽에서 API를 제공하고 다른 한쪽에서 그 API를 호출하는 관계다.
-
+  - 이 관계에서 API를 사용하는 BOUNDED CONTEXT는 제공하는 BOUNDED CONTEXT에 의존하게된다.
+  
 - downstream(하류)과 upstream(상류)
   - ![9-3](./images/ddd-start/9-4.png)
-  - 하류 컴포넌트인 카탈로그 컨텍스트는 상류 컴포넌트인 추천 컨텍스트가 제공하는 데이터와 기능에 의존한다.
+  - 하류 컴포넌트인 카탈로그 컨텍스트는 상류 컴포넌트인 추천 컨텍스트가 제공하는 데이터와 기능에 의존한다. (추천 시스템의 API가 바뀌면 카탈로그 시스템의 코드도 바뀌게 된다.)
   - 상류 컴포넌트는 일종의 서비스 공급자 역할을 하며, 하류 컴포넌트는 그 서비스를 사용하는 고객 역할을 한다.
   - 상류, 하류 모두 상호 협력이 필수적이다.
   - 상류 컴포넌트는 봍통 하류 컴포넌트가 사용할 수 있는 통신 프로토콜을 정의하고 이를 공개한다.
@@ -1921,11 +1927,11 @@ public class JpaOrderRepository implements OrderRepository {
   - 다시 RecSystemClient으로 ..
   - ![9-4](./images/ddd-start/9-3.png)
   - 이 그림에서 RecSystemClient는 외부 시스템과의 연동을 처리하는데 외부 시스템의 도메인 모델이 내 도메인 모델을 침범하지 않도록 막아주는 역할을 한다.
-  - 이런 계층을 안티코럽션 계층이라고 한다.
+  - 하류 컴포넌트는 상류 서비스의 모델이 자신의 도메인 모델에 영향을 주지 않도록 보호해주는 완충 지대를 만들어야 하는데 이런 계층을 안티코럽션 계층이라고 한다.
   - 이 계층에서 두 BOUNDED CONTEXT간의 모델 변환을 처리해 주기 때문에 다른 BOUNDED CONTEXT의 모델에 영향을 받지 않고 내 도메인 모델을 유지할 수 있다.
 - 공유 커널
   - 두 BOUNDED CONTEXT가 같은 모델을 공유하는 경우도 있다.
-    - ex: 운영자를 위한 주문 관리 도구를 개발하는 팀과 고객을 위한 주문 서비스를 개발하는 팀. 두 팀은 주문을 표현하는 모델을 공유함으로써 중복 개발을 막을 수 있따.
+    - ex: 운영자를 위한 주문 관리 도구를 개발하는 팀과 고객을 위한 주문 서비스를 개발하는 팀. 두 팀은 주문을 표현하는 모델을 공유함으로써 중복 개발을 막을 수 있다.
   - 이렇게 두 팀이 공유하는 모델을 공유 커널이라고 부른다.
   - 공유 커널은 중복을 줄일 수 있다는 장점이 있지만 반대로 두 팀은 반드시 밀접하게 유지해야한다는 단점이 있다.
 - 독립 방식
@@ -1943,13 +1949,13 @@ public class JpaOrderRepository implements OrderRepository {
   - 컨텍스트 맵은 BOUNDED CONTEXT간의 관계를 표시한 것이다.
 
 
-![9-5](./images/ddd-start/9-5.png)
+![9-5](./images/ddd-start/9-6.png)
 
 
 
 - 컨텍스트 맵은 시스템의 전체 구조를 보여준다.
   - 이는 하위 도메인과 일치하지 않는 BOUNDED CONTEXT를 찾아 도메인에 도메인에 맞게 BOUNDED CONTEXT를 조절하고 사업의 핵심 도메인을 위해 어떤 BOUNDED CONTEXT에 집중할지 파악하는데 도움을 준다.
-- 컨텍스트 맵을 그리는 규칙은 따로 없다.
+- 컨텍스트 맵을 그리는 규칙은 따로 없다. 각 컨텍스트의 관계를 이해할 수 있는 수준에서 그리면 된다.
 - 시스템을 더 잘 이해하거나 시간이 지나면서 컨텍스트 간 관계가 바뀌면 컨텍스트 맵도 함께 바뀐다.
 
 
