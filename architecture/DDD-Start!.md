@@ -1807,8 +1807,10 @@ public class JpaOrderRepository implements OrderRepository {
   - 한 도메인은 다시 여러 하위 도메인으로 구분되기 때문에 한 개의 모델로 여러 하위 도메인을 모두 표현하려고 시도하게 되면 모든 하위 도메인에 맞지 않는 모델을 만들게 된다.
   - 하위 도메인마다같은 용어라도 의미가 다르고 같은 대상이라도 지칭하는 용어가 다를 수 있기 때문에 한 개의 모델로 모든 하위 도메인을 표현하려는 시도는 올바른 방법이 아니다.
 
-
 ![9-1](./images/ddd-start/9-1.png)
+
+- 올바른 도메인 모델을 개발하려면 하위 도메인마다 모델을 만들어야 한다.
+  - 각 모델은 명시적으로 구분되는 경계를 가져서 섞이지 않도록 해야 한다.
 
 - BOUNDED CONTEXT
   - 모델은 특정한 컨텍스트하에 완전한 의미를 갖는다.
@@ -1828,7 +1830,6 @@ public class JpaOrderRepository implements OrderRepository {
   - BOUNDEX CONTEXT는 용어를 기준으로 구분한다. 카탈로그 컨텍스트와 재고 컨텍스트는 서로 다른 용어를 사용하므로 이 용어를 기준으로 컨텍스트를 분리할 수 있다.
   - **BOUNDED CONTEXT는 실제로 사용자에게 기능을 제공하는 물리적 시스템**으로 도메인 모델은 이 BOUNDED CONTEXT안에서 도메인을 구현한다.
   - 이상적으로 하위 도메인과 BOUNDED CONTEXT가 일대일 관계를 가지면 베스트지만 현실은 그렇지 않을 때가 많다.
-    - ex: 주문 하위 도메인에 주문을 처리하는팀과 복잡한 결제 금액 계산 로직을 구현하는 팀이 따로 있을때 주문 하위에 주문 BOUNDED CONTEXT, 결제 금액 계산 BOUNDED CONTEXT가 존재하게 된다.
 
 - 주의사항
   - 서비스가 크지 않고 규모가 작다면 여러 하위 도메인을 하나의 BOUNDED CONTEXT에서 구현할 수 있다. 이런 경우 주의할 점은 하위 도메인의 모델이 뒤섞이지 않도록 하는 것이다.
@@ -1838,6 +1839,7 @@ public class JpaOrderRepository implements OrderRepository {
 - BOUNDED CONTEXT는 도메인 모델을 구분하는 경계가 되기 때문에 BOUNDED CONTEXT는 구현하는 하위 도메인에 알맞는 모델을 포함한다.
   - 같은 사용자라 하더라도 주문 BOUNDED CONTEXT와 회원 BOUNDED CONTEXT가 갖는 모델이 달라진다.
   - 같은 상품이라도 카탈로그 BOUNDED CONTEXT의 Product와 재고 BOUNDED CONTEXT의 Product는 각 컨텍스트에 맞는 모델을 갖는다.
+  - 카탈로그의 Product는 상품이 속할 Category와 연관을 갖지만 재고의 Product는 카탈로그의 Caregory와 연관을 맺지 않는다.
 
 <img src="./images/ddd-start/9-2.png" alt="9-3" style="zoom:80%;" />
 
@@ -1863,7 +1865,8 @@ public class JpaOrderRepository implements OrderRepository {
 ## BOUNDED CONTEXT 간 통합
 
 - 온라인 쇼핑 사이트에서 매출 증대를 위해 카탈로그 하위 도메인에 개인화 추천 기능을 도입하는 예제
-  - 이렇게 되면 카탈로그를 위한 BOUNDED CONTEXT와 추천 기능을 위한 BOUNDED CONTEXT가 생긴다. (별도의 물리적인 서버로 구분된다고 생각하면 편할듯?)
+  - 이렇게 되면 카탈로그를 위한 BOUNDED CONTEXT와 추천 기능을 위한 BOUNDED CONTEXT를 담당하는 팀이 생긴다.
+  - 두 팀이 관련된 BOUNDED CONTEXT를 개발하다보면 자연스럽게 두 BOUNDED CONTEXT간 통합이 발생한다.
   - 사용자가 카탈로그 BOUNDED CONTEXT에 추천 제품 목록을 요청하면 카탈로그 BOUNDED CONTEXT는 추천 BOUNDED CONTEXT로 부터 추천정보를 읽어와 추천 제품 목록을 제공한다.
   - 카탈로그는 제품을 중심으로 도메인 모델을 구현하지만 추천은 추천 연산을 위한 모델을 구현한다.
 
@@ -1898,7 +1901,7 @@ public class JpaOrderRepository implements OrderRepository {
   - BOUNDED CONTEXT중 가장 흔한 관계는 한쪽에서 API를 제공하고 다른 한쪽에서 그 API를 호출하는 관계다.
 
 - downstream(하류)과 upstream(상류)
-  - ![9-3](/Users/a10300/Choi/Git/dev-note/architecture/images/ddd-start/9-4.png)
+  - ![9-3](./images/ddd-start/9-4.png)
   - 하류 컴포넌트인 카탈로그 컨텍스트는 상류 컴포넌트인 추천 컨텍스트가 제공하는 데이터와 기능에 의존한다.
   - 상류 컴포넌트는 일종의 서비스 공급자 역할을 하며, 하류 컴포넌트는 그 서비스를 사용하는 고객 역할을 한다.
   - 상류, 하류 모두 상호 협력이 필수적이다.
