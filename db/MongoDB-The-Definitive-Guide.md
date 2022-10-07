@@ -857,13 +857,46 @@ db.blog.update({"comments.author": "John"}),
 
 
 
-
-
 `배열 필터를 이용한 갱신`
+
+- arrayFilters
+
+  - 몽고 3.6 에서는 개별 배열 요소를 갱신하는 배열 필터인 arrayFilters를 도입해 특정 조건에 맞는 배열 요소를 갱신할 수 있다.
+
+  - ```
+    db.blog.updateOne(
+      {"post" : post_id},
+      { $set: { "comments.$[elem].hidden " : true} },
+      {
+        arrayFilters: [ { "elem.votes": { $lte: -5 } } ]
+      }
+    )
+    ```
+
+  - comments 배열의 각 일치 요소에 대한 식별자로 elem을 정의한다. elem이 식별한 댓글의 투표값이 -5 이하면 comments 도큐먼트에 hidden 필드를 추가하고 값을 true로 설정한다.
 
 
 
 ### 갱신 입력
+
+- 갱신입력
+
+  - 갱신 조건에 맞는 도큐먼트가 존재하지 않을 때는 쿼리 도큐먼트와 갱신 도큐먼트를 합쳐서 새로운 도큐먼트를 생성한다.
+  - 조건에 맞는 도큐먼트가 발견되면 일반적인 갱신을 수행한다.
+
+- 갱신입력 == upsert
+
+  - upsert에서 얻는 장점들을 다 가져올 수 있다.
+    - 특정 조건을 확인하기위해 데이터베이스에 쿼리하고 쿼리의 결과를 기반으로 update 또는 insert하는 과정이 없어서 원자적이고 데이터베이스 왕복도 피할 수 있다.
+
+- ```
+  db.analytics.updateOne({"url" : "/blog"} , {"$inc" : {"pageviews" : 1}},
+    {"upsert" : true})
+  ```
+
+
+
+
 
 ### 다중 도큐먼트 갱신
 
