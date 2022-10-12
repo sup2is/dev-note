@@ -1257,3 +1257,248 @@ db.test.find({"x" : {"$gt" : 10, "$lt" : 20}}).min({"x" : 10}).max({"x" : 20})
 db.people.find({"name" : {"first" : "Joe", "last" : "Schmoe"}})
 ```
 
+- `db.people.find({"name" : {"first" : "Joe", "last" : "Schmoe"}})` 처럼 서브도큐먼트 전체에 쿼리하려면 서브도큐먼트와 정확하게 일치해야 한다. 필드가 추가되면 전체 도큐먼트가 일치하지 않으므로 더는 작동하지 않는다.
+- 내장 도큐먼트에 쿼리할 때는 가능하면 특정 키로 쿼리하는 방법이 좋다.
+
+```
+db.people.find({"name.first" : "Joe", "name.last" : "Schmoe"})
+```
+
+- 내장 도큐먼트 구조가 복잡해질수록 일치하는 내장 도큐먼트를 찾기가 어려워진다.
+
+```
+db.blog.find()
+{
+  "content" : "...",
+  "comments" : [
+    {
+      "author" : "joe",
+      "score" : 3,
+      "comment" : "nice post"
+    },
+    {
+      "author" : "mary",
+      "score" : 6,
+      "comment" : "nice post"
+    }
+  ]
+}
+
+// 게시물에서 5점 이상을 받는 Joe의 댓글을 찾는 예제
+
+// comment 필드가 쿼리에 없기 때문에 일치하는 도큐먼트가 없다.
+db.blog.find({"comments" : {"author" : "joe", "score" : {"$gte" : 5}}})
+
+// 쿼리 도큐먼트에서 댓글의 score 조건과 author 조건이 댓글 배열 내의 각기 다른 도큐먼트와 일치하므로 전체 도큐먼트를 그대로 반환한다.
+db.blog.find({"comments.author" : "joe", "comments.score" : {"$gte" : 5}})
+```
+
+- 이와 같은 상황에서 모든 키를 지정하지 않고도 조건을 정확하게 묶으려면  $elemMatch를 사용해야 한다.
+
+```
+// 이 조건절은 조건을 부분적으로 지정해 배열 내에서 하나의 내장 도큐먼트를 찾게 해준다.
+db.blog.find({"comments" : {"$elemMatch" : {"author" : "joe", "score" : {"$gte" : 5}}}})
+```
+
+- elemMatch를 사용해 조건을 그룹화할 수 있다. 내장 도큐먼트에서 2개 이사의 키의 조건 일치 여뷰를 확인할 때만 필요하다.
+
+
+
+## $where 쿼리
+
+- $where 절을 사용해 임의의 자바스크립트를 쿼리의 일부분으로 실행하면 거의 모든 쿼리를 표현할 수 있다.
+- 사용자가 임의의 $where절을 실행하지 못하도록 $where 절을 보안적관점에서 제한해야 한다.
+- $where 절은 도큐먼트 내 두 키의 값을 비교하는 쿼리에 가장 자주 쓰인다.
+
+```
+db.foo.insertOne({"apple" : 1, "banana" : 6, "peach" : 3})
+db.foo.insertOne({"apple" : 8, "spinach" : 4, "watermelon" : 4})
+```
+
+- spinach와 watermelon값이 같은값을 가질때 몽고DB에서는 이 경우 $ 조건절을 사용할 수 없으므로 $where 절 내 자바스크립트로 처리한다.
+
+```
+db.foo.find({"$where" : function () { 
+	for (var current in this) { 
+		for (var other in this) {
+			if (current != other && this[current] == this[other]) 
+				{ return true; } 
+		}
+	}
+	return false;
+}});
+// 함수가 true를 반환하면 해당 도큐먼트는 결과 셋에 포함되고 false를 반환하면 포함되지 않는다.
+```
+
+- $where 쿼리는 일반 쿼리보다 훨씬 느리니 반드시 필요한 경우가 아니라면 사용하지 말자.
+- 가능한한 $where 절이 아닌 조건은 인덱스로 거르고 $where 절은 결과를 세부적으로 조정할 떄 사용하자.
+- 몽고 3.6에서는 쿼리 언어로 집계 표현식을 사용할 수 있도록  $expr 연산자가 추가됐다. $expr을 사용하면 자바스크립트를 실행하지 않아 더 빨리 쿼리할 수 있으므로 가능한 한 $where 대신 $expr을 사용하자.
+
+
+
+## 커서
+
+- 데이터베이스는 커서를 사용해 find의 결과를 반환한다.
+- 일반적으로 클라이언트 측의 커서 구현체는 쿼리의 최종 결과를 강력히 제한해준다.
+  - 결과 개수 제한
+  - 결과 중 몇 개 스킵하기
+  - 정렬 등등 ..
+
+```
+for(i = 0; i < 100, i ++) {
+  db.collection.insertOne({x : i});
+}
+
+// 셸에서 커서를 생성하는 방법
+var cursor = db.collection.find()
+```
+
+- 셸은 결과를 한 번에 하나씩 볼 수 있다는 장점이 있다.
+- 결과를 얻으러면 커서의 next 메서드를 사용하고 다른 결과가 있는지 확인하려면 hasNext를 사용한다.
+
+```
+while (cursor.hasNext()) {
+  obj = cursor.next();
+  // 사용자 정의 작업 수행 
+}
+```
+
+-  cursor는 자바스크립트의 iterator를 구현했으므로  foreach 반복문도 가능하다.
+- 커서는 find를 호출할 때 셸이 데이터베이스를 즉시 쿼리하지 않고 결과를 요청하는 쿼리를 보낼때까지 기다린다. 따라서 쿼리하기 전에 옵션을 추가할 수 있다.
+
+```
+// cursor는 거의 모든 함수가 자기 자신을 리턴하므로 옵션을 어떤 순서로든 이어쓸 수 있다.
+// 아래 함수는 모두 같은 역할을 한다.
+var cursor = db.foo.find().sort({"x" : 1}).limit(1).skip(10);
+var cursor = db.foo.find().limit(1).sort({"x" : 1}).skip(10);
+var cursor = db.foo.find().skip(10).limit(1).sort({"x" : 1});
+
+
+// 실제 이 시점에 쿼리가 서버로 전송된다.
+cursor.hasNext()
+```
+
+- 셸은 next나 hasNext 메서드 호출 시 서버 왕복 횟수를 줄이기 위해 한 번에 처음 100개 또는 4메가바이트 크기의 결과를 가져온다.
+- 클라이언트는 첫 번째 결과 셋을 살펴본 후에 셸이 데이터베이스에 다시 접근해 더 많은 결과를 요청하게 한다.
+
+
+
+### 제한, 건너뛰기, 정렬
+
+- 결과 개수를 제한하려면 find호출에 limit 함수를 연결한다.
+- limit은 상한만 설정하고 하한은 설정하지 않는다.
+
+```
+db.foo.find().limit(100)
+```
+
+- skip은 조건에 맞는 결과 중 처음 n개를 건너뛴 나머지를 반환한다.
+
+```
+db.foo.find().skip(100)
+```
+
+- sort는 객체를 매개변수로 받는다. 정렬 방향은 1 또는 -1이다.
+
+```
+db.foo.find().sort({"date" : -1}).limit(100)
+```
+
+- skip, limit, sort를 활요해서 페이징을 사용할 수 있다.
+
+```
+// 1 page
+db.foo.find().sort({"date" : -1}).limit(100).skip(0)
+
+// 2 page
+db.foo.find().sort({"date" : -1}).limit(100).skip(100)
+
+// x page
+db.foo.find().sort({"date" : -1}).limit(n).skip(x * n)
+```
+
+
+
+`비교 순서`
+
+- 몽고DB에는 데이터형을 비교하는 위계구조가 있다. 
+- 모든 형을 하나의 키에 저장할 수 있기때문에 데이터형이 섞여 있는 키는 미리정의된 순서에 따라 정렬한다.
+- 데이터형 정렬 순서
+  1. 최솟값
+  2. null
+  3. 숫자(int, long, double, decimal)
+  4. 문자열
+  5. 객체/도큐먼트
+  6. 배열
+  7. 이진 데이터
+  8. 객체 ID
+  9. 불리언
+  10. 날짜
+  11. 타임스탬프
+  12. 정규표현식
+  13. 최댓값
+
+
+
+### 많은 수의 건너뛰기 피하기
+
+- 대부분의 데이터베이스는 skip을 위해 인덱스 안에 메타데이터를 저장하지만 몽고DB는 아직 해당 기능을 지원하지 않는다.
+- 따라서 많은 수의 skip은 피해야 한다.
+
+`skip을 사용하지 않고 페이지 나누기`
+
+```
+// 내림차순 정렬로 페이지 가져오기
+var page1 = db.foo.find().sort({"date" : -1}).limit(100)
+
+// display first page
+while (page1.hasNext()) {
+ latest = page1.next(); // 최신 도큐먼트 포인터 저장
+ display(latest);
+}
+
+// 최신 도큐먼트 포인터를 기반으로 lt 쿼리
+var page2 = db.foo.find({"date" : {"$lt" : latest.date}});
+page2.sort({"date" : -1}).limit(100);
+```
+
+
+
+`랜덤으로 도큐먼트 찾기`
+
+```
+
+// 전체 페이지 사이즈를 가져오고 0~size 의 랜덤수를 만들어서 쿼리하는 예제
+// 이렇게 쓰지 말자.
+var total = db.foo.count()
+var random = Math.floor(Math.random()*total)
+db.foo.find().skip(random).limit(1)
+```
+
+- 도큐먼트를 입력할 때 랜덤 키를 별도로 추가하는 방법으로 해결할 수 있다.
+
+```
+db.people.insertOne({"name" : "joe", "random" : Math.random()})
+db.people.insertOne({"name" : "john", "random" : Math.random()})
+db.people.insertOne({"name" : "jim", "random" : Math.random()})
+
+var random = Math.random()
+result = db.people.findOne({"random" : {"$gt" : random}})
+if (result == null) {
+  result = db.people.findOne({"random" : {"$lte" : random}})
+}
+```
+
+
+
+### 종료되지 않는 커서
+
+- 커서 종류
+  - 클라이언트 커서
+  - 데이터베이스 커서 (서버 커서)
+- 서버 측에서 보면 커서는 메모리와 리소스를 점유한다. 커서가 더는 가져올 결과가 없거나 클라이언트로부터 종료 요청을 받으면 데이터베이스는 점유하고 있던 리소스를 해제한다.
+- 서버 커서를 종료하는 조건
+  1. 커서는 조건에 일치하는 결과를 모두 살펴본 후에는 스스로 정리한다.
+  2. 클라이언트측에서 유효 영역을 벗어나면 드라이버는 데이터베이스에 메시지를 보내 커서를 종료해도 된다고 알린다.
+  3. 사용자가 아직 결과를 다 살펴보지 않았고 커서가 여전히 유효 영역 내에 있더라도 10분 동안 활동이 없으면 데이터베이스 커스는 자동으로 죽는다.
+- 3번처럼 타임아웃에 의한 종료는 바람직한 동작이지만 때떄로 커서를 오래 남겨두고 싶을 때가 있다. 따라서 많은 드라이는 데이터베이스가 커서를 타임아웃시키지 못하게 하는 immortal이라는 함수를 제공한다. 커서의 타임아웃을 비활성화했다면 결과를 모두살펴보거나 커서를 명확히 종료해야 한다. 그렇지 않으면 커서는 데이터베이스에 남아 서버가 재시작할때까지 리소스를차지한다.
