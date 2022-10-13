@@ -4,8 +4,6 @@
 
 - https://github.com/mongodb-the-definitive-guide-3e/mongodb-the-definitive-guide-3e
 
-
-
 # #1 몽고 DB 소개
 
 - 몽고DB의 특징
@@ -53,23 +51,15 @@
 
 - 몽고DB는 큰 파일과 파일 메타데이터를 편리하게 저장하는 프로토콜을 지원한다.
 
-
-
 ## 고성능
 
 - 몽고DB의 주요 목표 = 성능
   - 몽고DB에서는 동시성과 처리량을 극대화하기 위해 와이어드타이거 스토리지 엔진에 기회적 락을 사용했다. 따라서 캐시처럼 제한된 용량의 램으로 쿼리에 알맞는 인덱스를 자동으로 선택할 수 있게 해준다.
 - 몽고DB는 강력한 성능을 제공하면서도 관계형 시스템의 많은 기능을 포함한다.
 
-
-
 ## 몽고DB의 철학
 
 - 몽고DB의 주 관심사는 확장성이 높으며 유연하고 빠른, 즉 완전한 기능을 갖춘 데이터 스토리지를 만드는 일이다.
-
-
-
-
 
 # #2 몽고DB 기본
 
@@ -105,8 +95,6 @@
 
 - 또한 몽고DB에서는 키가 중복될 수 없다.
 
-
-
 ## 컬렉션
 
 - 컬렉션은 도큐먼트의 모음이다.
@@ -115,22 +103,20 @@
 ### 동적 스키마
 
 - 컬렉션은 동적 스키마를 가진다.
-
+  
   - 하나의 컬렉션 내 도큐먼트들이 모두 다른 구조를 가질 수 있다.
-
+  
   - ```json
     {"greeting": "Hello, world!", "view" : 3}
     {"signoff": "Good night, and good luck"}
     ```
 
 - 그럼에도 하나의 컬렉션에 다양한 도큐먼트들을 넣지 않는 이유
-
+  
   - 같은 컬렉션에 다른 종류의 도큐먼트를 저장하면 개발자와 관리자에게 번거로운 일이 생길수도 있다.
   - 컬렉션별로 목록을 뽑으면 한 컬렉션 내 특정 데이터형별로 쿼리해서 목록을 뽑을 때보다 훨씬 빨다.
   - 같은 종류의 데이터를 하나의 컬렉션에 모아두면 데이터 지역성에 좋다.
   - 인덱스를 만드려면 도큐먼트는 특정 구조를 가져야 한다. 인덱스는 컬렉션별로 정의한다.
-
-
 
 ### 네이밍
 
@@ -139,8 +125,6 @@
   - \\0(null)문자는 컬렉션명의 끝을 나타내는 문자이므로 컬렉션명에 사용할 수 없다.
   - system.으로 시작하는 컬렉션명은 시스템 컬렉션에서 사용하는 예약어이므로 사용할 수 없다. 예를 들어 system.users 컬렉션에는 데이터베이스 사용자 정보가, system.namespace 컬렉션에는 데이터베이스 내 모든 컬렉션의 정보가 들어있다.
   - 사용자가 만든 컬렉션은 이름에 예약어인 $를 포함할 수 없다.
-
-
 
 `서브 컬렉션`
 
@@ -151,8 +135,6 @@
   - 큰 파일을 저장하는 프로토콜인 GridFS는 콘텐츠 데이터와 별도로 메타데이터를 저장하는 데 서브컬렉션을 사용한다.
   - 대부분의 드라이버는 특정 컬렉션의 서브컬렉션에 접근하는 몇 가지 편리한 문법을 제공한다.
 - 서브컬렉션은 몽고DB의 데이터를 체계화하는 훌륭한 방법이다.
-
-
 
 ## 데이터베이스
 
@@ -179,8 +161,6 @@
 - 몽고 DB 명령행에서는 몽고DB 인스턴스와 상호작용하는 자바스크립트 셸을 제공한다.
 - 셸은 관리 기능, 실행중인 인스턴스를 점검하거나 간단한 기능을 시험하는 데 매우 유용하다.
 
-
-
 ### 셸 실행
 
 - 셸은 완전한 자바스크립트 해석기이고 임의의 자바스크립트 프로그램을 실행한다.
@@ -204,7 +184,6 @@ MongoDB shell version v5.0.9
 ISODate("2019-01-01T00:00:00Z")
 > "Hello, World!".replace("World", "MongoDB");
 Hello, MongoDB!
-
 ```
 
 - 자바스크립트 함수를 정의하고 호출할 수도 있다.
@@ -216,10 +195,7 @@ Hello, MongoDB!
 ... }
 > factorial(5);
 120
-
 ```
-
-
 
 ### 몽고DB 클라이언트
 
@@ -236,8 +212,6 @@ video
 video.movies
 ```
 
-
-
 ### 셸 기본 작업
 
 `생성`
@@ -247,14 +221,14 @@ video.movies
 ```json
 > movie = {"title" : "Star Wars: Episode IV - A New Hope", "director" : "George Lucas", "year" : 1977}
 {
-	"title" : "Star Wars: Episode IV - A New Hope",
-	"director" : "George Lucas",
-	"year" : 1977
+    "title" : "Star Wars: Episode IV - A New Hope",
+    "director" : "George Lucas",
+    "year" : 1977
 }
 > db.movies.insertOne(movie)
 {
-	"acknowledged" : true,
-	"insertedId" : ObjectId("62e3e6439bac1dcffb872981")
+    "acknowledged" : true,
+    "insertedId" : ObjectId("62e3e6439bac1dcffb872981")
 }
 ```
 
@@ -263,12 +237,11 @@ video.movies
 ```json
 > db.movies.find().pretty()
 {
-	"_id" : ObjectId("62e3e6439bac1dcffb872981"),
-	"title" : "Star Wars: Episode IV - A New Hope",
-	"director" : "George Lucas",
-	"year" : 1977
+    "_id" : ObjectId("62e3e6439bac1dcffb872981"),
+    "title" : "Star Wars: Episode IV - A New Hope",
+    "director" : "George Lucas",
+    "year" : 1977
 }
-
 ```
 
 `읽기`
@@ -279,15 +252,12 @@ video.movies
 ```json
 > db.movies.findOne()
 {
-	"_id" : ObjectId("62e3e6439bac1dcffb872981"),
-	"title" : "Star Wars: Episode IV - A New Hope",
-	"director" : "George Lucas",
-	"year" : 1977
+    "_id" : ObjectId("62e3e6439bac1dcffb872981"),
+    "title" : "Star Wars: Episode IV - A New Hope",
+    "director" : "George Lucas",
+    "year" : 1977
 }
-
 ```
-
-
 
 `갱신`
 
@@ -303,15 +273,13 @@ video.movies
 
 > db.movies.findOne()
 {
-	"_id" : ObjectId("62e3e6439bac1dcffb872981"),
-	"title" : "Star Wars: Episode IV - A New Hope",
-	"director" : "George Lucas",
-	"year" : 1977,
-	"reviews" : [ ]
+    "_id" : ObjectId("62e3e6439bac1dcffb872981"),
+    "title" : "Star Wars: Episode IV - A New Hope",
+    "director" : "George Lucas",
+    "year" : 1977,
+    "reviews" : [ ]
 }
 ```
-
-
 
 `삭제`
 
@@ -324,8 +292,6 @@ video.movies
 > db.movies.findOne()
 null
 ```
-
-
 
 ## 데이터형
 
@@ -406,13 +372,9 @@ null
 {"x": ObjectId()}
 ```
 
-
-
 - 상대적으로 덜 사용되는 데이터형 목록들
   - 이진데이터
   - 코드
-
-
 
 ### 날짜
 
@@ -432,8 +394,6 @@ null
   - 따라서 인덱스를 생성해 쿼리의 속도를 향상시킬 수 있다.
   - 배열 내부에 도달해서 원자적으로 배열의 내용을 수정하게 할 수 있다.
 
-
-
 ### 내장 도큐먼트
 
 - 내장 도큐먼트를 사용해 데이터를 키/값 쌍의 평면적인 구조보다는 좀 더 자연스러운 방법으로 구성할 수 있다.
@@ -452,15 +412,11 @@ null
 - 배열과 마찬가지로 몽고DB는 내장 도큐먼트의 구조를 이해하고 인덱스를 구성하고 쿼리하며 갱신하기 위해 내장 도큐먼트 내부에 접근한다.
 - 이런 내장 도큐먼트의 특징은 데이터를 다 때려박을 수 있다는건데 정규화가 있는 관계형 데이터베이스보다 유연하다는 장점이 있지만 데이터 중복과 조인에서 얻을 수 있는 간결함을 얻을 수 없다.
 
-
-
 ### _id와 ObjectId
 
 - 몽고DB에 저장된 모든 도큐먼트는 _id 키를 갖는다.
 - _id는 어떤 데이터형도 상관없지만 기본적으로 ObjectId 가 기본이다.
 - 모든 도큐먼트는 고유한 _id 값을 가지며 이 값은 컬렉션 내 모든 도큐먼트가 고유하게 식별되게 한다.
-
-
 
 `ObjectIds`
 
@@ -487,8 +443,6 @@ null
 - 도큐먼트를 입력할 때 "_id" 키를 명시하지 않으면 입력된 도큐먼트에 키가 자동으로 추가된다.
 - 이는 몽고DB 서버에서 관리할 수 있지만 일반적으로 클라이언트 쪽 드라이버에서 관리한다.
 
-
-
 ## 몽고DB 셸 사용
 
 - 셸은 사용자 시스템에서 연결할 수 있는 어떤 몽고DB 인스턴스든 연결할 수 있다.
@@ -497,8 +451,6 @@ null
 ```
 mongo some-host:30000/myDB
 ```
-
-
 
 ### 셸 활용 팁
 
@@ -532,8 +484,6 @@ function(query, fields, options, readConcern, collation) {
 }
 ```
 
-
-
 ### 셸에서 스크립트 실행하기
 
 - 다음과 같이 자바스크립트 파일을 셸로 넘길 수도 있다.
@@ -550,11 +500,11 @@ load("script1.js")
 
 - 스크립트는 db 변수에 대한 접근 권한을 가진다. 하지만 use db나 show collections와 같은 셸 보조자는 파일에서 작동하지 않는다.
 
-| 셸 보조자        | 같은 의미의 자바스크립트 |
-| ---------------- | ------------------------ |
-| use video        | db.getSisterDB("video")  |
-| show dbs         | db.getMongo().getDBs()   |
-| show collections | db.getCollectionNames()  |
+| 셸 보조자            | 같은 의미의 자바스크립트           |
+| ---------------- | ----------------------- |
+| use video        | db.getSisterDB("video") |
+| show dbs         | db.getMongo().getDBs()  |
+| show collections | db.getCollectionNames() |
 
 - 스크립트를 사용해 셸에 변수를 입력할 수도 있다.
 
@@ -599,8 +549,6 @@ function
 
 ### 불편한 컬렉션명
 
-
-
 # #3 도큐먼트 생성, 갱신, 삭제
 
 ## 도큐먼트 삽입
@@ -625,12 +573,12 @@ true
 ... {"title" : "E.T."},
 ... {"title" : "Blade Runner"}]);
 {
-	"acknowledged" : true,
-	"insertedIds" : [
-		ObjectId("62e486759bac1dcffb872982"),
-		ObjectId("62e486759bac1dcffb872983"),
-		ObjectId("62e486759bac1dcffb872984")
-	]
+    "acknowledged" : true,
+    "insertedIds" : [
+        ObjectId("62e486759bac1dcffb872982"),
+        ObjectId("62e486759bac1dcffb872983"),
+        ObjectId("62e486759bac1dcffb872984")
+    ]
 }
 > db.movies.find()
 { "_id" : ObjectId("62e486759bac1dcffb872982"), "title" : "Ghostbusters" }
@@ -648,8 +596,6 @@ true
     - 도큐먼트가 삽입 오류를 생성하면, 배열에서 해당 지점을 벗어난 도큐먼트는 삽입되지 않는다.
   - 정렬되지 않은 삽입
     - 몽고DB는 일부 삽입이 오류를 발생시키는지 여부에 관계 없이 모든 도큐먼트 삽입을 시도한다.
-
-
 
 ### 삽입 유효성 검사
 
@@ -698,8 +644,6 @@ db.movies.deleteMany({})
 db.movies.drop()
 ```
 
-
-
 ## 도큐먼트 갱신
 
 - 도큐먼트를 데이터베이스에 저장한 후에는 updateOne, updateMany, replaceOne과 같은 갱신 메서드를 사용해 변경한다.
@@ -707,8 +651,6 @@ db.movies.drop()
   - 갱신은 원자적으로 이뤄진다. 
   - 갱신 요청 두 개가 동시에 발생하면 서버에 먼저 도착한 요청이 적용된 후 다음 요청이 적용된다.
   - 결국 마지막 요청이 최후의 승리자가 되므로 도큐먼트는 변질 없이 안전하게 처리된다.
-
-
 
 ### 도큐먼트 치환
 
@@ -722,23 +664,19 @@ db.movies.drop()
 db.people.replaceOne({"_id" : "ObjectId(1234....)"}, joe)
 ```
 
-
-
 ### 갱신 연산자
 
 - 부분 갱신에는 원자적 갱신연산자를 사용한다.
 
 - $inc 제한자
-
+  
   - 누군가가 페에지를 방문할 때마다 URL로 페이지를 찾고 "pageviews" 키의 값을 증가시키려면 $inc 제한자를 사용한다
-
+  
   - ```
     db.analytics.updateOne({"url": "www.example.com"}, {"$inc": {"pageviews": 1}})
     ```
 
 - 연산자를 사용할때 _id값은 변경할 수 없다. 변경하려면 도큐먼트 전체를 치환한다.
-
-
 
 `"$set" 제한자 사용하기`
 
@@ -771,8 +709,6 @@ db.analytics.updateOne({"url": "www.example.com"}, {"$unset": {"favorite book": 
   - int, long, double, dcimal 타입에만 사용할 수 있다.
   - 값은 반드시 숫자여야 한다.
 
-
-
 `배열 연산자`
 
 - $push는 배열이 이미 존재하면 배열 끝에 요소를 추가하고 존재하지 않으면 새로운 배열을 생성한다. 
@@ -800,37 +736,33 @@ db.papers.updateOne({"authors cited" : {"$ne" : "Richie"}}, {"$push": {"authors 
 - $addToSet을 사용할 수도 있다. $addToSet을 사용하면 무슨일이 일어났는지 더 잘 알 수 있다.
 - 고유한 값을 여러개 추가하려면 $addToSet과 $each를 결합해서 사용한다.
 
-
-
 `요소 제거하기`
 
 - $pop
-
+  
   - 배열을 큐나 스택처럼 사용하려면 배열의 양쪽 끝에서 요소를 제거하는 $pop을 사용한다.
-
+  
   - ```
     {"$pop" : {"key" : 1}}
     ```
-
+    
     - 배열의 마지막부터 요소를 제거
-
+  
   - ```
     {"$pop" : {"key" : -1}}
     ```
-
+    
     - 배열의 처음부터 요소를 제거
 
 - $pull
-
+  
   - 지정된 조건에 따라 요소를 제거할때는  $pull을 사용한다.
-
+  
   - ```
     db.lists.updateOne({}, {"$pull" : {"todo": "laundry"}})
     ```
-
+  
   - 지정된 조건이 일치하는 모든 요소를 제거한다.
-
-
 
 `배열의 위치 기반 변경`
 
@@ -855,14 +787,12 @@ db.blog.update({"comments.author": "John"}),
 - John이라는 사용자가 이름을 Jim으로 갱신하려고할 때, 위치 연산자를 사용해서 댓글 내 author를 갱신한다.
 - 위치연산자는 첫 번째로 일치하는 요소만 갱신한다. 따라서 John이 댓글을 2개 이상 남겼다면 처음 남긴 댓글의 작성자 명만 변경된다.
 
-
-
 `배열 필터를 이용한 갱신`
 
 - arrayFilters
-
+  
   - 몽고 3.6 에서는 개별 배열 요소를 갱신하는 배열 필터인 arrayFilters를 도입해 특정 조건에 맞는 배열 요소를 갱신할 수 있다.
-
+  
   - ```
     db.blog.updateOne(
       {"post" : post_id},
@@ -872,20 +802,18 @@ db.blog.update({"comments.author": "John"}),
       }
     )
     ```
-
+  
   - comments 배열의 각 일치 요소에 대한 식별자로 elem을 정의한다. elem이 식별한 댓글의 투표값이 -5 이하면 comments 도큐먼트에 hidden 필드를 추가하고 값을 true로 설정한다.
-
-
 
 ### 갱신 입력
 
 - 갱신입력
-
+  
   - 갱신 조건에 맞는 도큐먼트가 존재하지 않을 때는 쿼리 도큐먼트와 갱신 도큐먼트를 합쳐서 새로운 도큐먼트를 생성한다.
   - 조건에 맞는 도큐먼트가 발견되면 일반적인 갱신을 수행한다.
 
 - 갱신입력 == upsert
-
+  
   - upsert에서 얻는 장점들을 다 가져올 수 있다.
     - 특정 조건을 확인하기위해 데이터베이스에 쿼리하고 쿼리의 결과를 기반으로 update 또는 insert하는 과정이 없어서 원자적이고 데이터베이스 왕복도 피할 수 있다.
 
@@ -894,15 +822,9 @@ db.blog.update({"comments.author": "John"}),
     {"upsert" : true})
   ```
 
-
-
-
-
 ### 다중 도큐먼트 갱신
 
 ### 갱신한 도큐먼트 반환
-
-
 
 # #4 쿼리
 
@@ -924,7 +846,6 @@ db.users.find({"username" : "joe"})
 // ,는 AND 조건으로 동작한다. 
 // username, age가 일치하는 모든 사용자를 찾는 쿼리
 db.users.find({"username" : "joe", "age" : 27})
-
 ```
 
 ### 반환받을 키 지정
@@ -938,10 +859,7 @@ db.users.find({}, {"username": 1, "email": 1})
 
 // 특정 키/값 쌍을 제외한 결과를 얻고 싶을때는 값을 0으로 매칭시켜서 제외시킬 수 있다.
 db.users.find({}, {"username": 0})
-
 ```
-
-
 
 ### 제약 사항
 
@@ -952,8 +870,6 @@ db.users.find({}, {"username": 0})
 // 재고 도큐먼트에 재고 수량 키 "in_stock"과 판매 수량 키 "num_sold"가 있으면 키 값을 다음과 같은 쿼리로 비교할 수 없다.
 db.stock.find({"in_stock": "this.num_sold"}) // 작동하지 않음
 ```
-
-
 
 ## 쿼리 조건
 
@@ -972,7 +888,6 @@ db.users.find({"age" : {"$gte": 18, "$lte" : 30}})
 // 2007년 1월 1일 이전에 등록한 사람을 찾는 쿼리
 start = new Date("01/01/2007")
 db.users.find({"registered" : {"$lt": start}})
-
 ```
 
 - 키 값이 특정 값과 일치하지 않는 도큐먼트를 찾는 연산자
@@ -982,8 +897,6 @@ db.users.find({"registered" : {"$lt": start}})
 ```
 db.users.find({"username" : {"$ne", "joe"}})
 ```
-
-
 
 ### OR 쿼리
 
@@ -1015,8 +928,6 @@ db.users.find({"user_id": {"$in" : [12345, "joe"]}})
 db.raffle.find({"ticket_no" : {"$nin" : [725, 542, 390]}})
 ```
 
-
-
 `$or`
 
 - $in은 하나의 키에 대해 OR쿼리를 하고 $or는 여러개의 키에 대한 조건을 지정할 수 있다.
@@ -1047,8 +958,6 @@ db.users.find({"id_num" : {"$mod" : [5, 1]}})
 // 아래 쿼리는 $not이 적용되어 id_num이 2,3,4,5,7,8 인 사용자를 반환한다.
 db.users.find({"id_num" : {"$not" : {"$mod" : [5, 1]}}})
 ```
-
-
 
 ## 형 특정 쿼리
 
@@ -1084,8 +993,6 @@ db.c.find({"x" : null})
 db.c.find({"z" : {"$eq" : null, "$exists" : true}})
 ```
 
-
-
 ### 정규 표현식
 
 - $regex는 쿼리에서 패턴 일치 문자열을 위한 정규식 기능을 제공한다.
@@ -1096,10 +1003,8 @@ db.users.find({"name": {"$regex" : /joe/i}})
 ```
 
 - 몽고DB는 정규 표현식 일치에 펄 호환 정규 표현식 (Perl Compatible Regular Expression  PCRE) 라이브러리를 사용하며 PCRE에서 쓸 수 있는 모든 문법은 몽고 DB에서 쓸 수 있다. 쿼리하기 전에 먼저 자브스크립트 셸로 해당 정규표현식이 의도한대로 동작하는지 확인해보는 것이 좋다.
--  몽고DB는 접두사 정규 표현식 쿼리 (ex: /^joey/ ) 에 인덱스를 활용할 수 있어 쿼리를 더 빠르게 실행할 수 있다. (대소문자 구별하는 검색 제외)
+- 몽고DB는 접두사 정규 표현식 쿼리 (ex: /^joey/ ) 에 인덱스를 활용할 수 있어 쿼리를 더 빠르게 실행할 수 있다. (대소문자 구별하는 검색 제외)
 - 정규표현식 또한 스스로와 일치하는 도큐먼트를 찾을 수 있다.
-
-
 
 ### 배열에 쿼리하기
 
@@ -1114,8 +1019,6 @@ db.food.find({"fruit" : "banana"})
 // 이때 배열을 {"fruit" : "apple", "fruit" : "banana", "fruit" : "peach"} 와 같은 도큐먼트로 가정하면 이해가 조금 더 쉽다.
 ```
 
-
-
 `$all 연산자`
 
 - 2개 이상의 배열 요소가 일치하는 배열을 찾으려면 $all을 사용한다.
@@ -1128,7 +1031,6 @@ db.food.insertOne({"_id" : 3, "fruit" : ["cherry", "banana", "apple"]})
 db.food.find({"fruit" : {"$all" : ["apple", "banana"]}})
 {"_id" : 1, "fruit" : ["apple", "banana", "peach"]}
 {"_id" : 3, "fruit" : ["cherry", "banana", "apple"]}
-
 ```
 
 - 전체 배열과 정확하게 일치해야 하는 도큐먼트를 쿼리할 수도 있다.
@@ -1145,8 +1047,6 @@ db.food.find({"fruit.2" : "peach"})
 
 - 배열의 인덱스는 항상 0부터 시작함을 참고하자.
 
-
-
 `$size 연산자`
 
 - $size는 특정 크기의 배열을 쿼리하는 유용한 조건절이다.
@@ -1162,8 +1062,6 @@ db.food.update(criteria, {"$push" : ... }, "$inc" : {"size" : 1})
 
 db.food.find({"size" : {"$gt" : 3}})
 ```
-
-
 
 `$slice 연산자`
 
@@ -1182,8 +1080,6 @@ db.blog.posts.findOne(criteria, {"comments" : {"$slice" : [23, 10]}})
 
 - $slice 연산자는 도큐먼트 내 모든 키를 반환한다.
 
-
-
 `일치하는 배열 요소의 반환`
 
 - 배열 요소의 인덱스를 알고 있다면 $slice가 유용하지만 때로는 특정 기준과 일치하는 배열 요소를 원할 수도 있다. $연산자를 사용하면일치하는 요소를 반환받을 수 있다.
@@ -1191,8 +1087,6 @@ db.blog.posts.findOne(criteria, {"comments" : {"$slice" : [23, 10]}})
 ```
 db.blog.posts.find({"comments.name" : "bob"}, {"comments.$" : 1})
 ```
-
-
 
 `배열 및 범위 쿼리의 상호작용`
 
@@ -1236,8 +1130,6 @@ db.test.find({"x" : {"$gt" : 10, "$lt" : 20}}).min({"x" : 10}).max({"x" : 20})
 - min과 max에 인덱스의 모든 필드를 전달해야 한다.
 - 하나의 필드에 배열, 스칼라값을 함께 저장하는 경우 범위쿼리를 할 때 min, max를 사용하면 좋다.
 - 배열에 대한 $gt, $lt 쿼리의 인덱스는 비효율적이다. (5장에서 자세히)
-
-
 
 ### 내장 도큐먼트에 쿼리하기
 
@@ -1302,8 +1194,6 @@ db.blog.find({"comments" : {"$elemMatch" : {"author" : "joe", "score" : {"$gte" 
 
 - elemMatch를 사용해 조건을 그룹화할 수 있다. 내장 도큐먼트에서 2개 이사의 키의 조건 일치 여뷰를 확인할 때만 필요하다.
 
-
-
 ## $where 쿼리
 
 - $where 절을 사용해 임의의 자바스크립트를 쿼리의 일부분으로 실행하면 거의 모든 쿼리를 표현할 수 있다.
@@ -1319,13 +1209,13 @@ db.foo.insertOne({"apple" : 8, "spinach" : 4, "watermelon" : 4})
 
 ```
 db.foo.find({"$where" : function () { 
-	for (var current in this) { 
-		for (var other in this) {
-			if (current != other && this[current] == this[other]) 
-				{ return true; } 
-		}
-	}
-	return false;
+    for (var current in this) { 
+        for (var other in this) {
+            if (current != other && this[current] == this[other]) 
+                { return true; } 
+        }
+    }
+    return false;
 }});
 // 함수가 true를 반환하면 해당 도큐먼트는 결과 셋에 포함되고 false를 반환하면 포함되지 않는다.
 ```
@@ -1333,8 +1223,6 @@ db.foo.find({"$where" : function () {
 - $where 쿼리는 일반 쿼리보다 훨씬 느리니 반드시 필요한 경우가 아니라면 사용하지 말자.
 - 가능한한 $where 절이 아닌 조건은 인덱스로 거르고 $where 절은 결과를 세부적으로 조정할 떄 사용하자.
 - 몽고 3.6에서는 쿼리 언어로 집계 표현식을 사용할 수 있도록  $expr 연산자가 추가됐다. $expr을 사용하면 자바스크립트를 실행하지 않아 더 빨리 쿼리할 수 있으므로 가능한 한 $where 대신 $expr을 사용하자.
-
-
 
 ## 커서
 
@@ -1363,7 +1251,7 @@ while (cursor.hasNext()) {
 }
 ```
 
--  cursor는 자바스크립트의 iterator를 구현했으므로  foreach 반복문도 가능하다.
+- cursor는 자바스크립트의 iterator를 구현했으므로  foreach 반복문도 가능하다.
 - 커서는 find를 호출할 때 셸이 데이터베이스를 즉시 쿼리하지 않고 결과를 요청하는 쿼리를 보낼때까지 기다린다. 따라서 쿼리하기 전에 옵션을 추가할 수 있다.
 
 ```
@@ -1380,8 +1268,6 @@ cursor.hasNext()
 
 - 셸은 next나 hasNext 메서드 호출 시 서버 왕복 횟수를 줄이기 위해 한 번에 처음 100개 또는 4메가바이트 크기의 결과를 가져온다.
 - 클라이언트는 첫 번째 결과 셋을 살펴본 후에 셸이 데이터베이스에 다시 접근해 더 많은 결과를 요청하게 한다.
-
-
 
 ### 제한, 건너뛰기, 정렬
 
@@ -1417,8 +1303,6 @@ db.foo.find().sort({"date" : -1}).limit(100).skip(100)
 db.foo.find().sort({"date" : -1}).limit(n).skip(x * n)
 ```
 
-
-
 `비교 순서`
 
 - 몽고DB에는 데이터형을 비교하는 위계구조가 있다. 
@@ -1437,8 +1321,6 @@ db.foo.find().sort({"date" : -1}).limit(n).skip(x * n)
   11. 타임스탬프
   12. 정규표현식
   13. 최댓값
-
-
 
 ### 많은 수의 건너뛰기 피하기
 
@@ -1462,12 +1344,9 @@ var page2 = db.foo.find({"date" : {"$lt" : latest.date}});
 page2.sort({"date" : -1}).limit(100);
 ```
 
-
-
 `랜덤으로 도큐먼트 찾기`
 
 ```
-
 // 전체 페이지 사이즈를 가져오고 0~size 의 랜덤수를 만들어서 쿼리하는 예제
 // 이렇게 쓰지 말자.
 var total = db.foo.count()
@@ -1489,8 +1368,6 @@ if (result == null) {
 }
 ```
 
-
-
 ### 종료되지 않는 커서
 
 - 커서 종류
@@ -1502,3 +1379,276 @@ if (result == null) {
   2. 클라이언트측에서 유효 영역을 벗어나면 드라이버는 데이터베이스에 메시지를 보내 커서를 종료해도 된다고 알린다.
   3. 사용자가 아직 결과를 다 살펴보지 않았고 커서가 여전히 유효 영역 내에 있더라도 10분 동안 활동이 없으면 데이터베이스 커스는 자동으로 죽는다.
 - 3번처럼 타임아웃에 의한 종료는 바람직한 동작이지만 때떄로 커서를 오래 남겨두고 싶을 때가 있다. 따라서 많은 드라이는 데이터베이스가 커서를 타임아웃시키지 못하게 하는 immortal이라는 함수를 제공한다. 커서의 타임아웃을 비활성화했다면 결과를 모두살펴보거나 커서를 명확히 종료해야 한다. 그렇지 않으면 커서는 데이터베이스에 남아 서버가 재시작할때까지 리소스를차지한다.
+
+# #5 인덱싱
+
+- 이 장에서 알 수 있는 것들
+  
+  - 인덱싱의 정의와 사용하는 이유
+  
+  - 인덱싱할 필드를 선정하는 방법
+  
+  - 인덱스 사용을 평가하고 적용하는 방법
+  
+  - 인덱스 생성 및 제거에 대한 관리 정보
+
+## 인덱싱 소개
+
+- 데이터베이스 인덱스는 책의 인덱스와 유사하다.
+
+- 컬렉션 스캔
+  
+  - 인덱스를 사용하지 않는 쿼리를 컬렉션 스캔이라고 한다.
+  
+  - 큰 컬렉션을 스캔할 때는 컬렉션 스캔이 매우 느려지니 이런 방식은 피해야 한다.
+
+- explain
+  
+  - 쿼리를 실행할때 explain 함수를 이용해 몽고DB가 무엇을 하는지 확인할 수 있다.
+  
+  - explain은 명령을 감싸는 커서 보조자 메서드와 사용하면 좋다.
+  
+  - explain 커서 메서드는 다양한 CRUD 작업의 실행 정보를 제공한다.
+  
+  - explain은 여러가지 모드에서 실행될 수 있는데 executionStats 모드는 인덱스를 이용한 쿼리의 효과를 이해하는데 도움이 된다.
+
+```
+ ​  
+ // 100만건의 users 데이터 셋팅  
+ ​  
+ for (i=0; i<1000000; i++) {  
+   db.users.insertOne(  
+     {  
+       "i" : i,  
+       "username" : "user" + i,  
+       "age" : Math.floor(Math.random()*120),  
+       "created" : new Date()  
+     }  
+   )  
+ }  
+ ​  
+ db.users.find({"username" : "user10"}).explain("executionStats")  
+ {  
+   "explainVersion" : "1",  
+   "queryPlanner" : {  
+     "namespace" : "test.users",  
+     "indexFilterSet" : false,  
+     "parsedQuery" : {  
+       "username" : {  
+         "$eq" : "user10"  
+       }  
+     },  
+     "maxIndexedOrSolutionsReached" : false,  
+     "maxIndexedAndSolutionsReached" : false,  
+     "maxScansToExplodeReached" : false,  
+     "winningPlan" : {  
+       "stage" : "COLLSCAN",  
+       "filter" : {  
+         "username" : {  
+           "$eq" : "user10"  
+         }  
+       },  
+       "direction" : "forward"  
+     },  
+     "rejectedPlans" : [ ]  
+   },  
+   "executionStats" : {  
+     "executionSuccess" : true,  
+     "nReturned" : 2,  
+     "executionTimeMillis" : 50,  
+     "totalKeysExamined" : 0,  
+     "totalDocsExamined" : 85188,  
+     "executionStages" : {  
+       "stage" : "COLLSCAN",  
+       "filter" : {  
+         "username" : {  
+           "$eq" : "user10"  
+         }  
+       },  
+       "nReturned" : 2,  
+       "executionTimeMillisEstimate" : 2,  
+       "works" : 85190,  
+       "advanced" : 2,  
+       "needTime" : 85187,  
+       "needYield" : 0,  
+       "saveState" : 85,  
+       "restoreState" : 85,  
+       "isEOF" : 1,  
+       "direction" : "forward",  
+       "docsExamined" : 85188  
+     }  
+   },  
+   "command" : {  
+     "find" : "users",  
+     "filter" : {  
+       "username" : "user10"  
+     },  
+     "$db" : "test"  
+   },  
+   "serverInfo" : {  
+     "host" : "8630ee4ab21c",  
+     "port" : 27017,  
+     "version" : "5.0.9",  
+     "gitVersion" : "6f7dae919422dcd7f4892c10ff20cdc721ad00e6"  
+   },  
+   "serverParameters" : {  
+     "internalQueryFacetBufferSizeBytes" : 104857600,  
+     "internalQueryFacetMaxOutputDocSizeBytes" : 104857600,  
+     "internalLookupStageIntermediateDocumentMaxSizeBytes" : 104857600,  
+     "internalDocumentSourceGroupMaxMemoryBytes" : 104857600,  
+     "internalQueryMaxBlockingSortMemoryUsageBytes" : 104857600,  
+     "internalQueryProhibitBlockingMergeOnMongoS" : 0,  
+     "internalQueryMaxAddToSetBytes" : 104857600,  
+     "internalDocumentSourceSetWindowFieldsMaxMemoryBytes" : 104857600  
+   },  
+   "ok" : 1  
+ }  
+ ​
+```
+
+- executionStats.totalDocsExamined
+  
+  - 몽고DB가 쿼리를 실행하면서 살펴본 도큐먼트 개수이다. 이는 컬렉션에 들어있는 모든 도큐먼트 개수와 같다. 몽고 DB는 모든 도큐먼트 안에 있는 모든 필드를 살펴본다.
+
+- executionStats.nReturned
+  
+  - 반환받은 결과의 개수
+
+
+
+```
+db.users.createIndex({"username" : 1})
+{
+	"numIndexesBefore" : 1,
+	"numIndexesAfter" : 2,
+	"createdCollectionAutomatically" : false,
+	"ok" : 1
+}
+
+```
+
+
+
+```
+db.users.find({"username" : "user10"}).explain("executionStats")  
+{
+	"explainVersion" : "1",
+	"queryPlanner" : {
+		"namespace" : "test.users",
+		"indexFilterSet" : false,
+		"parsedQuery" : {
+			"username" : {
+				"$eq" : "user10"
+			}
+		},
+		"maxIndexedOrSolutionsReached" : false,
+		"maxIndexedAndSolutionsReached" : false,
+		"maxScansToExplodeReached" : false,
+		"winningPlan" : {
+			"stage" : "FETCH",
+			"inputStage" : {
+				"stage" : "IXSCAN",
+				"keyPattern" : {
+					"username" : 1
+				},
+				"indexName" : "username_1",
+				"isMultiKey" : false,
+				"multiKeyPaths" : {
+					"username" : [ ]
+				},
+				"isUnique" : false,
+				"isSparse" : false,
+				"isPartial" : false,
+				"indexVersion" : 2,
+				"direction" : "forward",
+				"indexBounds" : {
+					"username" : [
+						"[\"user10\", \"user10\"]"
+					]
+				}
+			}
+		},
+		"rejectedPlans" : [ ]
+	},
+	"executionStats" : {
+		"executionSuccess" : true,
+		"nReturned" : 2,
+		"executionTimeMillis" : 9,
+		"totalKeysExamined" : 2,
+		"totalDocsExamined" : 2,
+		"executionStages" : {
+			"stage" : "FETCH",
+			"nReturned" : 2,
+			"executionTimeMillisEstimate" : 0,
+			"works" : 3,
+			"advanced" : 2,
+			"needTime" : 0,
+			"needYield" : 0,
+			"saveState" : 0,
+			"restoreState" : 0,
+			"isEOF" : 1,
+			"docsExamined" : 2,
+			"alreadyHasObj" : 0,
+			"inputStage" : {
+				"stage" : "IXSCAN",
+				"nReturned" : 2,
+				"executionTimeMillisEstimate" : 0,
+				"works" : 3,
+				"advanced" : 2,
+				"needTime" : 0,
+				"needYield" : 0,
+				"saveState" : 0,
+				"restoreState" : 0,
+				"isEOF" : 1,
+				"keyPattern" : {
+					"username" : 1
+				},
+				"indexName" : "username_1",
+				"isMultiKey" : false,
+				"multiKeyPaths" : {
+					"username" : [ ]
+				},
+				"isUnique" : false,
+				"isSparse" : false,
+				"isPartial" : false,
+				"indexVersion" : 2,
+				"direction" : "forward",
+				"indexBounds" : {
+					"username" : [
+						"[\"user10\", \"user10\"]"
+					]
+				},
+				"keysExamined" : 2,
+				"seeks" : 1,
+				"dupsTested" : 0,
+				"dupsDropped" : 0
+			}
+		}
+	},
+	"command" : {
+		"find" : "users",
+		"filter" : {
+			"username" : "user10"
+		},
+		"$db" : "test"
+	},
+	"serverInfo" : {
+		"host" : "8630ee4ab21c",
+		"port" : 27017,
+		"version" : "5.0.9",
+		"gitVersion" : "6f7dae919422dcd7f4892c10ff20cdc721ad00e6"
+	},
+	"serverParameters" : {
+		"internalQueryFacetBufferSizeBytes" : 104857600,
+		"internalQueryFacetMaxOutputDocSizeBytes" : 104857600,
+		"internalLookupStageIntermediateDocumentMaxSizeBytes" : 104857600,
+		"internalDocumentSourceGroupMaxMemoryBytes" : 104857600,
+		"internalQueryMaxBlockingSortMemoryUsageBytes" : 104857600,
+		"internalQueryProhibitBlockingMergeOnMongoS" : 0,
+		"internalQueryMaxAddToSetBytes" : 104857600,
+		"internalDocumentSourceSetWindowFieldsMaxMemoryBytes" : 104857600
+	},
+	"ok" : 1
+}
+
+```
