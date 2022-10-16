@@ -1419,9 +1419,9 @@ if (result == null) {
   - explain은 여러가지 모드에서 실행될 수 있는데 executionStats 모드는 인덱스를 이용한 쿼리의 효과를 이해하는데 도움이 된다.
 
 ```
- ​  
+ 
  // 100만건의 users 데이터 셋팅  
- ​  
+
  for (i=0; i<1000000; i++) {  
    db.users.insertOne(  
      {  
@@ -1432,7 +1432,7 @@ if (result == null) {
      }  
    )  
  }  
- ​  
+
  db.users.find({"username" : "user10"}).explain("executionStats")  
  {  
    "explainVersion" : "1",  
@@ -1509,7 +1509,7 @@ if (result == null) {
    },  
    "ok" : 1  
  }  
- ​
+
 ```
 
 - executionStats.totalDocsExamined
@@ -1679,8 +1679,366 @@ db.users.find({"username" : "user10"}).explain("executionStats")
 db.users.find().sort({"age" : 1, "username" : 1})
 
 // 따라서 age, username에 인덱스를 만들어줘야 한다.
-
 db.users.createIndex({"age" : 1, "username" : 1})
 ```
 
 - 필드가 2개 이상인 인덱스를 복합 인덱스라고 한다. 복합 인덱스는 쿼리에서 정렬 방향이 여러 개이거나 검색 조건에 여러 개의 키가 있을 때 유용하다.
+
+
+
+`db.users.find({"age" : 21}).sort({"username" : -1})`
+
+- 단일 값을 찾는 동등쿼리이다.
+- age, username에 인덱스가 잡혀있으므로 age와 일치하는 도큐먼트에서 username 마지막 항목부터 역순으로 인덱스를 탐색한다.
+- 이런 쿼리는 username을 따로 정렬할 필요가 없기 때문에 매우 효율적이다.
+- 몽고DB는 인덱스를 어느 방향으로도 쉽게 탐색하므로 정렬 방향은 문제가 되지 않는다.
+
+```
+> db.users.find({"age" : 21}).sort({"username" : -1}).explain()
+{
+	"explainVersion" : "1",
+	"queryPlanner" : {
+		"namespace" : "test.users",
+		"indexFilterSet" : false,
+		"parsedQuery" : {
+			"age" : {
+				"$eq" : 21
+			}
+		},
+		"queryHash" : "50DD14CF",
+		"planCacheKey" : "05FCC829",
+		"maxIndexedOrSolutionsReached" : false,
+		"maxIndexedAndSolutionsReached" : false,
+		"maxScansToExplodeReached" : false,
+		"winningPlan" : {
+			"stage" : "FETCH",
+			"inputStage" : {
+				"stage" : "IXSCAN",
+				"keyPattern" : {
+					"age" : 1,
+					"username" : 1
+				},
+				"indexName" : "age_1_username_1",
+				"isMultiKey" : false,
+				"multiKeyPaths" : {
+					"age" : [ ],
+					"username" : [ ]
+				},
+				"isUnique" : false,
+				"isSparse" : false,
+				"isPartial" : false,
+				"indexVersion" : 2,
+				"direction" : "backward",
+				"indexBounds" : {
+					"age" : [
+						"[21.0, 21.0]"
+					],
+					"username" : [
+						"[MaxKey, MinKey]"
+					]
+				}
+			}
+		},
+		"rejectedPlans" : [ ]
+	},
+	"command" : {
+		"find" : "users",
+		"filter" : {
+			"age" : 21
+		},
+		"sort" : {
+			"username" : -1
+		},
+		"$db" : "test"
+	},
+	"serverInfo" : {
+		"host" : "8630ee4ab21c",
+		"port" : 27017,
+		"version" : "5.0.9",
+		"gitVersion" : "6f7dae919422dcd7f4892c10ff20cdc721ad00e6"
+	},
+	"serverParameters" : {
+		"internalQueryFacetBufferSizeBytes" : 104857600,
+		"internalQueryFacetMaxOutputDocSizeBytes" : 104857600,
+		"internalLookupStageIntermediateDocumentMaxSizeBytes" : 104857600,
+		"internalDocumentSourceGroupMaxMemoryBytes" : 104857600,
+		"internalQueryMaxBlockingSortMemoryUsageBytes" : 104857600,
+		"internalQueryProhibitBlockingMergeOnMongoS" : 0,
+		"internalQueryMaxAddToSetBytes" : 104857600,
+		"internalDocumentSourceSetWindowFieldsMaxMemoryBytes" : 104857600
+	},
+	"ok" : 1
+}
+
+```
+
+- winningPlan 도큐먼트를 확인해보면 plan을 대락적으로 확인할 수 있다.
+
+
+
+`db.users.find({"age" : {"$gte" : 21, "$lte" : 30}})`
+
+```
+> db.users.find({"age" : {"$gte" : 21, "$lte" : 30}}).explain()
+{
+	"explainVersion" : "1",
+	"queryPlanner" : {
+		"namespace" : "test.users",
+		"indexFilterSet" : false,
+		"parsedQuery" : {
+			"$and" : [
+				{
+					"age" : {
+						"$lte" : 30
+					}
+				},
+				{
+					"age" : {
+						"$gte" : 21
+					}
+				}
+			]
+		},
+		"queryHash" : "0ED8ACDE",
+		"planCacheKey" : "982CCEC6",
+		"maxIndexedOrSolutionsReached" : false,
+		"maxIndexedAndSolutionsReached" : false,
+		"maxScansToExplodeReached" : false,
+		"winningPlan" : {
+			"stage" : "FETCH",
+			"inputStage" : {
+				"stage" : "IXSCAN",
+				"keyPattern" : {
+					"age" : 1,
+					"username" : 1
+				},
+				"indexName" : "age_1_username_1",
+				"isMultiKey" : false,
+				"multiKeyPaths" : {
+					"age" : [ ],
+					"username" : [ ]
+				},
+				"isUnique" : false,
+				"isSparse" : false,
+				"isPartial" : false,
+				"indexVersion" : 2,
+				"direction" : "forward",
+				"indexBounds" : {
+					"age" : [
+						"[21.0, 30.0]"
+					],
+					"username" : [
+						"[MinKey, MaxKey]"
+					]
+				}
+			}
+		},
+		"rejectedPlans" : [ ]
+	},
+	"command" : {
+		"find" : "users",
+		"filter" : {
+			"age" : {
+				"$gte" : 21,
+				"$lte" : 30
+			}
+		},
+		"$db" : "test"
+	},
+	"serverInfo" : {
+		"host" : "8630ee4ab21c",
+		"port" : 27017,
+		"version" : "5.0.9",
+		"gitVersion" : "6f7dae919422dcd7f4892c10ff20cdc721ad00e6"
+	},
+	"serverParameters" : {
+		"internalQueryFacetBufferSizeBytes" : 104857600,
+		"internalQueryFacetMaxOutputDocSizeBytes" : 104857600,
+		"internalLookupStageIntermediateDocumentMaxSizeBytes" : 104857600,
+		"internalDocumentSourceGroupMaxMemoryBytes" : 104857600,
+		"internalQueryMaxBlockingSortMemoryUsageBytes" : 104857600,
+		"internalQueryProhibitBlockingMergeOnMongoS" : 0,
+		"internalQueryMaxAddToSetBytes" : 104857600,
+		"internalDocumentSourceSetWindowFieldsMaxMemoryBytes" : 104857600
+	},
+	"ok" : 1
+}
+```
+
+
+
+`db.users.find({"age" : {"$gte" : 21, "$lte" : 30}}).sort({"username" : 1}).explain()`
+
+- 이 쿼리는 username을 정렬된 순서로 반환하지 않으며 쿼리는 username에 따라 정렬된 결과를 요청한다.
+- 몽고DB가 이미 원하는 순서대로 도큐먼트가 정렬된 인덱스를 단순히 통과하지 않고 결과를 반환하기 전에 메모리에서 정렬해야 함을 의미한다. 따라서 일반적으로 이전 쿼리보다 비효율적이다.
+- 얼마나 많은 도큐먼트를 정렬해야 하는지에 따라 쿼리의 속도가 달라진다. 결과가 32메가바이트 이상이면 오류가 발생하므로 sort에 limit을 함께 사용해 결과를 32메가바이트 이하로 줄여야한다.
+
+```
+db.users.find({"age" : {"$gte" : 21, "$lte" : 30}}).sort({"username" : 1}).explain()
+{
+	"explainVersion" : "1",
+	"queryPlanner" : {
+		"namespace" : "test.users",
+		"indexFilterSet" : false,
+		"parsedQuery" : {
+			"$and" : [
+				{
+					"age" : {
+						"$lte" : 30
+					}
+				},
+				{
+					"age" : {
+						"$gte" : 21
+					}
+				}
+			]
+		},
+		"queryHash" : "939A6D68",
+		"planCacheKey" : "FE894A2C",
+		"maxIndexedOrSolutionsReached" : false,
+		"maxIndexedAndSolutionsReached" : false,
+		"maxScansToExplodeReached" : false,
+		"winningPlan" : {
+			"stage" : "FETCH",
+			"filter" : {
+				"$and" : [
+					{
+						"age" : {
+							"$lte" : 30
+						}
+					},
+					{
+						"age" : {
+							"$gte" : 21
+						}
+					}
+				]
+			},
+			"inputStage" : {
+				"stage" : "IXSCAN",
+				"keyPattern" : {
+					"username" : 1
+				},
+				"indexName" : "username_1",
+				"isMultiKey" : false,
+				"multiKeyPaths" : {
+					"username" : [ ]
+				},
+				"isUnique" : false,
+				"isSparse" : false,
+				"isPartial" : false,
+				"indexVersion" : 2,
+				"direction" : "forward",
+				"indexBounds" : {
+					"username" : [
+						"[MinKey, MaxKey]"
+					]
+				}
+			}
+		},
+		"rejectedPlans" : [
+			{
+				"stage" : "FETCH",
+				"inputStage" : {
+					"stage" : "SORT",
+					"sortPattern" : {
+						"username" : 1
+					},
+					"memLimit" : 104857600,
+					"type" : "default",
+					"inputStage" : {
+						"stage" : "IXSCAN",
+						"keyPattern" : {
+							"age" : 1,
+							"username" : 1
+						},
+						"indexName" : "age_1_username_1",
+						"isMultiKey" : false,
+						"multiKeyPaths" : {
+							"age" : [ ],
+							"username" : [ ]
+						},
+						"isUnique" : false,
+						"isSparse" : false,
+						"isPartial" : false,
+						"indexVersion" : 2,
+						"direction" : "forward",
+						"indexBounds" : {
+							"age" : [
+								"[21.0, 30.0]"
+							],
+							"username" : [
+								"[MinKey, MaxKey]"
+							]
+						}
+					}
+				}
+			}
+		]
+	},
+	"command" : {
+		"find" : "users",
+		"filter" : {
+			"age" : {
+				"$gte" : 21,
+				"$lte" : 30
+			}
+		},
+		"sort" : {
+			"username" : 1
+		},
+		"$db" : "test"
+	},
+	"serverInfo" : {
+		"host" : "8630ee4ab21c",
+		"port" : 27017,
+		"version" : "5.0.9",
+		"gitVersion" : "6f7dae919422dcd7f4892c10ff20cdc721ad00e6"
+	},
+	"serverParameters" : {
+		"internalQueryFacetBufferSizeBytes" : 104857600,
+		"internalQueryFacetMaxOutputDocSizeBytes" : 104857600,
+		"internalLookupStageIntermediateDocumentMaxSizeBytes" : 104857600,
+		"internalDocumentSourceGroupMaxMemoryBytes" : 104857600,
+		"internalQueryMaxBlockingSortMemoryUsageBytes" : 104857600,
+		"internalQueryProhibitBlockingMergeOnMongoS" : 0,
+		"internalQueryMaxAddToSetBytes" : 104857600,
+		"internalDocumentSourceSetWindowFieldsMaxMemoryBytes" : 104857600
+	},
+	"ok" : 1
+}
+
+```
+
+- 같은 키를 역순으로 한 {"username" : 1, "age" : 1} 인덱스 또한 사용할 수 있다.
+- 이때 몽고DB는 모든 인덱스 항목을 탐색하지만 도큐먼트를 재정렬하지 않는다. 이는 거대한 이메모리 정렬이 필요하지 않다는 장점이 있다.
+- 복합 인덱스를 구성할 떄는 정렬 키를 첫번째에 놓으면 좋다.
+
+
+
+### 몽고 DB가 인덱스를 선택하는 방법
+
+- 5개의 인덱스가 있다고 가정해보자.
+
+1. 쿼리가 들어오면 몽고DB는 쿼리 모양을 확인한다. 모양은 검색할 필드와 정렬 여부 등 추가 정보와 관련 있다. 시스템은 이 정보를 기반으로 쿼리를 충족하는 데 사용할 인덱스 후보 집합을 식별한다.
+2. 1번에서 5개중 3개가 쿼리 후보로 식별됐다고 가정하면 몽고DB는 각 인덱스 후보에 하나씩 총 3개의 쿼리 플랜을 만들고 각각 다른 인덱스를 사용하는 3개의 병렬 스레드에서 쿼리를 실행한다. 
+3. 가장 먼저 목표 상태에 도달하는 쿼리 플랜이 승자가 된다.
+
+- 가장 먼저 목표상태에 도달한 쿼리 플랜은 동일한 모양을 가진 쿼리에 사용될 인덱스로 선택된다는 점이 중요하다.
+- 플랜은 일정 기간동안 서로 경쟁하며 각 레이스의 결과로 전체 승리 플랜을 산출한다.
+- 쿼리 스레드가 레이스에서 이기는 방법
+  - 모든 쿼리 결과를 가장 먼저 반환하기
+  - 결과에 대한 시범 횟수를 정렬 순서로 가장 먼저 반환하기
+
+
+
+사진
+
+- 여러 쿼리 플랜이 서로 경쟁함으로써 모양이 동일한 후속 쿼리가 있을 때 몽고DB 서버에서 어떤 인덱스를 선택할지 알 수 있다.
+- 서버는 승리한 플랜을 차후 모양이 같은 쿼리에 사용하기 위해 캐시에 저장된다. 시간이 지나 컬렉션과 인덱스가 변경되면 쿼리 플랜이 캐시에서 제거되고, 몽고DB는 다시 가능한 쿼리 플랜을 실험해 해당 컬렉션 및 인덱스 집합에 가장 적합한 플랜을 찾는다.
+- 쿼리 플랜이 삭제되는 case
+  - 인덱스를 삭제, 추가하는 경우
+  - mongod 프로세스를 다시 시작할때
+- 쿼리 플랜 캐시는 명시적으로 지울 수 있다.
+
