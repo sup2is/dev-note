@@ -567,18 +567,78 @@ function
 
 ### .mongorc.js 만들기
 
-- 자주 로드되는 스크립트를 .mongorc.js 파일에 넣을 수 있다.
+- 자주 로드되는 스크립트 (셸이 시작할 때마다 실행되는)를 .mongorc.js 파일에 넣을 수 있다.
 - .mongorc.js의 역할
   - 사용하고 싶은 전역변수 설정
   - alias 설정
   - 내장 함수 재정의
   - 위험한 셸 보조자 제거 (dropDatabase, deleteIndexes ... )
+- 셸을 시작할때 --norc 옵션을 사용해 .mongorc.js의 로딩을 비활성화할 수도 있다.
 
 ### 프롬프트 커스터마이징하기
 
+- 기본 셸 프롬프트는 문자열이나 함수에 prompt 변수를 설정해 재정의한다.
+
+```
+// 마지막 작업이 완료된 시각을 얻는 프롬프트
+> prompt = function() {
+...   return (new Date()) + "> ";
+... }
+function() {
+  return (new Date()) + "> ";
+}
+Tue Oct 18 2022 13:27:25 GMT+0000 (UTC)> 
+Tue Oct 18 2022 13:27:27 GMT+0000 (UTC)> 
+Tue Oct 18 2022 13:27:27 GMT+0000 (UTC)> 
+Tue Oct 18 2022 13:27:28 GMT+0000 (UTC)> 
+Tue Oct 18 2022 13:27:28 GMT+0000 (UTC)> 
+```
+
+- 프롬프트 함수는 문자열을 반환하고 예외를 잡는 데 주의를 기울여야 한다.
+- 항상 사용자 정의 프롬프트를 사용하려면 .mongorc.js를 사용하자.
+
 ### 복잡한 변수 수정하기
 
+- 셸에서 다중행 지원은 다소 제한적이며 이전 행들을 편집할 수 없다. 따라서 코드나 객체 블록이 크면 에디터에서 편집하는게 좋다.
+
+```
+EDITOR="/usr/bin/emacs"
+
+// edit {변수명} 형식으로 변수를 편집할 수 있다.
+var wap = db.books.findOne({title: "War and Peace"});
+edit wap
+```
+
+
+
 ### 불편한 컬렉션명
+
+- 컬렉션명이 예약어가 아니거나 유효하지 않은 자바스크립트 속셩명이 아니라면 db.collectionName으로 컬렉션을 항상 가져올 수 있다.
+- 그럼에도 불구하고 특정 collectionName을 사용해야하는 경우 아래와 같이 사용하면 된다.
+
+```
+db.getCollection("version")
+```
+
+- 자바스크립트의 배열 접근 구문을 사용해서 컬렉션에 접근할 수도 있다
+  - 자바스크립트에서 x.y는 x['y']와 동일하다.
+
+```
+var collections = ["posts", "comments", "authors"];
+
+for (var i in collections) {
+  print(db.blog[collections[i]]);
+}
+```
+
+- 접근하려는 컬렉션의 이름이 다루기 힘든 경우에는 다음과 같은 방법을 사용한다.
+
+```
+var name = "@#$%"
+db[name].find()
+```
+
+
 
 # #3 도큐먼트 생성, 갱신, 삭제
 
