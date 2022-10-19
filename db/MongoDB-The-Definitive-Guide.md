@@ -1621,7 +1621,7 @@ db.users.createIndex({"username" : 1})
 	"numIndexesAfter" : 2,
 	"createdCollectionAutomatically" : false,
 	"ok" : 1
-}ㅁㄴㅇㄹㅁㄴㅇㄹ
+}
 ```
 
 
@@ -2132,4 +2132,43 @@ db.users.find({"age" : {"$gte" : 21, "$lte" : 30}}).sort({"username" : 1}).expla
   - 인덱스를 삭제, 추가하는 경우
   - mongod 프로세스를 다시 시작할때
 - 쿼리 플랜 캐시는 명시적으로 지울 수 있다.
+
+
+
+### 복합 인덱스 사용
+
+- 인덱스를 올바르게 설계하려면 실제 워크로드에서 인덱스를 테스트하고 조정해야 하지만 몇 가지 모범 사례를 적용해볼 수 있다.
+
+  
+
+```
+// 100만건의 students 데이터 셋 생성하기
+for (i=0; i<1000000; i++) {  
+    db.students.insertOne(  
+       {  
+          "student_id" : i,  
+          "scores" : [
+            {
+              "type" : "exam",
+              "score" : Math.floor(Math.random()*100)
+            },
+            {
+              "type" : "quiz",
+              "score" : Math.floor(Math.random()*100)
+            },
+            {
+              "type" : "homework",
+              "score" : Math.floor(Math.random()*100)
+            },
+            {
+              "type" : "homework",
+              "score" : Math.floor(Math.random()*100)
+            },
+          ]
+          "class_id" : Math.floor(Math.random()*120),  
+          "created" : new Date()  
+       }  
+    )  
+}  
+```
 
