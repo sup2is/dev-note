@@ -2139,8 +2139,6 @@ db.users.find({"age" : {"$gte" : 21, "$lte" : 30}}).sort({"username" : 1}).expla
 
 - 인덱스를 올바르게 설계하려면 실제 워크로드에서 인덱스를 테스트하고 조정해야 하지만 몇 가지 모범 사례를 적용해볼 수 있다.
 
-  
-
 ```
 // 100만건의 students 데이터 셋 생성하기
 for (i=0; i<1000000; i++) {  
@@ -2164,11 +2162,588 @@ for (i=0; i<1000000; i++) {
               "type" : "homework",
               "score" : Math.floor(Math.random()*100)
             },
-          ]
+          ],
           "class_id" : Math.floor(Math.random()*120),  
           "created" : new Date()  
        }  
     )  
 }  
+
+// 인덱스 생성
+db.students.createIndex({"class_id": 1})
+{
+	"numIndexesBefore" : 1,
+	"numIndexesAfter" : 2,
+	"createdCollectionAutomatically" : false,
+	"ok" : 1
+}
+db.students.createIndex({"student_id": 1, "class_id": 1})
+{
+	"numIndexesBefore" : 2,
+	"numIndexesAfter" : 3,
+	"createdCollectionAutomatically" : false,
+	"ok" : 1
+}
+
+```
+
+- 잘못된 쿼리 사용하기
+
+```
+db.students.find({"student_id" : {"$gt": 500000}, "class_id": 54}).sort({"student_id": 1}).explain("executionStats")
+{
+	"explainVersion" : "1",
+	"queryPlanner" : {
+		"namespace" : "test.students",
+		"indexFilterSet" : false,
+		"parsedQuery" : {
+			"$and" : [
+				{
+					"class_id" : {
+						"$eq" : 54
+					}
+				},
+				{
+					"student_id" : {
+						"$gt" : 500000
+					}
+				}
+			]
+		},
+		"maxIndexedOrSolutionsReached" : false,
+		"maxIndexedAndSolutionsReached" : false,
+		"maxScansToExplodeReached" : false,
+		"winningPlan" : {
+			"stage" : "SORT",
+			"sortPattern" : {
+				"student_id" : 1
+			},
+			"memLimit" : 104857600,
+			"type" : "simple",
+			"inputStage" : {
+				"stage" : "FETCH",
+				"filter" : {
+					"student_id" : {
+						"$gt" : 500000
+					}
+				},
+				"inputStage" : {
+					"stage" : "IXSCAN",
+					"keyPattern" : {
+						"class_id" : 1
+					},
+					"indexName" : "class_id_1",
+					"isMultiKey" : false,
+					"multiKeyPaths" : {
+						"class_id" : [ ]
+					},
+					"isUnique" : false,
+					"isSparse" : false,
+					"isPartial" : false,
+					"indexVersion" : 2,
+					"direction" : "forward",
+					"indexBounds" : {
+						"class_id" : [
+							"[54.0, 54.0]"
+						]
+					}
+				}
+			}
+		},
+		"rejectedPlans" : [
+			{
+				"stage" : "FETCH",
+				"inputStage" : {
+					"stage" : "IXSCAN",
+					"keyPattern" : {
+						"student_id" : 1,
+						"class_id" : 1
+					},
+					"indexName" : "student_id_1_class_id_1",
+					"isMultiKey" : false,
+					"multiKeyPaths" : {
+						"student_id" : [ ],
+						"class_id" : [ ]
+					},
+					"isUnique" : false,
+					"isSparse" : false,
+					"isPartial" : false,
+					"indexVersion" : 2,
+					"direction" : "forward",
+					"indexBounds" : {
+						"student_id" : [
+							"(500000.0, inf.0]"
+						],
+						"class_id" : [
+							"[54.0, 54.0]"
+						]
+					}
+				}
+			}
+		]
+	},
+	"executionStats" : {
+		"executionSuccess" : true,
+		"nReturned" : 4022,
+		"executionTimeMillis" : 38,
+		"totalKeysExamined" : 8237,
+		"totalDocsExamined" : 8237,
+		"executionStages" : {
+			"stage" : "SORT",
+			"nReturned" : 4022,
+			"executionTimeMillisEstimate" : 4,
+			"works" : 12261,
+			"advanced" : 4022,
+			"needTime" : 8238,
+			"needYield" : 0,
+			"saveState" : 20,
+			"restoreState" : 20,
+			"isEOF" : 1,
+			"sortPattern" : {
+				"student_id" : 1
+			},
+			"memLimit" : 104857600,
+			"type" : "simple",
+			"totalDataSizeSorted" : 1065830,
+			"usedDisk" : false,
+			"inputStage" : {
+				"stage" : "FETCH",
+				"filter" : {
+					"student_id" : {
+						"$gt" : 500000
+					}
+				},
+				"nReturned" : 4022,
+				"executionTimeMillisEstimate" : 4,
+				"works" : 8238,
+				"advanced" : 4022,
+				"needTime" : 4215,
+				"needYield" : 0,
+				"saveState" : 20,
+				"restoreState" : 20,
+				"isEOF" : 1,
+				"docsExamined" : 8237,
+				"alreadyHasObj" : 0,
+				"inputStage" : {
+					"stage" : "IXSCAN",
+					"nReturned" : 8237,
+					"executionTimeMillisEstimate" : 2,
+					"works" : 8238,
+					"advanced" : 8237,
+					"needTime" : 0,
+					"needYield" : 0,
+					"saveState" : 20,
+					"restoreState" : 20,
+					"isEOF" : 1,
+						"keyPattern" : {
+						"class_id" : 1
+					},
+					"indexName" : "class_id_1",
+					"isMultiKey" : false,
+					"multiKeyPaths" : {
+						"class_id" : [ ]
+					},
+					"isUnique" : false,
+					"isSparse" : false,
+					"isPartial" : false,
+					"indexVersion" : 2,
+					"direction" : "forward",
+					"indexBounds" : {
+						"class_id" : [
+							"[54.0, 54.0]"
+						]
+					},
+					"keysExamined" : 8237,
+					"seeks" : 1,
+					"dupsTested" : 0,
+					"dupsDropped" : 0
+				}
+			}
+		}
+	},
+	"command" : {
+		"find" : "students",
+		"filter" : {
+			"student_id" : {
+				"$gt" : 500000
+			},
+			"class_id" : 54
+		},
+		"sort" : {
+			"student_id" : 1
+		},
+		"$db" : "test"
+	},
+	"serverInfo" : {
+		"host" : "8630ee4ab21c",
+		"port" : 27017,
+		"version" : "5.0.9",
+		"gitVersion" : "6f7dae919422dcd7f4892c10ff20cdc721ad00e6"
+	},
+	"serverParameters" : {
+		"internalQueryFacetBufferSizeBytes" : 104857600,
+		"internalQueryFacetMaxOutputDocSizeBytes" : 104857600,
+		"internalLookupStageIntermediateDocumentMaxSizeBytes" : 104857600,
+		"internalDocumentSourceGroupMaxMemoryBytes" : 104857600,
+		"internalQueryMaxBlockingSortMemoryUsageBytes" : 104857600,
+		"internalQueryProhibitBlockingMergeOnMongoS" : 0,
+		"internalQueryMaxAddToSetBytes" : 104857600,
+		"internalDocumentSourceSetWindowFieldsMaxMemoryBytes" : 104857600
+	},
+	"ok" : 1
+}
+
+```
+
+- executionStats.totalKeysExamined를 확인해보면 executionStats.totalKeysExamined와 executionStats.nReturned와 비교하면 몽고DB가 결과 셋을 생성하기 위해 인덱스 내에서 몇 개의 키를 통과했는지 비교할 수 있다.
+  - 책에 있는 예제에서는 도큐먼트 9903개를 찾으려고 인덱스키 85만 477개를 검사했고 executionTimeMillis가 4.3초걸렸다.
+  - 책이랑 똑같은 데이터셋에 같은 인덱스, 같은 쿼리였는데 다른걸보니 몽고DB 옵티마이저가 많이 좋아졌나보다 .. 아니면 데이터 셋이 문제가 있거나?
+- explain 출력에는 선정된 쿼리 플랜(winningPlan)이 있다. 이 선정된 쿼리 플랜은 몽고DB가 쿼리를 충족하는데 사용한 단계를 설명한다.
+- 선정된 쿼리 플랜 아래에는 거부된 플랜(rejectedPlans)이 있다.
+- hint 지정하기
+  - 몽고DB는 데이터베이스가 특정 인덱스를 사용하도록 강제하는 두 가지 방법을 제공한다.
+  - 그러나 쿼리 플래너의 결과를 재정의하는 방법은 매우 신중히 사용해야 한다. 이런 기술은 운영환경에서 사용해서는 안된다.
+  - 커서 hint 메서드를 사용하면 모양이나 이름을 지정함으로써 사용할 인덱스를 지정할 수 있다.
+
+```
+db.students.find({"student_id" : {"$gt": 500000}, "class_id": 54}).sort({"student_id": 1}).hint("student_id_1_class_id_1").explain("executionStats")
+
+db.students.find({"student_id" : {"$gt": 500000}, "class_id": 54}).sort({"student_id": 1}).explain("executionStats")
+{
+	"explainVersion" : "1",
+	"queryPlanner" : {
+		"namespace" : "test.students",
+		"indexFilterSet" : false,
+		"parsedQuery" : {
+			"$and" : [
+				{
+					"class_id" : {
+						"$eq" : 54
+					}
+				},
+				{
+					"student_id" : {
+						"$gt" : 500000
+					}
+				}
+			]
+		},
+		"maxIndexedOrSolutionsReached" : false,
+		"maxIndexedAndSolutionsReached" : false,
+		"maxScansToExplodeReached" : false,
+		"winningPlan" : {
+			"stage" : "FETCH",
+			"inputStage" : {
+				"stage" : "IXSCAN",
+				"keyPattern" : {
+					"student_id" : 1,
+					"class_id" : 1
+				},
+				"indexName" : "student_id_1_class_id_1",
+				"isMultiKey" : false,
+				"multiKeyPaths" : {
+					"student_id" : [ ],
+					"class_id" : [ ]
+				},
+				"isUnique" : false,
+				"isSparse" : false,
+				"isPartial" : false,
+				"indexVersion" : 2,
+				"direction" : "forward",
+				"indexBounds" : {
+					"student_id" : [
+						"(500000.0, inf.0]"
+					],
+					"class_id" : [
+						"[54.0, 54.0]"
+					]
+				}
+			}
+		},
+		"rejectedPlans" : [ ]
+	},
+	"executionStats" : {
+		"executionSuccess" : true,
+		"nReturned" : 4022,
+		"executionTimeMillis" : 665,
+		"totalKeysExamined" : 499999,
+		"totalDocsExamined" : 4022,
+		"executionStages" : {
+			"stage" : "FETCH",
+			"nReturned" : 4022,
+			"executionTimeMillisEstimate" : 70,
+			"works" : 500000,
+			"advanced" : 4022,
+			"needTime" : 495977,
+			"needYield" : 0,
+			"saveState" : 500,
+			"restoreState" : 500,
+			"isEOF" : 1,
+			"docsExamined" : 4022,
+			"alreadyHasObj" : 0,
+			"inputStage" : {
+				"stage" : "IXSCAN",
+				"nReturned" : 4022,
+				"executionTimeMillisEstimate" : 63,
+				"works" : 500000,
+				"advanced" : 4022,
+				"needTime" : 495977,
+				"needYield" : 0,
+				"saveState" : 500,
+				"restoreState" : 500,
+				"isEOF" : 1,
+				"keyPattern" : {
+					"student_id" : 1,
+					"class_id" : 1
+				},
+				"indexName" : "student_id_1_class_id_1",
+				"isMultiKey" : false,
+				"multiKeyPaths" : {
+					"student_id" : [ ],
+					"class_id" : [ ]
+				},
+				"isUnique" : false,
+				"isSparse" : false,
+				"isPartial" : false,
+				"indexVersion" : 2,
+				"direction" : "forward",
+				"indexBounds" : {
+					"student_id" : [
+						"(500000.0, inf.0]"
+					],
+					"class_id" : [
+						"[54.0, 54.0]"
+					]
+				},
+				"keysExamined" : 499999,
+				"seeks" : 495978,
+				"dupsTested" : 0,
+				"dupsDropped" : 0
+			}
+		}
+	},
+	"command" : {
+		"find" : "students",
+		"filter" : {
+			"student_id" : {
+				"$gt" : 500000
+			},
+			"class_id" : 54
+		},
+		"sort" : {
+			"student_id" : 1
+		},
+		"$db" : "test"
+	},
+	"serverInfo" : {
+		"host" : "8630ee4ab21c",
+		"port" : 27017,
+		"version" : "5.0.9",
+		"gitVersion" : "6f7dae919422dcd7f4892c10ff20cdc721ad00e6"
+	},
+	"serverParameters" : {
+		"internalQueryFacetBufferSizeBytes" : 104857600,
+		"internalQueryFacetMaxOutputDocSizeBytes" : 104857600,
+		"internalLookupStageIntermediateDocumentMaxSizeBytes" : 104857600,
+		"internalDocumentSourceGroupMaxMemoryBytes" : 104857600,
+		"internalQueryMaxBlockingSortMemoryUsageBytes" : 104857600,
+		"internalQueryProhibitBlockingMergeOnMongoS" : 0,
+		"internalQueryMaxAddToSetBytes" : 104857600,
+		"internalDocumentSourceSetWindowFieldsMaxMemoryBytes" : 104857600
+	},
+	"ok" : 1
+}
+
+```
+
+- hint를 사용해서 안좋은 인덱스를 실행하니 이전보다 더 많은 인덱스를 검사하고 조금 더 오래 걸린것을 확인할 수 있다.
+- 이 쿼리에서 좋은 인덱스는 "class_id" 로 인덱스 내에서 고려되는 키를 먼저 제한하는게 좋다. 모든 데이터셋에서 해당되지 않지만, 일반적으로 동등 필드를 사용할 필드가 다중값 필터를 사용할 필드보다 앞에 오도록 복합 인덱스를 설계해야 한다.
+
+```
+
+db.students.createIndex({"class_id": 1, "student_id": 1})
+{
+	"numIndexesBefore" : 3,
+	"numIndexesAfter" : 3,
+	"note" : "all indexes already exist",
+	"ok" : 1
+}
+
+db.students.find({"student_id" : {"$gt": 500000}, "class_id": 54}).sort({"student_id": 1}).explain("executionStats")
+{
+	"explainVersion" : "1",
+	"queryPlanner" : {
+		"namespace" : "test.students",
+		"indexFilterSet" : false,
+		"parsedQuery" : {
+			"$and" : [
+				{
+					"class_id" : {
+						"$eq" : 54
+					}
+				},
+				{
+					"student_id" : {
+						"$gt" : 500000
+					}
+				}
+			]
+		},
+		"maxIndexedOrSolutionsReached" : false,
+		"maxIndexedAndSolutionsReached" : false,
+		"maxScansToExplodeReached" : false,
+		"winningPlan" : {
+			"stage" : "FETCH",
+			"inputStage" : {
+				"stage" : "IXSCAN",
+				"keyPattern" : {
+					"class_id" : 1,
+					"student_id" : 1
+				},
+				"indexName" : "class_id_1_student_id_1",
+				"isMultiKey" : false,
+				"multiKeyPaths" : {
+					"class_id" : [ ],
+					"student_id" : [ ]
+				},
+				"isUnique" : false,
+				"isSparse" : false,
+				"isPartial" : false,
+				"indexVersion" : 2,
+				"direction" : "forward",
+				"indexBounds" : {
+					"class_id" : [
+						"[54.0, 54.0]"
+					],
+					"student_id" : [
+						"(500000.0, inf.0]"
+					]
+				}
+			}
+		},
+		"rejectedPlans" : [
+			{
+				"stage" : "FETCH",
+				"inputStage" : {
+					"stage" : "IXSCAN",
+					"keyPattern" : {
+						"student_id" : 1,
+						"class_id" : 1
+					},
+					"indexName" : "student_id_1_class_id_1",
+					"isMultiKey" : false,
+					"multiKeyPaths" : {
+						"student_id" : [ ],
+						"class_id" : [ ]
+					},
+					"isUnique" : false,
+					"isSparse" : false,
+					"isPartial" : false,
+					"indexVersion" : 2,
+					"direction" : "forward",
+					"indexBounds" : {
+						"student_id" : [
+							"(500000.0, inf.0]"
+						],
+						"class_id" : [
+							"[54.0, 54.0]"
+						]
+					}
+				}
+			}
+		]
+	},
+	"executionStats" : {
+		"executionSuccess" : true,
+		"nReturned" : 4022,
+		"executionTimeMillis" : 50,
+		"totalKeysExamined" : 4022,
+		"totalDocsExamined" : 4022,
+		"executionStages" : {
+			"stage" : "FETCH",
+			"nReturned" : 4022,
+			"executionTimeMillisEstimate" : 12,
+			"works" : 4023,
+			"advanced" : 4022,
+			"needTime" : 0,
+			"needYield" : 0,
+			"saveState" : 4,
+			"restoreState" : 4,
+			"isEOF" : 1,
+			"docsExamined" : 4022,
+			"alreadyHasObj" : 0,
+			"inputStage" : {
+				"stage" : "IXSCAN",
+				"nReturned" : 4022,
+				"executionTimeMillisEstimate" : 12,
+				"works" : 4023,
+				"advanced" : 4022,
+				"needTime" : 0,
+				"needYield" : 0,
+				"saveState" : 4,
+				"restoreState" : 4,
+				"isEOF" : 1,
+				"keyPattern" : {
+					"class_id" : 1,
+					"student_id" : 1
+				},
+				"indexName" : "class_id_1_student_id_1",
+				"isMultiKey" : false,
+				"multiKeyPaths" : {
+					"class_id" : [ ],
+					"student_id" : [ ]
+				},
+				"isUnique" : false,
+				"isSparse" : false,
+				"isPartial" : false,
+				"indexVersion" : 2,
+				"direction" : "forward",
+				"indexBounds" : {
+					"class_id" : [
+						"[54.0, 54.0]"
+					],
+					"student_id" : [
+						"(500000.0, inf.0]"
+					]
+				},
+				"keysExamined" : 4022,
+				"seeks" : 1,
+				"dupsTested" : 0,
+				"dupsDropped" : 0
+			}
+		}
+	},
+	"command" : {
+		"find" : "students",
+		"filter" : {
+			"student_id" : {
+				"$gt" : 500000
+			},
+			"class_id" : 54
+		},
+		"sort" : {
+			"student_id" : 1
+		},
+		"$db" : "test"
+	},
+	"serverInfo" : {
+		"host" : "8630ee4ab21c",
+		"port" : 27017,
+		"version" : "5.0.9",
+		"gitVersion" : "6f7dae919422dcd7f4892c10ff20cdc721ad00e6"
+	},
+	"serverParameters" : {
+		"internalQueryFacetBufferSizeBytes" : 104857600,
+		"internalQueryFacetMaxOutputDocSizeBytes" : 104857600,
+		"internalLookupStageIntermediateDocumentMaxSizeBytes" : 104857600,
+		"internalDocumentSourceGroupMaxMemoryBytes" : 104857600,
+		"internalQueryMaxBlockingSortMemoryUsageBytes" : 104857600,
+		"internalQueryProhibitBlockingMergeOnMongoS" : 0,
+		"internalQueryMaxAddToSetBytes" : 104857600,
+		"internalDocumentSourceSetWindowFieldsMaxMemoryBytes" : 104857600
+	},
+	"ok" : 1
+}
+
 ```
 
