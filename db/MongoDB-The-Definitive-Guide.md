@@ -2976,5 +2976,184 @@ db.blog.createIndex({"comments.date" : 1})
 
 ## 인덱스를 생성하지 않는 경우
 
+- 인덱스는 데이터의 일부를 조회할 때가 가장 효율적이며 어떤 쿼리는 인덱스가 없는게 더 빠르다.
+- 인덱스는 컬렉션에서 가져와야 하는 부분이 많을수록 비효율적인데 인덱스를 하나 사용하려면 두 번의 조회를 해야 하기 때문이다.
+  - 한번은 인덱스를 살펴보고 또 한번은 실제 도큐먼트를 가리키는 인덱스의 포인터를 따라간다.
+  - 컬렉션 전체를 반환할때는 인덱스보다 컬렉션 스캔이 더 빠르다.
+  - 대체로 쿼리가 컬렉션의 30%이상을 반환하는 경우 인덱스는 종종 쿼리 속도를 높인다.
+
+
+
+| 인덱스가 적합한 경우 | 컬렉션 스캔이 적합한 경우 |
+| -------------------- | ------------------------- |
+| 큰 컬렉션            | 작은 컬렉션               |
+| 큰 도큐먼트          | 작은 도큐먼트             |
+| 선택적 쿼리          | 비선택적 쿼리             |
+
+
+
+
+
+## 인덱스 종류
+
+- 여기서는 일반적인 인덱스만 다루고 6장에서 특수인덱스를 다룬다.
+
+### 고유 인덱스
+
+- 고유 인덱스는 각 값이 인덱스에 최대 한번 나타나도록 보장한다.
+
+```
+db.users2.createIndex({"firstname" : 1}, {unique : true, "partialFilterExpression" : {"firstname" : {$exists : true}}})
+
+db.users2.insert({"firstname" : "bob"})
+WriteResult({ "nInserted" : 1 })
+
+db.users2.insert({"firstname" : "bob"})
+WriteResult({
+	"nInserted" : 0,
+	"writeError" : {
+		"code" : 11000,
+		"errmsg" : "E11000 duplicate key error collection: test.users2 index: firstname_1 dup key: { firstname: \"bob\" }"
+	}
+})
+```
+
+- 중복 키 예외를 발생시키면 매우 비효율적이기 때문에 수많은 중복을 필터링하기보다는 가끔씩 발생하는 중복에 고유 제약 조건을 사용한다.
+- _id 인덱스는 컬렉션을 생성하면 항상 자동으로 생성되는데 다른 고유 인덱스와 달리 삭제할 수 없다는 점을 제외하면 일반적인 고유 인덱스와 같다.
+- 도큐먼트에 키가 존쟇지 않으면 고유 인덱스는 그 도큐먼트에 대해 값을 null로 저장한다. 이미 null 값이 있는 경우 insert에 실패한다.
+- 인덱스 버킷
+  - 인덱스 버킷은 크기 제한이 있으며 제한을 넘는 인덱스 항목은 인덱스에 포함되지 않는다.
+  - 예를 들어 8킬로바이트보다 긴 키에는 고유 인덱스 제약 조건이 적용되지 않아서 똑같은 8킬로바이트 문자열을 입력할 수 있다.
+  - 몽고DB 4.2 이전 버전에서 필드는 인덱스에 포함되려면 1024바이트보다 작아야 했다. 몽고 4.2 이후로 이런 제약이 사라졌다.
+
+
+
+`복합 고유 인덱스`
+
+- 복합 고유 인덱스를 만들수도 있다.
+- 인덱스 항목의 모든 키에 걸친 값의 조합은 인덱스에서 최대 한 번만 나타난다.
+
+```
+db.users3.createIndex({"username" : 1, "age": 1}, {unique : true})
+
+> db.users3.insert({"username" : "choi", "age" : 29})
+WriteResult({ "nInserted" : 1 })
+> db.users3.insert({"username" : "someone", "age" : 29})
+WriteResult({ "nInserted" : 1 })
+> db.users3.insert({"username" : "choi", "age" : 29})
+WriteResult({
+	"nInserted" : 0,
+	"writeError" : {
+		"code" : 11000,
+		"errmsg" : "E11000 duplicate key error collection: test.users3 index: username_1_age_1 dup key: { username: \"choi\", age: 29.0 }"
+	}
+})
+
+```
+
+
+
+
+
+`중복 제거하기`
+
+- 기존 컬렉션에 고유 인덱스를 구축할 때 중복된 값이 있으면 실패한다.
+
+```
+> db.users3.createIndex({"username" : 1, "age": 1}, {unique : true})
+{
+	"ok" : 0,
+	"errmsg" : "Index build failed: aec09234-d41c-49ed-b29a-22277fee8e46: Collection test.users3 ( d376a675-33a4-4f0d-9526-9cadf20a1c1f ) :: caused by :: E11000 duplicate key error collection: test.users3 index: username_1_age_1 dup key: { username: \"choi\", age: 29.0 }",
+	"code" : 11000,
+	"codeName" : "DuplicateKey",
+	"keyPattern" : {
+		"username" : 1,
+		"age" : 1
+	},
+	"keyValue" : {
+		"username" : "choi",
+		"age" : 29
+	}
+}
+```
+
+
+
+### 부분 인덱스
+
+- 고유 인덱스는 null을 값으로 취급하므로 키가 없는 도큐먼트가 여러 개인 고유인덱스를 만들 수 없다. 하지만 오직 키가 존재할 때만 고유 인덱스가 적용되도록 할 때가 많은데 이때 부분인덱스를 사용하면 된다.
+
+```
+// 이메일 주소는 선택 항목이지만 입력할 경우 고유해야한다면 아래와 같이 인덱스를 생성할 수 있다.
+db.users2.createIndex({"email" : 1}, {unique : true, "partialFilterExpression" : {"email" : {$exists : true}}})
+```
+
+- 부분 인덱스는 반드시 고유할 필요는 없고 고유하지 않은 부분 인덱스를 생성하려면 unique 옵션만 제거하면 된다.
+
+
+
+## 인덱스 관리
+
+- 인덱스는 컬렉션당 한 번만 만들어야 하고 다시 생성하면 아무 일도 일어나지 않는다.
+- 데이터베이스의 인덱스 정보는 모두 system.indexes 컬렉션에 저장된다. 이는 예약된 컬렉션이므로 안에 있는 도큐먼트를 수정하거나 제거할 수 없고 명령어로만 조작할 수 있다.
+- 특정 컬렉션의 모든 인덱스 정보를 확인하려면 db.collectioname.getIndexes()를 사용하자.
+
+```
+db.students.getIndexes()
+[
+	{
+		"v" : 2,
+		"key" : {
+			"_id" : 1
+		},
+		"name" : "_id_"
+	},
+	{
+		"v" : 2,
+		"key" : {
+			"student_id" : 1,
+			"class_id" : 1
+		},
+		"name" : "student_id_1_class_id_1"
+	},
+	{
+		"v" : 2,
+		"key" : {
+			"class_id" : 1,
+			"student_id" : 1
+		},
+		"name" : "class_id_1_student_id_1"
+	}
+]
+```
+
+- key와 name 필드는 힌트에 사용하거나 인덱스가 명시돼야 하는 위치에 사용할 수 있다.
+- v 필드는 내부적으로 인덱스 버저닝에 사용된다. 만약 v 필드가 매우 오래된 인덱스이고 비효율적인 형식으로 저장되었으니 몽고 DB2.0 이후 버전을 사용하여 인덱스를 삭제 및 재구축해 인덱스 업그레이드를 진행하자.
+
+
+
+### 인덱스 식별
+
+- 컬렉션 내 각 인덱스는 고유하게 식별하는 이름이 있다.
+- 이 인덱스 이름은 기본적으로 키: 방향(1 or -1)_키2: 방향(1 or -1) 형태(ex: class_id_1_student_id_1) 이기 때문에 인덱스 키가 두 개 이상이면 인덱스명이 길어질 수 있으므로 createIndex의 옵션으로 원하는 이름을 지정할 수 있다.
+
+```
+db.soup.createIndex({"a" : 1, "b" : 1 ... "z" : 1}, {"name" : "alphabet"})
+```
+
+
+
+### 인덱스 변경
+
+- 불필요해진 인덱스는 dropIndex 명령어를 통해 제거할 수 있다.
+
+```
+db.people.dropIndex("x_1_y_1")
+```
+
+- 새로운 인덱스를 구축하려면 시간이 오래 걸리고 리소스가 많이 필요하다.
+- 몽고DB 4.2 이후 버전에서는 인덱스를 최대한 빨리 구축하기 위해, 구축이 완료될 때까지 데이터베이스의 모든 읽기와 쓰기를 중단한다.
+- 데이터베이스가 읽기와 쓰기에 어느정도 응답하게 하려면 인덱스를 구축할 때 "background" 옵션을 사용하자. (그래도 애플리케이션에 큰 영향을 준다.)
+
 
 
