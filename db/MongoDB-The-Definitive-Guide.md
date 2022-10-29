@@ -3292,3 +3292,131 @@ db.openStreetMap.find({"loc" : {"$near" : {"$geometry" : eastVillage}}})
 `왜곡`
 
 `레스토랑 검색`
+
+- 뉴욕에 위치한 지역 데이터 셋을 이용해서 레스토랑을 검색하는 예제
+
+```
+curl -L -o neighborhoods.json http://oreil.ly/rpGna
+curl -L -o restaurants.json https://oreil.ly/JXYd-
+
+docker cp ./neighborhoods.json mongodb:/
+docker cp ./restaurants.json mongodb:/
+
+mongoimport ./neighborhoods.json -c neighborhoods
+mongoimport ./restaurants.json -c restaurants
+
+db.neighborhoods.createIndex({location: "2dsphere"})
+db.restaurants.createIndex({location: "2dsphere"})
+```
+
+
+
+`데이터 탐색`
+
+```
+db.neighborhoods.find({name: "Clinton"})
+
+...
+
+
+> db.restaurants.find({name: "Little Pie Company"}).pretty()
+{
+	"_id" : ObjectId("55cba2476c522cafdb053dea"),
+	"location" : {
+		"coordinates" : [
+			-73.99331699999999,
+			40.7594404
+		],
+		"type" : "Point"
+	},
+	"name" : "Little Pie Company"
+}
+
+```
+
+
+
+`현재 지역 찾기`
+
+- 사용자의 휴대 기기가 정확한 위치 정보를 제공한다고 가정할 때, $geoIntersects를 사용해 사용자가 현재 위치한 지역을 쉽게 찾을 수 있다.
+
+```
+db.neighborgoods.findOne({geometry:{$geoIntersects:{$geometry:{type:"Point", coordinates:[-73.93414657, 40.82302903]}}}})
+```
+
+
+
+
+
+`지역 내 모든 레스토랑 찾기`
+
+- 특정 지역 내 레스토랑을 모두 찾는 쿼리도 수행할 수 있다.
+
+```
+var neighborhood = db.neighborhoods.findOne({ geometry: 
+    { $geoIntersects: { $geometry: { type: "Point", coordinates: [-73.93414657,40.82302903] } } } });
+
+db.restaurants.find({ location: { $geoWithin: { $geometry: neighborhood.geometry } } }, {name: 1, _id: 0});
+{ "name" : "Perfect Taste" }
+{ "name" : "Event Productions Catering & Food Services" }
+{ "name" : "Sylvia'S Restaurant" }
+{ "name" : "Corner Social" }
+{ "name" : "Cove Lounge" }
+{ "name" : "Manna'S Restaurant" }
+{ "name" : "Harlem Bar-B-Q" }
+{ "name" : "Hong Cheong" }
+{ "name" : "Lighthouse Fishmarket" }
+{ "name" : "Mahalaxmi Food Inc" }
+{ "name" : "Rose Seeds" }
+{ "name" : "J. Restaurant" }
+{ "name" : "Harlem Coral Llc" }
+{ "name" : "Baraka Buffet" }
+{ "name" : "Make My Cake" }
+{ "name" : "Hyacinth Haven Harlem" }
+{ "name" : "Mcdonald'S" }
+{ "name" : "Ihop" }
+{ "name" : "Island Spice And Southern Cuisine" }
+{ "name" : "To Your Health & Happiness" }
+Type "it" for more
+
+// 127개 리턴 ..
+
+```
+
+
+
+`범위 내에서 레스토랑 찾기`
+
+- 특정 지점으로부터 지정된 거리 내에 있는 레스토랑을 찾을 수 있다.
+  - $centerSphere와 함께 $geoWithin을 사용하면 정렬되지 않은 순서로 결과를 반환한다.
+  - $maxDistance와 함꼐 $nearSphere를 사용하면 거리 순으로 정렬된 결과를 반환한다.
+  - 원형 지역 내 레스토랑을 찾으려면 $centerSphere와 함께 $geoWithin을 사용한다.
+    - $centerShpere는  중심과 반경을 라디안으로 지정해 운형 영역을 나타내는 몽고DB 전용 구문이다.
+    - $geoWithin은 도큐먼트를 특정 순서로 반환하지 않으므로 거리가 가장 먼 도큐먼트를 먼저 반환할 수 있다.
+
+```
+> db.restaurants.find({ location: { $geoWithin: { $centerSphere: [ [-73.93414657,40.82302903], 5/3963.2 ] } } })
+{ "_id" : ObjectId("55cba2476c522cafdb0552d5"), "location" : { "coordinates" : [ -73.9911006, 40.76503719999999 ], "type" : "Point" }, "name" : "Cakes 'N Shapes" }
+{ "_id" : ObjectId("55cba2476c522cafdb05590c"), "location" : { "coordinates" : [ -73.9914056, 40.765347 ], "type" : "Point" }, "name" : "Il Melograno" }
+{ "_id" : ObjectId("55cba2476c522cafdb057cf2"), "location" : { "coordinates" : [ -73.990922, 40.7653572 ], "type" : "Point" }, "name" : "Kare Thai" }
+{ "_id" : ObjectId("55cba2486c522cafdb059980"), "location" : { "coordinates" : [ -73.9909028, 40.7654228 ], "type" : "Point" }, "name" : "City Slice" }
+{ "_id" : ObjectId("55cba2476c522cafdb053e29"), "location" : { "coordinates" : [ -73.99076149999999, 40.7653444 ], "type" : "Point" }, "name" : "Azuri Cafe" }
+{ "_id" : ObjectId("55cba2476c522cafdb058aae"), "location" : { "coordinates" : [ -73.9910182, 40.76501469999999 ], "type" : "Point" }, "name" : "Totto Ramen" }
+{ "_id" : ObjectId("55cba2476c522cafdb058603"), "location" : { "coordinates" : [ -73.9906967, 40.7657361 ], "type" : "Point" }, "name" : "Crispin'S Hell'S Kitchen" }
+{ "_id" : ObjectId("55cba2476c522cafdb057470"), "location" : { "coordinates" : [ -73.99078560000001, 40.765615 ], "type" : "Point" }, "name" : "Happy Joy" }
+{ "_id" : ObjectId("55cba2476c522cafdb056129"), "location" : { "coordinates" : [ -73.9910501, 40.7659938 ], "type" : "Point" }, "name" : "Ardesia" }
+{ "_id" : ObjectId("55cba2476c522cafdb05845b"), "location" : { "coordinates" : [ -73.990179, 40.765078 ], "type" : "Point" }, "name" : "Zoralie Restaurant Inc." }
+{ "_id" : ObjectId("55cba2476c522cafdb054746"), "location" : { "coordinates" : [ -73.9889215, 40.7645101 ], "type" : "Point" }, "name" : "Posh" }
+{ "_id" : ObjectId("55cba2476c522cafdb0587d2"), "location" : { "coordinates" : [ -73.988923, 40.764083 ], "type" : "Point" }, "name" : "Atlas Social Club" }
+{ "_id" : ObjectId("55cba2476c522cafdb053f68"), "location" : { "coordinates" : [ -73.9890549, 40.763902 ], "type" : "Point" }, "name" : "Uncle Nicks" }
+{ "_id" : ObjectId("55cba2476c522cafdb054c5a"), "location" : { "coordinates" : [ -73.98357779999999, 40.7613731 ], "type" : "Point" }, "name" : "Applebee'S Neighborhood Grill & Bar" }
+{ "_id" : ObjectId("55cba2476c522cafdb054077"), "location" : { "coordinates" : [ -73.983583, 40.76174839999999 ], "type" : "Point" }, "name" : "Winter Garden Theater" }
+{ "_id" : ObjectId("55cba2476c522cafdb055bc5"), "location" : { "coordinates" : [ -73.983583, 40.76174839999999 ], "type" : "Point" }, "name" : "Nanking" }
+{ "_id" : ObjectId("55cba2476c522cafdb053fa2"), "location" : { "coordinates" : [ -73.98333319999999, 40.7618628 ], "type" : "Point" }, "name" : "Ellen'S Stardust Diner" }
+{ "_id" : ObjectId("55cba2476c522cafdb054101"), "location" : { "coordinates" : [ -73.9835976, 40.7621614 ], "type" : "Point" }, "name" : "Starbucks Coffee" }
+{ "_id" : ObjectId("55cba2476c522cafdb057ee5"), "location" : { "coordinates" : [ -73.9837508, 40.7622594 ], "type" : "Point" }, "name" : "Mcdonald'S" }
+{ "_id" : ObjectId("55cba2476c522cafdb0546c5"), "location" : { "coordinates" : [ -73.9845362, 40.7620434 ], "type" : "Point" }, "name" : "Circle In The Square Theatre" }
+
+```
+
+- 
