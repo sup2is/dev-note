@@ -3419,4 +3419,229 @@ Type "it" for more
 
 ```
 
-- 
+- 애플리케이션은 공간 정보 인덱스 없이도 $centerSphere를 사용할 수 있지만 공간정보 인덱스를 사용하면 훨씬 빨리 쿼리를 실행할 수 있다.
+
+```
+// 사용자로부터 5마일 이내에 있는 모든 레스토랑을 가장 가까운 곳에서 가장 먼 곳 순으로 반환하는 쿼리
+
+> var METERS_PER_MILE = 1609.34;
+> db.restaurants.find({ location: { $nearSphere: { $geometry: { type: "Point",coordinates: [-73.93414657,40.82302903] }, $maxDistance: 5*METERS_PER_MILE } } });
+
+{ "_id" : ObjectId("55cba2476c522cafdb058c83"), "location" : { "coordinates" : [ -73.9316894, 40.8231974 ], "type" : "Point" }, "name" : "Gotham Stadium Tennis Center Cafe" }
+{ "_id" : ObjectId("55cba2476c522cafdb05864b"), "location" : { "coordinates" : [ -73.9378967, 40.823448 ], "type" : "Point" }, "name" : "Tia Melli'S Latin Kitchen" }
+{ "_id" : ObjectId("55cba2476c522cafdb058c63"), "location" : { "coordinates" : [ -73.9303724, 40.8234978 ], "type" : "Point" }, "name" : "Chuck E. Cheese'S" }
+{ "_id" : ObjectId("55cba2476c522cafdb0550aa"), "location" : { "coordinates" : [ -73.93795159999999, 40.823376 ], "type" : "Point" }, "name" : "Domino'S Pizza" }
+{ "_id" : ObjectId("55cba2476c522cafdb0548e0"), "location" : { "coordinates" : [ -73.9381738, 40.8224212 ], "type" : "Point" }, "name" : "Red Star Chinese Restaurant" }
+{ "_id" : ObjectId("55cba2476c522cafdb056b6a"), "location" : { "coordinates" : [ -73.93011659999999, 40.8219403 ], "type" : "Point" }, "name" : "Applebee'S Neighborhood Grill & Bar" }
+{ "_id" : ObjectId("55cba2476c522cafdb0578b3"), "location" : { "coordinates" : [ -73.93011659999999, 40.8219403 ], "type" : "Point" }, "name" : "Marisco Centro Seafood Restaurant  & Bar" }
+{ "_id" : ObjectId("55cba2476c522cafdb058dfc"), "location" : { "coordinates" : [ -73.9370572, 40.8206095 ], "type" : "Point" }, "name" : "108 Fast Food Corp" }
+{ "_id" : ObjectId("55cba2476c522cafdb0574cd"), "location" : { "coordinates" : [ -73.9365102, 40.8202205 ], "type" : "Point" }, "name" : "Kentucky Fried Chicken" }
+{ "_id" : ObjectId("55cba2476c522cafdb057d52"), "location" : { "coordinates" : [ -73.9385009, 40.8222455 ], "type" : "Point" }, "name" : "United Fried Chicken" }
+{ "_id" : ObjectId("55cba2476c522cafdb054e83"), "location" : { "coordinates" : [ -73.9373291, 40.8206458 ], "type" : "Point" }, "name" : "Dunkin Donuts" }
+{ "_id" : ObjectId("55cba2476c522cafdb05615f"), "location" : { "coordinates" : [ -73.9373291, 40.8206458 ], "type" : "Point" }, "name" : "King'S Pizza" }
+{ "_id" : ObjectId("55cba2476c522cafdb05476a"), "location" : { "coordinates" : [ -73.9365637, 40.8201488 ], "type" : "Point" }, "name" : "Papa John'S" }
+{ "_id" : ObjectId("55cba2486c522cafdb059a11"), "location" : { "coordinates" : [ -73.9365637, 40.8201488 ], "type" : "Point" }, "name" : "Jimbo'S Hamburgers" }
+{ "_id" : ObjectId("55cba2476c522cafdb0580a7"), "location" : { "coordinates" : [ -73.938599, 40.82211110000001 ], "type" : "Point" }, "name" : "Home Garden Chinese Restaurant" }
+{ "_id" : ObjectId("55cba2476c522cafdb05814c"), "location" : { "coordinates" : [ -73.9367511, 40.8198978 ], "type" : "Point" }, "name" : "Sweet Mama'S Soul Food" }
+{ "_id" : ObjectId("55cba2476c522cafdb056b96"), "location" : { "coordinates" : [ -73.9308109, 40.82594580000001 ], "type" : "Point" }, "name" : "Dunkin Donuts (Inside Gulf Gas Station On North Side Of Maj. Deegan Exwy- After Exit 13 - 233 St.)" }
+{ "_id" : ObjectId("55cba2476c522cafdb056ffd"), "location" : { "coordinates" : [ -73.939159, 40.8216897 ], "type" : "Point" }, "name" : "Reggae Sun Delights Natural Juice Bar" }
+{ "_id" : ObjectId("55cba2476c522cafdb056b0c"), "location" : { "coordinates" : [ -73.939145, 40.8213757 ], "type" : "Point" }, "name" : "Ho Lee Chinese Restaurant" }
+{ "_id" : ObjectId("55cba2486c522cafdb059617"), "location" : { "coordinates" : [ -73.9396354, 40.8220958 ], "type" : "Point" }, "name" : "Ivory D O S  Inc" }
+Type "it" for more
+
+
+```
+
+
+
+### 복합 공간 정보 인덱스
+
+- 공간 정보 인덱스도 다른 인덱스와 마찬가지로 다른 필드와 묶어서 더 복잡한 쿼리를 최적화할 수 있다.
+
+```
+db.openStreetMap.createIndex({"tags" : 1, "location" : "2dsphere"})
+db.openStreetMap.find({"loc" : {"$geoWithin" : {"$geometry" : hellsKitchen.geometry}}, "tags" : "pizza"})
+```
+
+- 복합 공간 정보 인덱스도 마찬가지로 카디널리티가 높은 필드가 앞에 와서 결과를 더 많이 필터링하도록 하는게 좋다.
+
+
+
+### 2d 인덱스
+
+- 비구체 지도 (비디오 게임 지도, 시계열 데이터 등등 ..) 에는 2dsphere 대신 2d 인덱스를 사용한다.
+- 2d 인덱스
+  - 2d 인덱스는 지형이 구체가 아니라 완전히 평평한 표면이라고 가정한다.
+  - 구체에 2d 인덱스를 사용하면 왜곡이 매우 심하므로 사용해서는 안된다.
+  - 2d 인덱스는 점만 인덱싱할 수 있음로 GeoJSON 형태의 데이터는 저장하지 말아야 한다.
+  - 2d 인덱스는 점의 배열을 저장할 수 있지만 이는 선과 다르다. $eoWithin 쿼리에서 점 하나가 주어진 도형 안에 있으면 해당 도큐먼트가 $geoWithin과 일치한다.
+
+```
+db.hyrule.createIndex({"tile" : "2d"})
+```
+
+- 기본적으로 2d 인덱스는 값이 -180과 180 사이에 있다고 가정하기 때문에 범위를 넓히거나 좁히려면 createIndex를 사용해 최솟값과 최댓값을 지정한다.
+
+```
+db.hyrule.createIndex({"light-years" : "2d"}, {"min" : -1000, "max" : 1000})
+```
+
+- 2d인덱스가 지원하는 쿼리 셀렉터
+  - $geoWithin
+  - $nearSphere
+  - $near
+
+```
+// 왼쪽하단 모서리 10,10과 오른쪽 상단 모서리 100,100 으로 정의된 사각형 내 도큐먼트에 대한 쿼리
+db.hyrule.find({ tile: { $geoWithin: { $box: [[10, 10], [100, 100]] } } })
+```
+
+- $box의 파라미터
+  - 첫 번째 요소는 왼쪽 하단 모서리 좌표
+  - 두 번째 요소는 오른쪽 상단 모서리 좌표
+
+```
+// 중심이 17, 20.5 이고 반지름이 25인 원 안에 있는 도큐먼트에 대한 쿼리
+db.hyrule.find({ tile: { $geoWithin: { $center: [[-17, 20.5] , 25] } } })
+```
+
+```
+// 다각형 쿼리
+db.hyrule.find({ tile: { $geoWithin: { $polygon: [[0, 0], [3, 6], [6, 0]] } } )
+```
+
+- 몽고DB는 레거시 지원을 위해 2d인덱스에 대한 기초적인 구형 쿼리도 지원한다.
+- 구형쿼리에서는 2dsphere 인덱스를 사용해야하지만 구 안에 있는 레거시 좌표 쌍을 쿼리하려면 $centerSphere 연산자와 함께 $geoWithin을 사용할 수 있다.
+
+```
+db.hyrule.find({ loc: { $geoWithin: { $centerSphere: [[88, 30], 10/3963.2] } } })
+```
+
+- 주변에 있는 점을 쿼리하려면 $near를 사용한다. 근접 쿼리는 특정 지점으로부터 가장 가까운 좌표 쌍을 포함하는 도큐먼트를 반환하고 결과를 거리 순으로 정렬한다.
+
+```
+db.hyrule.find({"tile" : {"$near" : [20, 21]}})
+```
+
+
+
+## 전문 검색을 위한 인덱스
+
+- text 인덱스
+  - 몽고DB의 text 인덱스는 전문 검색의 요구사항을 지원한다.
+  - 애플리케이션 사용자가 제목, 설명 등 컬렉션 내에 있는 필드의 텍스트와 일치시키는 키워드 쿼리를 하게 하려면 text 인덱스를 사용하자.
+  - 정규 표현식을 이용해 문자열을 쿼리할 수도 있지만 속도가 느리고 언어 특성을 반영하기도 쉽지 않다 (entry와 entries)
+  - 몽고DB의 text 인덱스는 텍스트를 빠르게 검색하는 기능을 제공하며 언어에 적합한 토큰화, stop word, 형태소 분석 등 일반적인 검색 엔진 요구사항을 지원한다.
+- text 인덱스 생성
+  - text 인덱스에서 필요한 키의 개수는 인덱싱 되는 필드의 단어 개수에 비례한다. 따라서 text 인덱스를 만들면 시스템 리소스가 많이 소비될 수 있다.
+  - text 인덱스 생성은 애플리케이션 성능에 부정적인 영향을 미치지 않을 때 생성해야 하며, 가능하면 백그라운드에서 인덱스를 구축해야 한다.
+  - 우수한 성능을 보장하려면 생성하는 모든 text 인덱스가 램에 맞는지 확인해야 한다.
+- text 인덱스와 쓰기 성능
+  - text 인덱스에서 쓰기가 발생하면 문자열이 토큰화되고, 형태소화되며, 인덱스는 잠재적으로 여러 위치에서 갱신된다.
+  - text 인덱스에 대한 쓰기는 일반적으로 단일, 복합 인덱스에 대한 쓰기보다 더 많은 비용이 발생한다. 따라서 쓰기 성능이 떨어지는 경향이 있다.
+  - 샤딩된 상태에선 데이터 이동 속도가 느려지며, 모든 텍스트는 새 샤드로 마이그레이션 될 때 다시 인덱싱 되어야 한다.
+
+
+
+### 텍스트 인덱스 생성
+
+```
+db.articles.createIndex({"title": "text", "body" : "text"})
+```
+
+- 키에 순서가 있는 일반적인 복합 인덱스와 달리 기본적으로 각 필드는 text 인덱스에서 동등하게 고려된다.
+- 가중치를 지정하면 몽고DB가 각 필드에 지정하는 상대적 중요도를 제어할 수 있다.
+
+```
+db.articles.createIndex({"title": "text", "body": "text"}, {"weights" : { "title" : 3, "body" : 2}})
+```
+
+- 인덱스를 생성한 후에는 가중치를 변경할 수 없다. 삭제 후 다시 생성해야 한다. 따라서 상용 데이터에 인덱스를 생성하기 전에 샘플 데이터셋에 가중치를 적용해보는게 좋다.
+- 컬렉션에 따라 도큐먼트에 포함될 필드를 모들 수도 있는데 이 경우 아래와 같이 모든 문자열 필드에 전문 인덱스를 생성할 수 있다.
+- 모든 최상위 문자열 필드를 인덱싱할 뿐 아니라 내장 도큐먼트와 배열의 문자열 필드를 인덱싱한다.
+
+```
+db.articles.createIndex({"$**" : "text"})
+```
+
+
+
+### 텍스트 검색
+
+- $text 쿼리 연산자
+  - $text 쿼리 연산자를 사용해 text 인덱스가 있는 컬렉션에 텍스트 검색을 수행할 수 있다.
+  - $text는 공백과 구두점을 구분 기호로 사용해 검색 문자열을 토큰화하며, 검색문자열에서 모든 토큰의 논리적 OR를 수행한다.
+
+```
+// impact, crater, lunar 라는 용어가 포함된 기사를 모두 찾는 쿼리
+db.articles.find({"$text": {"$search": "impact crater lunar"}}, {title: 1} ).limit(10)
+```
+
+- 위 쿼리를 실행하면 예상과는 다르게 그다지 관련성 없는 도큐먼트들이 반환된다.
+  - 몽고DB가 OR를 사용해서 실행한다는 점을 고려하면 쿼리가 매우 광범위하다.
+  - 텍스트 검색은 기본적으로 결과를 관련성에 따라 정렬하지 않는다.
+- 구문을 사용해 쿼리 자체의 문제를 해결할 수 있다.
+
+```
+// "impact crater" AND "lunar" 로 처리하는 쿼리
+db.articles.find({$text: {$search: "\"impact crater\" lunar"}}, {title: 1}).limit(10)
+
+// "impact crater" AND  ("lunar" OR "meter") 로 처리하는 쿼리
+db.articles.find({$text: {$search: "\"impact crater\" lunar meteor"}}, {title: 1}).limit(10)
+
+// "impact crater" AND "lunar" AND "meter" 로 처리하는 쿼리
+db.articles.find({$text: {$search: "\"impact crater\" \"lunar\" \"meteor\""}}, {title: 1}).limit(10)
+```
+
+- 텍스트 쿼리를 사용하면 각 쿼리 결과에 메타데이터가 연결된다. 메타데이터는 $meta 연산자를 사용해 명시적으로 투영하지 않는 한 쿼리 결과에 표시되지 않는다.
+- 관련성 스코어는 textScore라는 메타 데이터 필드에 저장된다.
+
+```
+db.articles.find({$text: {$search: "\"impact crater\" lunar"}}, {title: 1, score: {$meta: "textScore"}}).limit(10)
+```
+
+- textScore를 정렬하면 겨관련성에 따라 정렬된 결과를 확인할 수 있다.
+
+```
+db.articles.find({$text: {$search: "\"impact crater\" lunar"}}, {title: 1, score: {$meta: "textScore"}} ).sort({score: {$meta: "textScore"}}).limit(10)
+```
+
+
+
+
+
+### 전문 검색 최적화
+
+- 다른 기준으로 검색 결과를 좁힐 수 있다면 복합 인덱스를 생성할 때 다른 기준을 첫 번째로 두고 전문 필드를 그 다음으로 둔다.
+
+```
+db.blog.createIndex({"date" : 1, "post" : "text"})
+```
+
+- 전문 인덱스를 date에 따라 몇 개의 작은 트리 구조로 쪼개며 이를 파티셔닝이라고 한다. 전문 인덱스를 분할해 특정 날짜에 대한 전문 검색을 훨씬 빨리할 수 있다.
+- 또한 다른 기준을 뒤쪽에 두어 사용할 수도 있다. "author"와 "post" 필드만 반환한다면 두 필드에 대해 복합 인덱스를 생성할 수도 있다.
+
+```
+db.blog.createIndex({"post" : "text", "author" : 1})
+```
+
+
+
+### 다른 언어로 검색하기
+
+- 언어에 따라 형태소 분석 방법이 다르므로 인덱스나 도큐먼트가 어떤 언어로 쓰였는지 명시행 ㅑ한다 
+- text 인덱스에는 default_language 옵션을 지정할 수 있고 기본값은 english다.
+  - https://docs.mongodb.com/manual/reference/text-search-languages/#text-search-languages
+  - no korean ... ㅎㅎ
+
+```
+// 프랑스어 인덱스
+db.users.createIndex({"profil" : "text", "intérêts" : "text"}, {"default_language" : "french"})
+```
+
+- 도큐먼트의 언어를 language 필드에 명시해 도큐먼트별로 형태소 분석 언어를 다르게 지정할 수 있다.
+
+```
+db.users.insert({"username" : "swedishChef", "profile" : "Bork de bork", language : "swedish"})
+```
+
