@@ -4321,3 +4321,513 @@ db.airbnb.aggregate([
 
 - $limit은 선출 단계 이전에 수행하도록 파이프라인을 구축하는게 좋다. 선출 단계를 먼저 실행한 후 제한을 실행해도 결과는 동일하지만 파이프라인의 특성상 최종적으로 결과 5개를 제한하기 전에 선출 단계를 통해 수백개의 도큐먼트를 전달해야 한다.
 
+```
+
+// 이렇게 쓰면 안좋음!
+db.airbnb.aggregate([
+  {$match: {room_type: "Private room"}},
+  {$project: {
+    name: 1,
+    room_type: 1,
+    bed_type: 1
+  }},
+  {$limit: 3},
+]).pretty()
+```
+
+- 쿼리 플래너가 수행할 수 있는 최적화 유형에 관계없이 항상 집계 파이프라인의 효율성을 고려해야한다. 파이프라인을 구축할 때 한 단계에서 다른 단계로 전달해야 하는도큐먼트 수를 반드시 제한하자.
+- 그러나 만약 순서가 중요하다면 제한 단계 전에 정렬을 수행해야 한다.
+
+```
+db.airbnb.aggregate([
+  {$match: {room_type: "Private room"}},
+  {$sort: {name : -1}},
+  {$limit: 3},
+  {$project: {
+    name: 1,
+    room_type: 1,
+    bed_type: 1
+  }}
+]).pretty()
+
+{
+	"_id" : "21352206",
+	"name" : "｡Townhouse",
+	"room_type" : "Private room",
+	"bed_type" : "Real Bed"
+}
+{
+	"_id" : "13145113",
+	"name" : "아담하고 느낌이 편안한 방 Modern and cosy",
+	"room_type" : "Private room",
+	"bed_type" : "Real Bed"
+}
+{
+	"_id" : "24847281",
+	"name" : "鮀城小家-感受不一样的异地之旅",
+	"room_type" : "Private room",
+	"bed_type" : "Real Bed"
+}
+
+```
+
+- 건너뛰는 $skip을 활용할 수도 있다.
+
+```
+
+db.airbnb.aggregate([
+  {$match: {room_type: "Private room"}},
+  {$sort: {name : -1}},
+  {$skip: 3},
+  {$limit: 3},
+  {$project: {
+    name: 1,
+    room_type: 1,
+    bed_type: 1
+  }}
+]).pretty()
+
+{
+	"_id" : "21842369",
+	"name" : "高级城景房",
+	"room_type" : "Private room",
+	"bed_type" : "Real Bed"
+}
+{
+	"_id" : "26150475",
+	"name" : "香港高鐵站全新裝修豪華持牌賓館3人房606",
+	"room_type" : "Private room",
+	"bed_type" : "Real Bed"
+}
+{
+	"_id" : "26344088",
+	"name" : "香港西貢海景游泳池大房子#Saikung#Hiking#Beach#Relaxing#20%OFF",
+	"room_type" : "Private room",
+	"bed_type" : "Real Bed"
+}
+
+```
+
+- 파이프라인 설명
+  - room_type이 "Private room"인 도큐먼트를 찾는다.
+  - 도큐먼트의 name을 내림차순으로 정렬한다.
+  - 처음 3개 항목은 스킵한다.
+  - 3개 항목만 가져온다.
+  - 3개의 항목에 대한 projection을 실행한다.
+
+
+
+## 표현식
+
+- 집계 파이프라인을 구축할 때 사용할 수 있는 다양한 유형의 표현식을 이해하는 것이 중요하다.
+
+
+
+`불리언 표현식`
+
+- 불리언 표현식을 사용하면 AND, OR, NOT 표현식을 쓸 수 있다.
+
+`집합 표현식`
+
+- 집합 표현식을 사용하면 배열을 집합으로 사용할 수 있다.
+- 예를 들어 2개 이상의 집합의 교집합이나 합집합을 얻을 수 있다.
+- 두 집합의 차를 이용해 여러 집합 연산을 수행할 수 있다.
+
+`비교 표현식`
+
+- 비교 표현식을 통해 다양한 유형의 범위 필터를 표현할 수 있다.
+
+`산술 표현식`
+
+- 산술 표현식을 사용하면 천장, 바닥, 자연 로그, 로그를 계산할 수 있다.
+- 곱하기, 나누기, 더하기, 빼기와 같은 간단한 산술 연산자도 수행할 수 있다.
+
+`문자열 표현식`
+
+- 문자열 표현식을 사용하면 문자열 연결, substring 검색, 대소문자 및 테스트 검색과 관련된 작업을 수행할 수 있다.
+
+`배열 표현식`
+
+- 배열 표현식은 배열 요소를 필터링하거나, 배열을 분할하거나, 특정 배열에서 값의 범위를 가져오는 등 배열을 조작하는 데 유용하다.
+
+`가변적 표현식`
+
+- 가변적 표현식을 사용해 리터럴, 날짜 값 구문 분석을 위한 식, 조건식을 사용한다.
+
+`누산기`
+
+- 누산기는 합계, 기술 통계 및 여러 기타 유형의 값을 계산하는 기능을 제공한다.
+
+
+
+## $project
+
+- 중첩 필드를 승격하는 방법
+
+```
+// 다시 airbnb의 기본 도큐먼트 구성을 확인하자.
+
+db.airbnb.findOne()
+{
+	"_id" : "10021707",
+	"listing_url" : "https://www.airbnb.com/rooms/10021707",
+	"name" : "Private Room in Bushwick",
+	"summary" : "Here exists a very cozy room for rent in a shared 4-bedroom apartment. It is located one block off of the JMZ at Myrtle Broadway.  The neighborhood is diverse and appeals to a variety of people.",
+	"space" : "",
+	"description" : "Here exists a very cozy room for rent in a shared 4-bedroom apartment. It is located one block off of the JMZ at Myrtle Broadway.  The neighborhood is diverse and appeals to a variety of people.",
+	"neighborhood_overview" : "",
+	"notes" : "",
+	"transit" : "",
+	"access" : "",
+	"interaction" : "",
+	"house_rules" : "",
+	"property_type" : "Apartment",
+	"room_type" : "Private room",
+	"bed_type" : "Real Bed",
+	"minimum_nights" : "14",
+	"maximum_nights" : "1125",
+	"cancellation_policy" : "flexible",
+	"last_scraped" : ISODate("2019-03-06T05:00:00Z"),
+	"calendar_last_scraped" : ISODate("2019-03-06T05:00:00Z"),
+	"first_review" : ISODate("2016-01-31T05:00:00Z"),
+	"last_review" : ISODate("2016-01-31T05:00:00Z"),
+	"accommodates" : 1,
+	"bedrooms" : 1,
+	"beds" : 1,
+	"number_of_reviews" : 1,
+	"bathrooms" : NumberDecimal("1.5"),
+	"amenities" : [
+		"Internet",
+		"Wifi",
+		"Air conditioning",
+		"Kitchen",
+		"Buzzer/wireless intercom",
+		"Heating",
+		"Smoke detector",
+		"Carbon monoxide detector",
+		"Essentials",
+		"Lock on bedroom door"
+	],
+	"price" : NumberDecimal("40.00"),
+	"extra_people" : NumberDecimal("0.00"),
+	"guests_included" : NumberDecimal("1"),
+	"images" : {
+		"thumbnail_url" : "",
+		"medium_url" : "",
+		"picture_url" : "https://a0.muscache.com/im/pictures/72844c8c-fec2-440e-a752-bba9b268c361.jpg?aki_policy=large",
+		"xl_picture_url" : ""
+	},
+	"host" : {
+		"host_id" : "11275734",
+		"host_url" : "https://www.airbnb.com/users/show/11275734",
+		"host_name" : "Josh",
+		"host_location" : "New York, New York, United States",
+		"host_about" : "",
+		"host_thumbnail_url" : "https://a0.muscache.com/im/users/11275734/profile_pic/1405792127/original.jpg?aki_policy=profile_small",
+		"host_picture_url" : "https://a0.muscache.com/im/users/11275734/profile_pic/1405792127/original.jpg?aki_policy=profile_x_medium",
+		"host_neighbourhood" : "Bushwick",
+		"host_is_superhost" : false,
+		"host_has_profile_pic" : true,
+		"host_identity_verified" : true,
+		"host_listings_count" : 1,
+		"host_total_listings_count" : 1,
+		"host_verifications" : [
+			"email",
+			"phone",
+			"reviews",
+			"kba"
+		]
+	},
+	"address" : {
+		"street" : "Brooklyn, NY, United States",
+		"suburb" : "Brooklyn",
+		"government_area" : "Bushwick",
+		"market" : "New York",
+		"country" : "United States",
+		"country_code" : "US",
+		"location" : {
+			"type" : "Point",
+			"coordinates" : [
+				-73.93615,
+				40.69791
+			],
+			"is_location_exact" : true
+		}
+	},
+	"availability" : {
+		"availability_30" : 0,
+		"availability_60" : 0,
+		"availability_90" : 0,
+		"availability_365" : 0
+	},
+	"review_scores" : {
+		"review_scores_accuracy" : 10,
+		"review_scores_cleanliness" : 10,
+		"review_scores_checkin" : 10,
+		"review_scores_communication" : 10,
+		"review_scores_location" : 8,
+		"review_scores_value" : 8,
+		"review_scores_rating" : 100
+	},
+	"reviews" : [
+		{
+			"_id" : "61050713",
+			"date" : ISODate("2016-01-31T05:00:00Z"),
+			"listing_id" : "10021707",
+			"reviewer_id" : "52006105",
+			"reviewer_name" : "Antoine",
+			"comments" : "Josh was out of town during my 1 month stay. His roommates greeted and helped get me settled. They were great hosts and all around cool people. I'm a Brooklynite, but have never lived in Bushwick.\r\nIf you're looking for an hip, authentic, and convenient Brooklyn experience, this spot is for you.  You can literally see the Subway platform from Josh's window. Also a couple steps away from anything you could possibly need... restaurants, juice bar, organic grocery, etc. "
+		}
+	]
+}
+
+// 아래 쿼리처럼 중첩 도큐먼트에 접근할 수 있다.
+db.airbnb.aggregate([
+  {$match: {room_type: "Private room"}},
+  {$sort: {name : -1}},
+  {$limit: 3},
+  {$project: {
+    name: 1,
+    country: "$address.country",
+    review_scores_checkin: "$review_scores.review_scores_checkin"
+  }}
+]).pretty()
+
+{ "_id" : "21352206", "name" : "｡Townhouse", "country" : "Australia" }
+{
+	"_id" : "13145113",
+	"name" : "아담하고 느낌이 편안한 방 Modern and cosy",
+	"country" : "Australia"
+}
+{ "_id" : "24847281", "name" : "鮀城小家-感受不一样的异地之旅", "country" : "Hong Kong" }
+
+```
+
+- 선택한 값들은 선출 단계에서 출력으로 생성되는 도큐먼트의 최상위 필드 값이 된다.
+- $문자는 선출 단계에서 내장도큐먼트에 대한 값을 지정하는데 사용되며 해당 값이 필드 경로로 해석되고 각 필드에서 선출할 값을 선택하는데 사용된다.
+- 배열인 경우 배열로 리턴된다.
+
+
+
+## $unwind
+
+```
+// $unwind 말보다 예제로 설명이 빠를듯
+
+{
+  "키1" : "값1",
+  "키2" : "값2",
+  "키3" : ["요소1", "요소2", "요소3"]
+}
+
+// $unwind를 실행하면?
+// 키3의 배열만큼 여러개의 도큐먼트를 반환
+
+{
+  "키1" : "값1",
+  "키2" : "값2",
+  "키3" : "요소1"
+}
+
+{
+  "키1" : "값1",
+  "키2" : "값2",
+  "키3" : "요소2"
+}
+
+{
+  "키1" : "값1",
+  "키2" : "값2",
+  "키3" : "요소3"
+}
+```
+
+- airbnb에 적용하기
+
+```
+
+db.airbnb.findOne({'reviews.2': {$exists: true}})
+
+
+// 먼저 배열을 project 해보기
+db.airbnb.aggregate([
+  {$match: {name: "Ribeira Charming Duplex"}},
+  {$project: {
+    name: 1,
+    reviewer_name: "$reviews.reviewer_name"
+  }}
+]).pretty()
+
+{
+	"_id" : "10006546",
+	"name" : "Ribeira Charming Duplex",
+	"reviewer_name" : [
+		"Cátia",
+		"Théo",
+		"Bart",
+		"Alex",
+		"Dan",
+		"Anne",
+		"Chris",
+		"Leslie",
+		"Philippe",
+		"Hanneke",
+		"Kati",
+		"Julia",
+		"Joshua",
+		"Tracey",
+		"Willem",
+		"Fanny",
+		"Bridget",
+		"Oscar",
+		"Steve",
+		"Tina",
+		"Mathieu",
+		"Ido",
+		"Amanda",
+		"Geneviève",
+		"Andrea",
+		"Jennifer",
+		"Nathalie",
+		"Cayetana",
+		"Mérex",
+		"Andrea",
+		"Bogdan",
+		"Alison",
+		"Marco",
+		"Michel",
+		"Dariusz",
+		"Margriet",
+		"Carlos",
+		"Gaspard",
+		"James",
+		"紫仪",
+		"Sebastian",
+		"Robby",
+		"Romain",
+		"Roula",
+		"Alexander",
+		"Mark",
+		"Camille",
+		"Pawel",
+		"Thomas",
+		"Mr",
+		"Milo"
+	]
+}
+
+
+// $unwind 적용하기
+
+db.airbnb.aggregate([
+  {$match: {name: "Ribeira Charming Duplex"}},
+  {$unwind: "$reviews"},
+  {$project: {
+    name: 1,
+    reviewer_name: "$reviews.reviewer_name"
+  }}
+]).pretty()
+
+{
+	"_id" : "10006546",
+	"name" : "Ribeira Charming Duplex",
+	"reviewer_name" : "Cátia"
+}
+{
+	"_id" : "10006546",
+	"name" : "Ribeira Charming Duplex",
+	"reviewer_name" : "Théo"
+}
+{
+	"_id" : "10006546",
+	"name" : "Ribeira Charming Duplex",
+	"reviewer_name" : "Bart"
+}
+{
+	"_id" : "10006546",
+	"name" : "Ribeira Charming Duplex",
+	"reviewer_name" : "Alex"
+}
+{
+	"_id" : "10006546",
+	"name" : "Ribeira Charming Duplex",
+	"reviewer_name" : "Dan"
+}
+{
+	"_id" : "10006546",
+	"name" : "Ribeira Charming Duplex",
+	"reviewer_name" : "Anne"
+}
+{
+	"_id" : "10006546",
+	"name" : "Ribeira Charming Duplex",
+	"reviewer_name" : "Chris"
+}
+{
+	"_id" : "10006546",
+	"name" : "Ribeira Charming Duplex",
+	"reviewer_name" : "Leslie"
+}
+{
+	"_id" : "10006546",
+	"name" : "Ribeira Charming Duplex",
+	"reviewer_name" : "Philippe"
+}
+{
+	"_id" : "10006546",
+	"name" : "Ribeira Charming Duplex",
+	"reviewer_name" : "Hanneke"
+}
+{
+	"_id" : "10006546",
+	"name" : "Ribeira Charming Duplex",
+	"reviewer_name" : "Kati"
+}
+{
+	"_id" : "10006546",
+	"name" : "Ribeira Charming Duplex",
+	"reviewer_name" : "Julia"
+}
+{
+	"_id" : "10006546",
+	"name" : "Ribeira Charming Duplex",
+	"reviewer_name" : "Joshua"
+}
+{
+	"_id" : "10006546",
+	"name" : "Ribeira Charming Duplex",
+	"reviewer_name" : "Tracey"
+}
+{
+	"_id" : "10006546",
+	"name" : "Ribeira Charming Duplex",
+	"reviewer_name" : "Willem"
+}
+{
+	"_id" : "10006546",
+	"name" : "Ribeira Charming Duplex",
+	"reviewer_name" : "Fanny"
+}
+{
+	"_id" : "10006546",
+	"name" : "Ribeira Charming Duplex",
+	"reviewer_name" : "Bridget"
+}
+{
+	"_id" : "10006546",
+	"name" : "Ribeira Charming Duplex",
+	"reviewer_name" : "Oscar"
+}
+{
+	"_id" : "10006546",
+	"name" : "Ribeira Charming Duplex",
+	"reviewer_name" : "Steve"
+}
+{
+	"_id" : "10006546",
+	"name" : "Ribeira Charming Duplex",
+	"reviewer_name" : "Tina"
+}
+
+```
+
