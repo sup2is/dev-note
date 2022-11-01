@@ -3830,7 +3830,494 @@ curl -o airbnb.json https://raw.githubusercontent.com/neelabalan/mongodb-sample-
 docker cp ./airbnb.json mongodb:/
 
 mongoimport ./airbnb.json -c airbnb
+
+
+> db.airbnb.findOne()
+{
+	"_id" : "10021707",
+	"listing_url" : "https://www.airbnb.com/rooms/10021707",
+	"name" : "Private Room in Bushwick",
+	"summary" : "Here exists a very cozy room for rent in a shared 4-bedroom apartment. It is located one block off of the JMZ at Myrtle Broadway.  The neighborhood is diverse and appeals to a variety of people.",
+	"space" : "",
+	"description" : "Here exists a very cozy room for rent in a shared 4-bedroom apartment. It is located one block off of the JMZ at Myrtle Broadway.  The neighborhood is diverse and appeals to a variety of people.",
+	"neighborhood_overview" : "",
+	"notes" : "",
+	"transit" : "",
+	"access" : "",
+	"interaction" : "",
+	"house_rules" : "",
+	"property_type" : "Apartment",
+	"room_type" : "Private room",
+	"bed_type" : "Real Bed",
+	"minimum_nights" : "14",
+	"maximum_nights" : "1125",
+	"cancellation_policy" : "flexible",
+	"last_scraped" : ISODate("2019-03-06T05:00:00Z"),
+	"calendar_last_scraped" : ISODate("2019-03-06T05:00:00Z"),
+	"first_review" : ISODate("2016-01-31T05:00:00Z"),
+	"last_review" : ISODate("2016-01-31T05:00:00Z"),
+	"accommodates" : 1,
+	"bedrooms" : 1,
+	"beds" : 1,
+	"number_of_reviews" : 1,
+	"bathrooms" : NumberDecimal("1.5"),
+	"amenities" : [
+		"Internet",
+		"Wifi",
+		"Air conditioning",
+		"Kitchen",
+		"Buzzer/wireless intercom",
+		"Heating",
+		"Smoke detector",
+		"Carbon monoxide detector",
+		"Essentials",
+		"Lock on bedroom door"
+	],
+	"price" : NumberDecimal("40.00"),
+	"extra_people" : NumberDecimal("0.00"),
+	"guests_included" : NumberDecimal("1"),
+	"images" : {
+		"thumbnail_url" : "",
+		"medium_url" : "",
+		"picture_url" : "https://a0.muscache.com/im/pictures/72844c8c-fec2-440e-a752-bba9b268c361.jpg?aki_policy=large",
+		"xl_picture_url" : ""
+	},
+	"host" : {
+		"host_id" : "11275734",
+		"host_url" : "https://www.airbnb.com/users/show/11275734",
+		"host_name" : "Josh",
+		"host_location" : "New York, New York, United States",
+		"host_about" : "",
+		"host_thumbnail_url" : "https://a0.muscache.com/im/users/11275734/profile_pic/1405792127/original.jpg?aki_policy=profile_small",
+		"host_picture_url" : "https://a0.muscache.com/im/users/11275734/profile_pic/1405792127/original.jpg?aki_policy=profile_x_medium",
+		"host_neighbourhood" : "Bushwick",
+		"host_is_superhost" : false,
+		"host_has_profile_pic" : true,
+		"host_identity_verified" : true,
+		"host_listings_count" : 1,
+		"host_total_listings_count" : 1,
+		"host_verifications" : [
+			"email",
+			"phone",
+			"reviews",
+			"kba"
+		]
+	},
+	"address" : {
+		"street" : "Brooklyn, NY, United States",
+		"suburb" : "Brooklyn",
+		"government_area" : "Bushwick",
+		"market" : "New York",
+		"country" : "United States",
+		"country_code" : "US",
+		"location" : {
+			"type" : "Point",
+			"coordinates" : [
+				-73.93615,
+				40.69791
+			],
+			"is_location_exact" : true
+		}
+	},
+	"availability" : {
+		"availability_30" : 0,
+		"availability_60" : 0,
+		"availability_90" : 0,
+		"availability_365" : 0
+	},
+	"review_scores" : {
+		"review_scores_accuracy" : 10,
+		"review_scores_cleanliness" : 10,
+		"review_scores_checkin" : 10,
+		"review_scores_communication" : 10,
+		"review_scores_location" : 8,
+		"review_scores_value" : 8,
+		"review_scores_rating" : 100
+	},
+	"reviews" : [
+		{
+			"_id" : "61050713",
+			"date" : ISODate("2016-01-31T05:00:00Z"),
+			"listing_id" : "10021707",
+			"reviewer_id" : "52006105",
+			"reviewer_name" : "Antoine",
+			"comments" : "Josh was out of town during my 1 month stay. His roommates greeted and helped get me settled. They were great hosts and all around cool people. I'm a Brooklynite, but have never lived in Bushwick.\r\nIf you're looking for an hip, authentic, and convenient Brooklyn experience, this spot is for you.  You can literally see the Subway platform from Josh's window. Also a couple steps away from anything you could possibly need... restaurants, juice bar, organic grocery, etc. "
+		}
+	]
+}
+
 ```
 
 
+
+- 집계 파이프라인은 aggregate 메서드를 사용해서 쿼리한다.
+- 집계를 위해 집계 파이프라인을 전달하는데 파이프라인은 도큐먼트를 요소로 포함하는 배열이다.
+- 각 도큐먼트는 특정 단계 연산자를 규정해야 한다. 
+
+```
+// room_type이 "Private room"인 도큐먼트 찾기
+// 아래 쿼리는 db.airbnb.find({room_type: "Private room"}) 와 같다.
+> db.airbnb.aggregate([{$match: {room_type: "Private room"}},{$limit: 3}]).pretty() // 너무 많아서 3개로 일단 제한
+db.airbnb.aggregate([{$match: {room_type: "Private room"}},{$limit: 3}]).pretty()
+{
+	"_id" : "10021707",
+	"listing_url" : "https://www.airbnb.com/rooms/10021707",
+	"name" : "Private Room in Bushwick",
+	"summary" : "Here exists a very cozy room for rent in a shared 4-bedroom apartment. It is located one block off of the JMZ at Myrtle Broadway.  The neighborhood is diverse and appeals to a variety of people.",
+	"space" : "",
+	"description" : "Here exists a very cozy room for rent in a shared 4-bedroom apartment. It is located one block off of the JMZ at Myrtle Broadway.  The neighborhood is diverse and appeals to a variety of people.",
+	"neighborhood_overview" : "",
+	"notes" : "",
+	"transit" : "",
+	"access" : "",
+	"interaction" : "",
+	"house_rules" : "",
+	"property_type" : "Apartment",
+	"room_type" : "Private room",
+	"bed_type" : "Real Bed",
+	"minimum_nights" : "14",
+	"maximum_nights" : "1125",
+	"cancellation_policy" : "flexible",
+	"last_scraped" : ISODate("2019-03-06T05:00:00Z"),
+	"calendar_last_scraped" : ISODate("2019-03-06T05:00:00Z"),
+	"first_review" : ISODate("2016-01-31T05:00:00Z"),
+	"last_review" : ISODate("2016-01-31T05:00:00Z"),
+	"accommodates" : 1,
+	"bedrooms" : 1,
+	"beds" : 1,
+	"number_of_reviews" : 1,
+	"bathrooms" : NumberDecimal("1.5"),
+	"amenities" : [
+		"Internet",
+		"Wifi",
+		"Air conditioning",
+		"Kitchen",
+		"Buzzer/wireless intercom",
+		"Heating",
+		"Smoke detector",
+		"Carbon monoxide detector",
+		"Essentials",
+		"Lock on bedroom door"
+	],
+	"price" : NumberDecimal("40.00"),
+	"extra_people" : NumberDecimal("0.00"),
+	"guests_included" : NumberDecimal("1"),
+	"images" : {
+		"thumbnail_url" : "",
+		"medium_url" : "",
+		"picture_url" : "https://a0.muscache.com/im/pictures/72844c8c-fec2-440e-a752-bba9b268c361.jpg?aki_policy=large",
+		"xl_picture_url" : ""
+	},
+	"host" : {
+		"host_id" : "11275734",
+		"host_url" : "https://www.airbnb.com/users/show/11275734",
+		"host_name" : "Josh",
+		"host_location" : "New York, New York, United States",
+		"host_about" : "",
+		"host_thumbnail_url" : "https://a0.muscache.com/im/users/11275734/profile_pic/1405792127/original.jpg?aki_policy=profile_small",
+		"host_picture_url" : "https://a0.muscache.com/im/users/11275734/profile_pic/1405792127/original.jpg?aki_policy=profile_x_medium",
+		"host_neighbourhood" : "Bushwick",
+		"host_is_superhost" : false,
+		"host_has_profile_pic" : true,
+		"host_identity_verified" : true,
+		"host_listings_count" : 1,
+		"host_total_listings_count" : 1,
+		"host_verifications" : [
+			"email",
+			"phone",
+			"reviews",
+			"kba"
+		]
+	},
+	"address" : {
+		"street" : "Brooklyn, NY, United States",
+		"suburb" : "Brooklyn",
+		"government_area" : "Bushwick",
+		"market" : "New York",
+		"country" : "United States",
+		"country_code" : "US",
+		"location" : {
+			"type" : "Point",
+			"coordinates" : [
+				-73.93615,
+				40.69791
+			],
+			"is_location_exact" : true
+		}
+	},
+	"availability" : {
+		"availability_30" : 0,
+		"availability_60" : 0,
+		"availability_90" : 0,
+		"availability_365" : 0
+	},
+	"review_scores" : {
+		"review_scores_accuracy" : 10,
+		"review_scores_cleanliness" : 10,
+		"review_scores_checkin" : 10,
+		"review_scores_communication" : 10,
+		"review_scores_location" : 8,
+		"review_scores_value" : 8,
+		"review_scores_rating" : 100
+	},
+	"reviews" : [
+		{
+			"_id" : "61050713",
+			"date" : ISODate("2016-01-31T05:00:00Z"),
+			"listing_id" : "10021707",
+			"reviewer_id" : "52006105",
+			"reviewer_name" : "Antoine",
+			"comments" : "Josh was out of town during my 1 month stay. His roommates greeted and helped get me settled. They were great hosts and all around cool people. I'm a Brooklynite, but have never lived in Bushwick.\r\nIf you're looking for an hip, authentic, and convenient Brooklyn experience, this spot is for you.  You can literally see the Subway platform from Josh's window. Also a couple steps away from anything you could possibly need... restaurants, juice bar, organic grocery, etc. "
+		}
+	]
+}
+{
+	"_id" : "10030955",
+	"listing_url" : "https://www.airbnb.com/rooms/10030955",
+	"name" : "Apt Linda Vista Lagoa - Rio",
+	"summary" : "Quarto com vista para a Lagoa Rodrigo de Freitas, cartão postal do Rio de Janeiro. Linda Vista.  1 Quarto e 1 banheiro  Amplo, arejado, vaga na garagem. Prédio com piscina, sauna e playground.  Fácil acesso, próximo da praia e shoppings.",
+	"space" : "",
+	"description" : "Quarto com vista para a Lagoa Rodrigo de Freitas, cartão postal do Rio de Janeiro. Linda Vista.  1 Quarto e 1 banheiro  Amplo, arejado, vaga na garagem. Prédio com piscina, sauna e playground.  Fácil acesso, próximo da praia e shoppings.",
+	"neighborhood_overview" : "",
+	"notes" : "",
+	"transit" : "",
+	"access" : "",
+	"interaction" : "",
+	"house_rules" : "",
+	"property_type" : "Apartment",
+	"room_type" : "Private room",
+	"bed_type" : "Real Bed",
+	"minimum_nights" : "1",
+	"maximum_nights" : "1125",
+	"cancellation_policy" : "flexible",
+	"last_scraped" : ISODate("2019-02-11T05:00:00Z"),
+	"calendar_last_scraped" : ISODate("2019-02-11T05:00:00Z"),
+	"accommodates" : 2,
+	"bedrooms" : 1,
+	"beds" : 1,
+	"number_of_reviews" : 0,
+	"bathrooms" : NumberDecimal("2.0"),
+	"amenities" : [
+		"TV",
+		"Cable TV",
+		"Internet",
+		"Wifi",
+		"Air conditioning",
+		"Pool",
+		"Kitchen",
+		"Free parking on premises",
+		"Doorman",
+		"Gym",
+		"Elevator",
+		"Buzzer/wireless intercom",
+		"Family/kid friendly",
+		"Washer",
+		"Essentials",
+		"24-hour check-in"
+	],
+	"price" : NumberDecimal("701.00"),
+	"security_deposit" : NumberDecimal("1000.00"),
+	"cleaning_fee" : NumberDecimal("250.00"),
+	"extra_people" : NumberDecimal("0.00"),
+	"guests_included" : NumberDecimal("1"),
+	"images" : {
+		"thumbnail_url" : "",
+		"medium_url" : "",
+		"picture_url" : "https://a0.muscache.com/im/pictures/59c516bd-c7c3-4dae-8625-aff5f55ece53.jpg?aki_policy=large",
+		"xl_picture_url" : ""
+	},
+	"host" : {
+		"host_id" : "51496939",
+		"host_url" : "https://www.airbnb.com/users/show/51496939",
+		"host_name" : "Livia",
+		"host_location" : "BR",
+		"host_about" : "",
+		"host_thumbnail_url" : "https://a0.muscache.com/im/pictures/b7911710-9088-451d-a27b-62ad2fc2eac0.jpg?aki_policy=profile_small",
+		"host_picture_url" : "https://a0.muscache.com/im/pictures/b7911710-9088-451d-a27b-62ad2fc2eac0.jpg?aki_policy=profile_x_medium",
+		"host_neighbourhood" : "Lagoa",
+		"host_is_superhost" : false,
+		"host_has_profile_pic" : true,
+		"host_identity_verified" : false,
+		"host_listings_count" : 1,
+		"host_total_listings_count" : 1,
+		"host_verifications" : [
+			"email",
+			"phone",
+			"jumio",
+			"government_id"
+		]
+	},
+	"address" : {
+		"street" : "Rio de Janeiro, Rio de Janeiro, Brazil",
+		"suburb" : "Lagoa",
+		"government_area" : "Lagoa",
+		"market" : "Rio De Janeiro",
+		"country" : "Brazil",
+		"country_code" : "BR",
+		"location" : {
+			"type" : "Point",
+			"coordinates" : [
+				-43.205047082633435,
+				-22.971950988341874
+			],
+			"is_location_exact" : true
+		}
+	},
+	"availability" : {
+		"availability_30" : 28,
+		"availability_60" : 58,
+		"availability_90" : 88,
+		"availability_365" : 363
+	},
+	"review_scores" : {
+		
+	},
+	"reviews" : [ ]
+}
+{
+	"_id" : "10082307",
+	"listing_url" : "https://www.airbnb.com/rooms/10082307",
+	"name" : "Double Room en-suite (307)",
+	"summary" : "A standard double room with a queen size double bed and with private bathroom. There is a working table, chair and a shelf. A clean and comfortable room.",
+	"space" : "",
+	"description" : "A standard double room with a queen size double bed and with private bathroom. There is a working table, chair and a shelf. A clean and comfortable room.",
+	"neighborhood_overview" : "",
+	"notes" : "",
+	"transit" : "",
+	"access" : "",
+	"interaction" : "",
+	"house_rules" : "",
+	"property_type" : "Apartment",
+	"room_type" : "Private room",
+	"bed_type" : "Real Bed",
+	"minimum_nights" : "1",
+	"maximum_nights" : "1125",
+	"cancellation_policy" : "strict_14_with_grace_period",
+	"last_scraped" : ISODate("2019-03-11T04:00:00Z"),
+	"calendar_last_scraped" : ISODate("2019-03-11T04:00:00Z"),
+	"accommodates" : 2,
+	"bedrooms" : 1,
+	"beds" : 1,
+	"number_of_reviews" : 0,
+	"bathrooms" : NumberDecimal("1.0"),
+	"amenities" : [
+		"TV",
+		"Internet",
+		"Wifi",
+		"Air conditioning",
+		"Wheelchair accessible",
+		"Doorman",
+		"Elevator",
+		"Family/kid friendly",
+		"Shampoo",
+		"Hangers",
+		"Hair dryer",
+		"Iron"
+	],
+	"price" : NumberDecimal("361.00"),
+	"extra_people" : NumberDecimal("130.00"),
+	"guests_included" : NumberDecimal("2"),
+	"images" : {
+		"thumbnail_url" : "",
+		"medium_url" : "",
+		"picture_url" : "https://a0.muscache.com/im/pictures/8ee32fb6-2094-42ee-ae6c-ff40b479f9a7.jpg?aki_policy=large",
+		"xl_picture_url" : ""
+	},
+	"host" : {
+		"host_id" : "51289938",
+		"host_url" : "https://www.airbnb.com/users/show/51289938",
+		"host_name" : "Ken",
+		"host_location" : "Hong Kong",
+		"host_about" : "Out-going and positive. Happy to talk to guests and exchange our difference in culture.",
+		"host_response_time" : "within an hour",
+		"host_thumbnail_url" : "https://a0.muscache.com/im/pictures/48ba1de1-bfea-446c-83ab-c21cb4272696.jpg?aki_policy=profile_small",
+		"host_picture_url" : "https://a0.muscache.com/im/pictures/48ba1de1-bfea-446c-83ab-c21cb4272696.jpg?aki_policy=profile_x_medium",
+		"host_neighbourhood" : "Jordan",
+		"host_response_rate" : 90,
+		"host_is_superhost" : false,
+		"host_has_profile_pic" : true,
+		"host_identity_verified" : false,
+		"host_listings_count" : 6,
+		"host_total_listings_count" : 6,
+		"host_verifications" : [
+			"email",
+			"phone",
+			"google",
+			"reviews"
+		]
+	},
+	"address" : {
+		"street" : "Hong Kong, Kowloon, Hong Kong",
+		"suburb" : "Yau Tsim Mong",
+		"government_area" : "Yau Tsim Mong",
+		"market" : "Hong Kong",
+		"country" : "Hong Kong",
+		"country_code" : "HK",
+		"location" : {
+			"type" : "Point",
+			"coordinates" : [
+				114.17158,
+				22.30469
+			],
+			"is_location_exact" : true
+		}
+	},
+	"availability" : {
+		"availability_30" : 30,
+		"availability_60" : 60,
+		"availability_90" : 90,
+		"availability_365" : 365
+	},
+	"review_scores" : {
+		
+	},
+	"reviews" : [ ]
+}
+
+// room_type이 "Private room" 도큐먼트에서 필요한 필드만 뽑기
+> db.airbnb.aggregate([
+...   {$match: {room_type: "Private room"}},
+...   {$project: {
+...     name: 1,
+...     room_type: 1,
+...     bed_type: 1
+...   }},
+...   {$limit: 3}
+... ]).pretty()
+{
+	"_id" : "10021707",
+	"name" : "Private Room in Bushwick",
+	"room_type" : "Private room",
+	"bed_type" : "Real Bed"
+}
+{
+	"_id" : "10030955",
+	"name" : "Apt Linda Vista Lagoa - Rio",
+	"room_type" : "Private room",
+	"bed_type" : "Real Bed"
+}
+{
+	"_id" : "10082307",
+	"name" : "Double Room en-suite (307)",
+	"room_type" : "Private room",
+	"bed_type" : "Real Bed"
+}
+
+```
+
+- $limit으로 결과셋 제한하기
+
+```
+db.airbnb.aggregate([
+  {$match: {room_type: "Private room"}},
+  {$limit: 3},
+  {$project: {
+    name: 1,
+    room_type: 1,
+    bed_type: 1
+  }},
+]).pretty()
+```
+
+- $limit은 선출 단계 이전에 수행하도록 파이프라인을 구축하는게 좋다. 선출 단계를 먼저 실행한 후 제한을 실행해도 결과는 동일하지만 파이프라인의 특성상 최종적으로 결과 5개를 제한하기 전에 선출 단계를 통해 수백개의 도큐먼트를 전달해야 한다.
 
