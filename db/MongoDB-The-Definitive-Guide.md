@@ -4831,3 +4831,188 @@ db.airbnb.aggregate([
 
 ```
 
+
+
+## 배열 표현식
+
+- 필터 표현식
+
+```
+// 음 .. 우선 review가 많은 도큐먼트를 찾자 ...
+
+db.airbnb.findOne({'reviews.10': {$exists: true}})
+
+// name이 Ribeira Charming Duplex인 애는 리뷰수가 많다.
+// review 중에서도 $gte:ISODate("2018-05-01") 이 넘은 리뷰들만 찾기
+db.airbnb.aggregate([
+  {$match: 
+    {name : "Ribeira Charming Duplex"}
+  },
+  {$project:
+    {
+      name: 1,
+      reviews: {
+        $filter: {
+          input: "$reviews",
+          as: "review",
+          cond: { $gte: [ "$$review.date", ISODate("2018-05-01")] }
+        }
+      }
+    },
+  }
+]).pretty()
+```
+
+- review 필드는 필터 표현식을 사용해서 표현된다.
+- $filter 연산자는 배열 필드와 함께 작동하도록 설계됐으며 우리가 제공하는 옵션을 지정한다.
+  - input: 도큐먼트의 배열 필드
+  - as: 레이블링
+  - cond: 조건지정
+    - $$은  as로 레이블링한 필드에 접근할때 사용한다.
+
+```
+{
+	"_id" : "10006546",
+	"name" : "Ribeira Charming Duplex",
+	"reviews" : [
+		{
+			"_id" : "259708770",
+			"date" : ISODate("2018-05-01T04:00:00Z"),
+			"listing_id" : "10006546",
+			"reviewer_id" : "174003310",
+			"reviewer_name" : "Dariusz",
+			"comments" : "Great location right next to the Dom Luiz bridge and Douro river and plenty of restaurants. Enough room for about 6 people. Ana was very responsive to any concerns we had. Would stay again."
+		},
+		{
+			"_id" : "263239322",
+			"date" : ISODate("2018-05-11T04:00:00Z"),
+			"listing_id" : "10006546",
+			"reviewer_id" : "31033799",
+			"reviewer_name" : "Margriet",
+			"comments" : "The house was supernice and located in the middle of the center. We really enjoyed our stay here!"
+		},
+		{
+			"_id" : "264125733",
+			"date" : ISODate("2018-05-13T04:00:00Z"),
+			"listing_id" : "10006546",
+			"reviewer_id" : "15554470",
+				"reviewer_name" : "Carlos",
+			"comments" : "Great Location. Ana & Gonzalo are very nice, flexible, and fast-responsive. Apartment is ok but only one toilet for 3 rooms + sofa-bed."
+		},
+		{
+			"_id" : "267283092",
+			"date" : ISODate("2018-05-21T04:00:00Z"),
+			"listing_id" : "10006546",
+			"reviewer_id" : "39358900",
+			"reviewer_name" : "Gaspard",
+			"comments" : "Ana&Gonçalo's apartment was nice, comfy, clean and most of all really well located in the city center!!!\nWe could easily move everywhere in Porto from there and it was perfect for discovering the city!\nAlso, I'd like to mention that Gonçalo was nice and patient with us on the day of the arrival even if we were a bit late.\nI strongly recommend this place!"
+		},
+		{
+			"_id" : "269853203",
+			"date" : ISODate("2018-05-28T04:00:00Z"),
+			"listing_id" : "10006546",
+			"reviewer_id" : "42864948",
+			"reviewer_name" : "James",
+			"comments" : "Incredible location, beautiful house. Everything was very easy and we would highly recommend this accommodation. Excellent. "
+		},
+		{
+			"_id" : "272277314",
+			"date" : ISODate("2018-06-03T04:00:00Z"),
+			"listing_id" : "10006546",
+			"reviewer_id" : "45990306",
+			"reviewer_name" : "紫仪",
+			"comments" : "good lication good experience"
+		},
+		{
+			"_id" : "275044729",
+			"date" : ISODate("2018-06-10T04:00:00Z"),
+			"listing_id" : "10006546",
+			"reviewer_id" : "176337667",
+			"reviewer_name" : "Sebastian",
+			"comments" : "We loved it"
+		},
+		{
+			"_id" : "302971185",
+			"date" : ISODate("2018-08-06T04:00:00Z"),
+			"listing_id" : "10006546",
+			"reviewer_id" : "52572680",
+			"reviewer_name" : "Robby",
+			"comments" : "Great location right on the river. Lots of tourists in the area. Easy to get to public transportation. Besides the hot weather, we had a good time. "
+		},
+		{
+			"_id" : "320887590",
+			"date" : ISODate("2018-09-09T04:00:00Z"),
+			"listing_id" : "10006546",
+			"reviewer_id" : "20965806",
+			"reviewer_name" : "Romain",
+			"comments" : "Merci à Ana & Gonçalo pour l’accueil !"
+		},
+		{
+			"_id" : "325025167",
+			"date" : ISODate("2018-09-18T04:00:00Z"),
+			"listing_id" : "10006546",
+			"reviewer_id" : "15097268",
+			"reviewer_name" : "Roula",
+			"comments" : "-"
+		},
+		{
+			"_id" : "331735682",
+			"date" : ISODate("2018-10-03T04:00:00Z"),
+			"listing_id" : "10006546",
+			"reviewer_id" : "35313286",
+			"reviewer_name" : "Alexander",
+			"comments" : "Our stay in Ana and Gancalo’s apartment was lovely. The location was perfect and Gancalo graciously picked us up from the airport. It does get a little loud in the morning but that’s only because the apartment is perfectly located right on the river front. You do have to hold the shower wand when showering but the pressure is good. Overall I would definitely stay in the apartment again!"
+		},
+		{
+			"_id" : "334789252",
+			"date" : ISODate("2018-10-10T04:00:00Z"),
+			"listing_id" : "10006546",
+			"reviewer_id" : "206502919",
+			"reviewer_name" : "Mark",
+			"comments" : "It was a wonderful experience, the location is fantastic and the accommodations were outstanding."
+		},
+		{
+			"_id" : "347372623",
+			"date" : ISODate("2018-11-11T05:00:00Z"),
+			"listing_id" : "10006546",
+			"reviewer_id" : "17503135",
+			"reviewer_name" : "Camille",
+			"comments" : "Ana’s place is very well located, at 2 min walking distance to the Douro, so that everything is close by! Ana communicated well regarding check in info, and was even flexible regarding check out timing. The description / pictures are relevant; only the bathroom  is not as recent. We appreciated the extra blanket as heaters have to be switched off once u leave the flat, but once they are switched on we had no problem afterwards regarding the temperature of the flat."
+		},
+		{
+			"_id" : "354708379",
+			"date" : ISODate("2018-12-02T05:00:00Z"),
+			"listing_id" : "10006546",
+			"reviewer_id" : "34178931",
+			"reviewer_name" : "Pawel",
+			"comments" : "If you want to stay in the heart of Porto for reasonable price this is a good alternative. However, I’d selected again it for group of more than 6 people."
+		},
+		{
+			"_id" : "362865132",
+			"date" : ISODate("2018-12-27T05:00:00Z"),
+			"listing_id" : "10006546",
+			"reviewer_id" : "208880077",
+			"reviewer_name" : "Thomas",
+			"comments" : "Very helpful hosts. Cooked traditional Portuguese Christmas dinner for 6. Location is perfect. Right off square that is on river right by famous bridge engineered by protege of Gustav Eifel. Looks like same type structure."
+		},
+		{
+			"_id" : "364728730",
+			"date" : ISODate("2018-12-31T05:00:00Z"),
+			"listing_id" : "10006546",
+			"reviewer_id" : "91827533",
+			"reviewer_name" : "Mr",
+			"comments" : "Ana & Goncalo were great on communication, responding instantly to questions.\n5 of us stayed in their home for 3 nights and found the location to be great and central to all the amazing sights Porto has to offer. \nWe found the home to be difficult to heat on our first night, the rooms have heaters but took time to get the room to a comfortable temperature level. But in warmer months Im sure this isn't an issue.\nThe beds are a little hard with one slightly out of shape,  and the shower is fairly basic (hand held) but does the job. Because of the central location some noise can be expected early in the mornings. \nOverall the apartment suited our needs for our short stay and the price is more than reasonable for what we got."
+		},
+		{
+			"_id" : "403055315",
+			"date" : ISODate("2019-01-20T05:00:00Z"),
+			"listing_id" : "10006546",
+			"reviewer_id" : "15138940",
+			"reviewer_name" : "Milo",
+			"comments" : "The house was extremely well located and Ana was able to give us some really great tips on locations to have lunch and eat out. The house was perfectly clean and the easily able to accommodate 6 people despite only having one bathroom. The beds and living room were comfortable. \n\nHowever, we always felt somewhat on edge in the house due to the number of signs posted around the kitchen, bedrooms and bathroom about being charged 15€ for all sorts of extras like not washing up or using extra towels and bed linen. Not that this would be particularly unreasonable but it made us feel like we were walking on egg shells in and around the house. \n\nThe hosts were aware that we were a group of six yet one of the beds was not prepared and we ran out of toilet paper well before we were due to check out despite only being there 2 nights. It really wasn't the end of the world but the shower head does not have a wall fitting meaning you had to hold it yourself if you wanted to stand underneath it."
+		}
+	]
+}
+
+```
+
