@@ -5016,3 +5016,43 @@ db.airbnb.aggregate([
 
 ```
 
+- 배열 요소 연산자
+  - $arrayElemAt을 사용하면 배열 내 특정 슬롯에서 요소를 선택할 수 있다.
+
+```
+
+db.airbnb.aggregate([
+  {$match: 
+    {name : "Ribeira Charming Duplex"}
+  },
+  {$project: {
+    name: 1,
+    first_review: { $arrayElemAt: ["$reviews", 0]},
+    last_review: { $arrayElemAt: ["$reviews", -1]}
+    }
+  }
+]).pretty()
+{
+	"_id" : "10006546",
+	"name" : "Ribeira Charming Duplex",
+	"first_review" : {
+		"_id" : "58663741",
+		"date" : ISODate("2016-01-03T05:00:00Z"),
+		"listing_id" : "10006546",
+		"reviewer_id" : "51483096",
+		"reviewer_name" : "Cátia",
+		"comments" : "A casa da Ana e do Gonçalo foram o local escolhido para a passagem de ano com um grupo de amigos. Fomos super bem recebidos com uma grande simpatia e predisposição a ajudar com qualquer coisa que fosse necessário.\r\nA casa era ainda melhor do que parecia nas fotos, totalmente equipada, com mantas, aquecedor e tudo o que pudessemos precisar.\r\nA localização não podia ser melhor! Não há melhor do que acordar de manhã e ao virar da esquina estar a ribeira do Porto."
+	},
+	"last_review" : {
+		"_id" : "403055315",
+		"date" : ISODate("2019-01-20T05:00:00Z"),
+		"listing_id" : "10006546",
+		"reviewer_id" : "15138940",
+		"reviewer_name" : "Milo",
+		"comments" : "The house was extremely well located and Ana was able to give us some really great tips on locations to have lunch and eat out. The house was perfectly clean and the easily able to accommodate 6 people despite only having one bathroom. The beds and living room were comfortable. \n\nHowever, we always felt somewhat on edge in the house due to the number of signs posted around the kitchen, bedrooms and bathroom about being charged 15€ for all sorts of extras like not washing up or using extra towels and bed linen. Not that this would be particularly unreasonable but it made us feel like we were walking on egg shells in and around the house. \n\nThe hosts were aware that we were a group of six yet one of the beds was not prepared and we ran out of toilet paper well before we were due to check out despite only being there 2 nights. It really wasn't the end of the world but the shower head does not have a wall fitting meaning you had to hold it yourself if you wanted to stand underneath it."
+	}
+}
+
+  
+```
+
