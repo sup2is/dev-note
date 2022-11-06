@@ -3805,7 +3805,7 @@ db.runCommand( {"collMod" : "someapp.cache" , "index" : { "keyPattern" : {"lastU
   - 집계 표현식
   - 집계 누산기
 
-## 
+
 
 ## 파이프라인, 단계 및 조정 가능 항목
 
@@ -5055,4 +5055,394 @@ db.airbnb.aggregate([
 
   
 ```
+
+- $slice 사용하기
+
+```
+db.airbnb.aggregate([
+  {$match: 
+    {name : "Ribeira Charming Duplex"}
+  },
+  {$project: {
+    name: 1,
+    reviews: { 
+      $slice: ["$reviews", 0, 3]}
+    }
+  }
+]).pretty()
+{
+	"_id" : "10006546",
+	"name" : "Ribeira Charming Duplex",
+	"reviews" : [
+		{
+			"_id" : "58663741",
+			"date" : ISODate("2016-01-03T05:00:00Z"),
+			"listing_id" : "10006546",
+			"reviewer_id" : "51483096",
+			"reviewer_name" : "Cátia",
+			"comments" : "A casa da Ana e do Gonçalo foram o local escolhido para a passagem de ano com um grupo de amigos. Fomos super bem recebidos com uma grande simpatia e predisposição a ajudar com qualquer coisa que fosse necessário.\r\nA casa era ainda melhor do que parecia nas fotos, totalmente equipada, com mantas, aquecedor e tudo o que pudessemos precisar.\r\nA localização não podia ser melhor! Não há melhor do que acordar de manhã e ao virar da esquina estar a ribeira do Porto."
+		},
+		{
+			"_id" : "62413197",
+			"date" : ISODate("2016-02-14T05:00:00Z"),
+			"listing_id" : "10006546",
+			"reviewer_id" : "40031996",
+			"reviewer_name" : "Théo",
+			"comments" : "We are french's students, we traveled some days in Porto, this space was good and we can cooking easly. It was rainning so we eard every time the water fall to the ground in the street when we sleeping. But It 
+```
+
+- 배열의 size 가져오기
+
+```
+db.airbnb.aggregate([
+  {$match: 
+    {name : "Ribeira Charming Duplex"}
+  },
+  {$project: {
+    name: 1,
+    review_count: { 
+      $size: "$reviews"
+    }
+  }
+]).pretty()
+
+// 결과가 왜 안나옴..?
+```
+
+
+
+
+
+## 누산기
+
+- 집계 프레임워크가 제공하는 누산기
+  - $sum
+  - $avg
+  - $first, $last
+  - $max, $min
+  - $mergeObjects: 여러 도큐먼트를 하나의 도큐먼트로 결합하기
+  - $addToSet, $push: $addToSet은 중복 제거
+- 몽고DB 3.2 이전에는 누산기를 그룹 단게에서만 사용할 수 있었는데 3.2는 선출 단계에서 누산기의 서브셋에 접근하는 기능을 도입했다.
+- 선출 단계에서는 $sum, $avg와 같은 누산기가 단일 도큐먼트 내 배열에서 작동하는 반면, 그룹 단계에서는 누산기가 여러 도큐먼트 값에 걸쳐 계산을 수행할 수 있다. 이는 그룹 단계와 선출 단계에서의 누산기 작동의 주요 차이점이다.
+
+
+
+
+
+### 선출 단계에서 누산기 사용
+
+```
+db.airbnb.aggregate([
+  {$match: 
+    {reviews : { $exists: true, $ne: []}}
+  },
+  {$project: {
+    name: 1,
+    max_review_id: { $max: "$reviews._id"}
+    }
+  }
+]).pretty()
+
+{
+	"_id" : "10021707",
+	"name" : "Private Room in Bushwick",
+	"max_review_id" : "61050713"
+}
+{
+	"_id" : "10047964",
+	"name" : "Charming Flat in Downtown Moda",
+	"max_review_id" : "68162172"
+}
+{
+	"_id" : "10006546",
+	"name" : "Ribeira Charming Duplex",
+	"max_review_id" : "96574146"
+}
+{
+	"_id" : "10038496",
+	"name" : "Copacabana Apartment Posto 6",
+	"max_review_id" : "98707977"
+}
+{
+	"_id" : "10059872",
+	"name" : "Soho Cozy, Spacious and Convenient",
+	"max_review_id" : "56904633"
+}
+{
+	"_id" : "1003530",
+	"name" : "New York City - Upper West Side Apt",
+	"max_review_id" : "99485043"
+}
+{
+	"_id" : "10051164",
+	"name" : "Catete's Colonial Big Hause Room B",
+	"max_review_id" : "61992538"
+}
+{
+	"_id" : "10057826",
+	"name" : "Deluxe Loft Suite",
+	"max_review_id" : "92234102"
+}
+{
+	"_id" : "10096773",
+	"name" : "Easy 1 Bedroom in Chelsea",
+	"max_review_id" : "58692890"
+}
+{
+	"_id" : "10091713",
+	"name" : "Surry Hills Studio - Your Perfect Base in Sydney",
+	"max_review_id" : "244574712"
+}
+{
+	"_id" : "10115921",
+	"name" : "GOLF ROYAL RESİDENCE TAXİM(1+1):3",
+	"max_review_id" : "69120673"
+}
+{
+	"_id" : "10117617",
+	"name" : "A Casa Alegre é um apartamento T1.",
+	"max_review_id" : "96121734"
+}
+{
+	"_id" : "10092679",
+	"name" : "Cozy house at Beyoğlu",
+	"max_review_id" : "360596369"
+}
+{
+	"_id" : "10083468",
+	"name" : "Be Happy in Porto",
+	"max_review_id" : "99274088"
+}
+{
+	"_id" : "10133350",
+	"name" : "2 bedroom Upper east side",
+	"max_review_id" : "93702337"
+}
+{
+	"_id" : "10133554",
+	"name" : "Double and triple rooms Blue mosque",
+	"max_review_id" : "261857290"
+}
+{
+	"_id" : "10084023",
+	"name" : "City center private room with bed",
+	"max_review_id" : "90274604"
+}
+{
+	"_id" : "10141950",
+	"name" : "Big, Bright & Convenient Sheung Wan",
+	"max_review_id" : "59088971"
+}
+{
+	"_id" : "10108388",
+	"name" : "Sydney Hyde Park City Apartment (checkin from 6am)",
+	"max_review_id" : "98931907"
+}
+{
+	"_id" : "10166883",
+	"name" : "Large railroad style 3 bedroom apt in Manhattan!",
+	"max_review_id" : "99836853"
+}
+
+```
+
+
+
+- 선출 단계에서 누산기로 수행할 수 있는 작업들은 몽고DB 문서들을 살펴보자 ..
+- [https://www.mongodb.com/docs/manual/meta/aggregation-quick-reference/](https://www.mongodb.com/docs/manual/meta/aggregation-quick-reference/)
+
+
+
+## 그룹화 소개
+
+- 몽고DB 집계 프레임워크에서 누산기는 그룹 단계의 영역이었다.
+- 그룹 단계는 SQL GROUP BY 명령어와 유사한 기능을 수행한다.
+- 그룹 단계에서는 여러 도큐먼트의 값을 함께 집계하고 집계한 값에 평균 계산과 같은 집계 작업을 수행할 수 있다.
+
+```
+db.airbnb.aggregate([
+  { $group: {
+    _id: { room_type: "$room_type" },
+    average_beds: { $avg: "$beds" }
+  }}
+]).pretty()
+
+{
+	"_id" : {
+		"room_type" : "Private room"
+	},
+	"average_beds" : 1.3568170299037
+}
+{
+	"_id" : {
+		"room_type" : "Shared room"
+	},
+	"average_beds" : 2.5301204819277108
+}
+{
+	"_id" : {
+		"room_type" : "Entire home/apt"
+	},
+	"average_beds" : 2.4650028686173266
+}
+
+```
+
+
+
+### 그룹 단계의 _id 필드
+
+```
+db.airbnb.aggregate([
+  { $match: {number_of_reviews : {$eq : 7}}},
+  { $group: {
+    _id: { room_type: "$room_type" },
+    names: { $push: "$name" }
+  }}
+]).pretty()
+{
+	"_id" : {
+		"room_type" : "Entire home/apt"
+	},
+	"names" : [
+		"Charming apartment in Santa Teresa",
+		"302 Kanai A Nalu Ocean front/view",
+		"Apartamento en casco antiguo",
+		"Museum Mile 1 BR - Madison Ave",
+		"Shining view in the city heart 5",
+		"Haena to re-open in 2019! Ocean Views! Newly added A/C in all rooms! - Haena Kai",
+		"Superior One Bedroom Golf Course n Mountain Views",
+		"Beachside in Paradise",
+		"Gorgeous Apartment with Balcony & Terrace",
+		"Apartment \"The Garden\"",
+		"Ocean View Home for Vacations and Executive Stays",
+		"Small and Low Cost Place",
+		"Experience Local Living in Well-Connected Beach Retreat",
+		"Ocean View Condo with Lanai, end unit for privacy.",
+		"Peaceful Retreat less than 10mn from ferry",
+		"Plaza Catalunya V, Friendly Rentals",
+		"Apartment next to Las Ramblas and Paral·lel",
+		"Ocean Front Ecstasy! Homey w/Tile Floor, Full Kitchen, WiFi, Flat Screen–Paki Maui 409",
+		"Beau et grand appartement près de TOUT !",
+		"ReUrban Flats - Santa Catarina #3",
+		"Beautiful Apartment+Garden In Brooklyn",
+		"Cedofeita Light Apartment (N42)",
+		"2021 Kapalua Ridge. Platinum level villa with sweeping ocean views and elegant remodeled interiors.",
+		"Greenwich Village Townhome with Private Garden!",
+		"InSitu Formosa 178 - Citrine",
+		"UNIQUE GARDEN FLAT – DEE WHY BEACH",
+		"Azur Lodge and Beach House",
+		"Affordable traveler's studio in the heart of HK",
+		"Liiiving in Porto | Downtown Charm Apartment",
+		"Ocean Condo @ Kuhio Shores #403",
+		"Drummoyne oasis, close to the bay",
+		"2 Bedroom Flat next MTR station whampoa",
+		"Awesome apartment & amazing terrace! HUTB-012684",
+		"Apartment IN COPACABANA",
+		"IPANEMA, Rio de Janeiro, Brasil",
+		"Apartamento T3 duplex de luxo à beira mar",
+		"DOWNTOWN STUDIO DW",
+		"Awesome Child Friendly Apartment!",
+		"Penthouse da Música for 8",
+		"Perfect Sea View",
+		"Pristine 1BR in Quartier des Spectacles by Sonder",
+		"Entire Studio Apartment 5 min walk to Sydney Uni!",
+		"Modern and Amazing Apartments in Porto",
+		"Stylish Plateau Mont-Royal",
+		"Bright 2 Bedroom Plateau - Mile End Laurier Metro",
+		"Pili Mai 2L",
+		"高级公寓2-4人家庭房/皇岗福田双口岸/地铁口高端小区/近会展中心 购物公园 福田高铁站",
+		"Cosy and central apartment with garden in Cihangir",
+		"SUNNY, SPACIOUS APT. in  FT. GREENE",
+		"Appartement complet de luxe",
+		"Kona Ali’i 502 Oceanfront Condo",
+		"Beautiful 2 BR Up To 8 People In Old Montreal",
+		"NEW- Álvares Cabral Loft",
+		"Apartment with Balcony , Sultan Ahmet",
+		"Golden Flat in downtown, best walking score!",
+		"Grace 1 - Habitat Apartments",
+		"6roomsHouse 5mins toTrainStation near SYD Airport",
+		"Porto Forrester Apartment",
+		"Oma'oma'o Falls ~ Pristine Private Home",
+		"Appartment Loft style",
+		"Light filled Williamsburg Apartment",
+		"Clean One Bedroom Apartment",
+		"Quaint Apt in Copacabana / Ipanema",
+		"Vaucluse, city views, large two bedroom w sunroom",
+		"service appartment with terrace",
+		"Fully furnished big 2 1/2",
+		"Fine Studio by Mt. Sinai & CP - 30 Days Min",
+		"Entire family home",
+		"ABSOLUTE BEACHFRONT Swim, Sun, Surf",
+		"Old Montreal Elegant 1BR, Business & Leisure",
+		"Modern top floor unit in Brookvale, close to beach",
+		"Rose Bay: Large 1 Bedroom Apartment",
+		"Perfect 2 bed in fabulous Fairlight"
+	]
+}
+{
+	"_id" : {
+		"room_type" : "Private room"
+	},
+	"names" : [
+		"Large well-lit & quiet room in the Plateau",
+		"Sunny, private room on St. Denis",
+		"Cozy Apartment in Bed-Stuy",
+		"Nice appartement in central",
+		"A place just in the heart of beşiktaş.",
+		"Quarto amplo, arejado, vista livre e silencioso.",
+		"A charming Art-deco upper Manhattan",
+		"Room with a double bed close to Arc de Triomf",
+		"Master Bedroom in a High Rise Appartment",
+		"Resort style living",
+		"Newly renovated home",
+		"Double room(close to airport and center)",
+		"Ático Del Guinardo",
+		"Large and luminous room in a spacious apartment✨",
+		"Habitación acogedora en zona muy tranquila",
+		"Perfect location to reach allaround",
+		"Boutique Room in Taksim 5 Free wi_fi",
+		"House for Friends in Porto Downtown - Bedroom 4",
+		"Modern,Comfy and water view room",
+		"smoothly, cheap house in Sisli,Istanbul..",
+		"Chambre privée au coeur de Rosemont",
+		"Gorgeous appartement in mile end",
+		"Large bright and airy bedroom -convenient location",
+		"Double room with shared batroom with sea view",
+		"贝壳—香港繁华中宁静的休憩小筑",
+		"Double room, facing the sea. CCIB",
+		"Romantic room with amazing terrace in the center",
+		"Cozy, New Ren. comfort for 2 pax, City hotspot",
+		"淡雅2-3人房間",
+		"3 Persons Room +Private Bathroom ( 3 人家庭房+私人浴室)",
+		"Your cute home in Istanbul(forwoman)",
+		"Beautiful Room in the City Centre!",
+		"Excl. Bosphorus view PrivateTerrace"
+	]
+}
+{
+	"_id" : {
+		"room_type" : "Shared room"
+	},
+	"names" : [
+		"$45ANYCCozy Room with curtain NearJ,G, and M train"
+	]
+}
+
+```
+
+- room_type은 _id 필드로 한번 감싼것을 확인할 수 있는데 이렇게 하는 이유는 그룹 값에 레이블을 지정하지 않으면 어떤 점을 기준으로 그룹화한다는 점이 분명하지 않기 때문이다.
+- 혼동을 피하려면 그룹화할 값에 명시적으로 레이블을 정하자.
+- 경우에 따라 여러 필드로 구성된 도큐먼트가 _id 값인 방식을 사용해야 할 수도 있다.
+  - 집계 연산자를 안쓸거면 _id에 넣고 아니면 집계연산자를 쓰면 된다. <- 걍 이렇게 이해해버림
+
+
+
+### 그룹 vs 선출
+
+## 집계 파이프라인 결과를 컬렉션에 쓰기
+
+
+
+
 
