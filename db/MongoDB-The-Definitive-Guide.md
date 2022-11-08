@@ -5446,3 +5446,250 @@ db.airbnb.aggregate([
 
 
 
+
+
+
+
+
+
+
+
+# #8 트랜잭션
+
+- 트랜잭션은 데이터베이스의 논리적 처리 그룹이며 각 그룹과 트랜잭션은 여러 도큐먼트에 대한 읽기, 쓰기와 같은 작업을 하나 이상 포함할 수 있다.
+- 몽고DB는 여러 작업, 컬렉션, 데이터베이스, 도큐먼트 및 샤드에서 ACID 호환 트랜잭션을 지원한다.
+- 이 장에서 배울 수 있는 것
+  - 트랜잭션은 무엇인가
+  - 트랜잭션을 사용하는 방법
+  - 애플리케이션을 위한 트랜잭션 제한 조정
+
+
+
+## 트랜잭션 소개
+
+- 트랜잭션의 중요한 특징은 작업이 성공하든 실패하든 부분적으로는 완료되지 않는다는 점이다.
+- 트랜잭션을 사용하려면 몽고DB 4.2 버전 이상이어야하고 드라이버역시 몽고DB 4.2 이상에 맞게 갱신해야 한다.
+
+
+
+### ACID의 정의
+
+- 트랜잭션이 진정한 트랜잭션이 되려면 ACID 속성을 충족해야 한다.
+- ACID
+  - Atomicity: 원자성. 트랜잭션 내 모든 작업이 적용되거나 아무 작업도 적용되지 않도록 한다. 부분적용 X
+  - Consistency: 트랜잭션이 성공하면 데이터베이스가 하나의 일관성 있는 상태에서 다음 일관성 있는 상태로 이동하도록 한다.
+  - Isolation: 여러 트랜잭션이 데이터베이스에서 동시에 실행되도록 허용하는 속성 트랜잭션이 다른 트랜잭션의 부분 결과를 보지 않도록 보장한다.
+  - Durability: 트랜잭션이 커밋될 때 시스템 오류가 발생하더라도 모든 데이터가 유지되도록한다.
+- ACID 트랜잭션은 정전 등 오류가 발생할 때도 데이터와 데이터베이스 상태의 유효성을 보장한다.
+- 몽고DB는 복제 셋과 샤드 전체에 ACID 호환 트랜잭션이 있는 분산 데이터베이스다. 
+
+
+
+## 트랜잭션 사용법
+
+- 몽고DB에서 트랜잭션을 사용하기 위한 두가지 API
+  - 코어 API
+  - 콜백 API
+
+- 코어 API
+  - 관계형 데이터베이스와 유사한 구문 (start_transaciton, commit_transaction)
+  - 대부분의 오류에 재시도 로직을 제공하지 않으며 개발자가 작업에 대한 로직, 트랜잭션 커밋 함수, 필요한 재시도 및 오류 로직을 모두 작성해야 한다.
+
+- 콜백 API
+  - 트랜잭션 사용에 권장되는 방법
+  - 지정된 논리 세션과 관련된 트랜잭션 시작, 콜백 함수로 제공된 함수 실행, 트랜잭션 커밋을 포함해 코어 API에 비해 많은 기능을 래핑하는 단일 함수를 제공한다.
+  - 이 함수는 커밋 오류를 처리하는 재시도 로직도 포함한다.
+
+- 논리 세션
+  - 두 API에서 개발자는 트랜잭션에서 사용할 논리 세션을 시작해야 하며 트랜잭션의 작업이 특정 논리 세션과 연결돼야 한다.
+  - 몽고 DB 논리 세션은 저에 몽고 DB 배포 컨텍스트에서 작업의 시간과 순서를 추적한다.
+
+
+
+| 코어 API                                                     | 콜백 API                                                     |
+| ------------------------------------------------------------ | ------------------------------------------------------------ |
+| 트랜잭션을 시작하고 커밋하려면 명시적인 호출이 필요하다      | 트랜잭션을 시작하고 지정된 작업을 실행한 후 커밋(또는 오류시 중단)한다. |
+| TransientTransctionError 및 UnknownTransactionCommitResult에 대한 오류처리 로직을 통합하지 않고 대신 사용자 지정 오류처리를 통합하는 유연성을 제공한다. | TransientTransctionError 및 UnknownTransactionCommitResult에 대한 오류 처리 로직을 자동으로 통합한다. |
+| 특정 트랜잭션을 위해 API로 전달되는 명시적 논리 세션이 필요하다. | 특정 트랜잭션을 위해 API로 전달되는 명시적 논리 세션이 필요하다. |
+
+- 코어  API 사용 예
+
+```
+# Define the uriString using the DNS Seedlist Connection Format 
+# for the connection
+uri = 'mongodb+srv://server.example.com/'
+client = MongoClient(uriString)
+
+my_wc_majority = WriteConcern('majority', wtimeout=1000)
+
+# Prerequisite / Step 0: Create collections, if they don't already exist. 
+# CRUD operations in transactions must be on existing collections.
+
+client.get_database( "webshop",
+                     write_concern=my_wc_majority).orders.insert_one({"sku":
+                     "abc123", "qty":0})
+client.get_database( "webshop",
+                     write_concern=my_wc_majority).inventory.insert_one(
+                     {"sku": "abc123", "qty": 1000})
+
+# Step 1: Define the operations and their sequence within the transaction
+def update_orders_and_inventory(my_session):
+    orders = session.client.webshop.orders
+    inventory = session.client.webshop.inventory
+
+
+    with session.start_transaction(
+            read_concern=ReadConcern("snapshot"),
+            write_concern=WriteConcern(w="majority"),
+            read_preference=ReadPreference.PRIMARY):
+
+        orders.insert_one({"sku": "abc123", "qty": 100}, session=my_session)
+        inventory.update_one({"sku": "abc123", "qty": {"$gte": 100}},
+                             {"$inc": {"qty": -100}}, session=my_session)
+        commit_with_retry(my_session)
+
+# Step 2: Attempt to run and commit transaction with retry logic
+def commit_with_retry(session):
+    while True:
+        try:
+            # Commit uses write concern set at transaction start.
+            session.commit_transaction()
+            print("Transaction committed.")
+            break
+        except (ConnectionFailure, OperationFailure) as exc:
+            # Can retry commit
+            if exc.has_error_label("UnknownTransactionCommitResult"):
+                print("UnknownTransactionCommitResult, retrying "
+                      "commit operation ...")
+                continue
+            else:
+                print("Error during commit ...")
+                raise
+
+# Step 3: Attempt with retry logic to run the transaction function txn_func
+def run_transaction_with_retry(txn_func, session):
+    while True:
+        try:
+            txn_func(session)  # performs transaction
+            break
+        except (ConnectionFailure, OperationFailure) as exc:
+            # If transient error, retry the whole transaction
+            if exc.has_error_label("TransientTransactionError"):
+                print("TransientTransactionError, retrying transaction ...")
+                continue
+            else:
+                raise
+
+# Step 4: Start a session.
+with client.start_session() as my_session:
+
+# Step 5: Call the function 'run_transaction_with_retry' passing it the function
+# to call 'update_orders_and_inventory' and the session 'my_session' to associate
+# with this transaction.
+
+    try:
+        run_transaction_with_retry(update_orders_and_inventory, my_session)
+    except Exception as exc:
+        # Do something with error. The error handling code is not
+        # implemented for you with the Core API.
+        raise
+```
+
+- 콜백 API 사용 예
+
+```
+# Define the uriString using the DNS Seedlist Connection Format 
+# for the connection
+uriString = 'mongodb+srv://server.example.com/'
+client = MongoClient(uriString)
+
+my_wc_majority = WriteConcern('majority', wtimeout=1000)
+
+# Prerequisite / Step 0: Create collections, if they don't already exist.
+# CRUD operations in transactions must be on existing collections.
+
+client.get_database( "webshop",
+                     write_concern=my_wc_majority).orders.insert_one({"sku":
+                     "abc123", "qty":0})
+client.get_database( "webshop",
+                     write_concern=my_wc_majority).inventory.insert_one(
+                     {"sku": "abc123", "qty": 1000})
+
+# Step 1: Define the callback that specifies the sequence of operations to
+# perform inside the transactions.
+
+def callback(my_session):
+    orders = my_session.client.webshop.orders
+    inventory = my_session.client.webshop.inventory
+
+    # Important:: You must pass the session variable 'my_session' to 
+    # the operations.
+
+    orders.insert_one({"sku": "abc123", "qty": 100}, session=my_session)
+    inventory.update_one({"sku": "abc123", "qty": {"$gte": 100}},
+                         {"$inc": {"qty": -100}}, session=my_session)
+
+#. Step 2: Start a client session.
+
+with client.start_session() as session:
+# Step 3: Use with_transaction to start a transaction, execute the callback,
+# and commit (or abort on error).
+
+    session.with_transaction(callback,
+                             read_concern=ReadConcern('local'),
+                             write_concern=my_write_concern_majority,
+                             read_preference=ReadPreference.PRIMARY)
+```
+
+
+
+## 애플리케이션을 위한 트랜잭션 제한 조정
+
+### 타이밍과 Oplog 크기 제한
+
+- 몽고DB 트랜잭션에서 두가지 주요 제한 범주
+  - 트랜잭션의 시간 제한. 트랜잭션이 락을 획득하려고 대기하는 시간, 모든 트랜잭션이 실행될 최대 길이를 제어하는 것과 관련이 있다.
+  - 몽고DB oplog 항목과 개별 항목에 대한 크기 제한
+
+
+
+`시간 제한`
+
+- 트랜잭션의 최대 실행 시간은 기본적으로 1분 이하다.
+- transactionLifetimeLimitSeconds에 의해 제어되는 제한을 수정해 증가시킬 수 있다.
+- 샤드 클러스트의 경우 모든 샤드 복제 셋 멤버에 매개변수를 설정해야 한다.
+- 이 시간이 경과하면 트랜잭션이 만료됐다고 간주하고 주기적으로 실행되는 정리 프로세스에 의해 중단된다.
+- 정리 프로세스는 60초와 transcationLifetimeLimitSeconds / 2 중 더 낮은 값을 주기로 실행된다.
+- 트랜잭션에 시간 제한을 명시적으로 설정하려면 commitTransaction에 maxTimeMS를 지정하는 것이 좋다. 
+  - maxTimeMS를 설정하지 않으면 transcationLifetimeLimitSeconds가 사용된다.
+  - maxTimeMS를 설정했더라도 transcationLifetimeLimitSeconds가 도달하면 종료된다.
+- 트랜잭션의 작업에 필요한 락을 획득하기 위해 트랜잭션이 대기하는 최대 시간은 기본적으로 5밀리세컨드다.
+- 이 값은 maxTransactionLockRequestTimeoutMillis에 의해 제어되는 제한을 수정해 늘릴 수 있다.
+  - maxTransactionLockRequestTimeoutMillis는 0, -1 또는 0보다 큰 숫자로 설정할 수 있다.
+
+
+
+`Oplog 크기 제한`
+
+- 몽고 DB는 트랜잭션의 쓰기 작업에 필요한 만큼 oplog 항목을 생성한다. 그러나 각 oplog 항목은 BSON 도큐먼트 크기 제한인 16메가바이트 이하여야 한다.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
