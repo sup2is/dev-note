@@ -5988,6 +5988,49 @@ with client.start_session() as session:
 
 
 
+# #10 복제 셋 설정
+
+- 이 장에서 배울 수 있는 것
+  - 복제 셋의 정의
+  - 복제 셋을 설정하는 방법
+  - 복제 셋 멤버 구성 옵션
+
+
+
+## 복제 소개
+
+- standalone server 형태의 단일 mongodb 서버를 실제 real 환경에서 사용하는 것은 매우 위험하기 때문에 복제를 사용해야 한다.
+- 복제는 데이터의 동일한 복사본을 여러 서버상에서 보관하는 방법이며 실제 서비스를 배포할 때 권장된다.
+- 복제는 한 대 또는 그 이상의 서버에 이상이 발생하더라도 애플리케이션이 정상적으로 동작하게 하고 데이터를 안전하게 보존한다.
+- 몽고DB의 복제 셋은 클라이언트 요청을 처리하는 프라이머리 서버, 프라이머리 데이터의 복사본을 갖는 세컨더리 서버 여러대로 이뤄진다.
+- 프라이머리 서버에 장애가 발생하면 세컨더리 서버는 자신들 중에서 새로운 프라이머리 서버를 선출할 수 있다.
+- 복제를 사용하는 상태에서 서버가 다운되면, 복제 셋에 있는 다른 서버를 통해 데이터에 접근할 수 있다.
+- 서버상의 데이터가 손상되거나 접근할 수 없는 상태라면 복제 셋의 다른 멤버로부터 새로운  복제 데이터를 만들 수 있다.
+
+
+
+## 복제 셋 설정 - 1장
+
+- 운영 환경에서는 항상 복제 셋을 사용하며, 각 메멉에 전용 호스트를 할당해 리소스 경합을 방지하고 서버 오류에 대한 격리를 제공해야 한다. 추가적인 복원력을 제공하려면 DNS Seedlist 연결 형식 (https://www.mongodb.com/docs/manual/reference/connection-string/#dns-seed-list-connection-format) 을 사용해 애플리케이션이 복제 셋에 연결하는 방법을 지정해야 한다.
+  - DNS를 사용하면 몽고DB 복제 셋 멤버를 호스팅하는 서버를 클라이언트에서 재구성할 필요 없이 돌아가면서 변경할 수 있다는 장점이 있다.
+
+
+
+```
+// rs1, rs2, rs3 디렉토리 만들기
+mkdir -p ~/data/rs{1,2,3}
+
+mongod --replSet mdbDefGuide --dbpath ~/data/rs1 --port 27017 --oplogSize 200
+
+mongod --replSet mdbDefGuide --dbpath ~/data/rs2 --port 27018 --oplogSize 200
+
+mongod --replSet mdbDefGuide --dbpath ~/data/rs3 --port 27019 --oplogSize 200
+```
+
+
+
+
+
 
 
 
