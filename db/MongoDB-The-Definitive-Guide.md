@@ -6014,20 +6014,208 @@ with client.start_session() as session:
 - 운영 환경에서는 항상 복제 셋을 사용하며, 각 메멉에 전용 호스트를 할당해 리소스 경합을 방지하고 서버 오류에 대한 격리를 제공해야 한다. 추가적인 복원력을 제공하려면 DNS Seedlist 연결 형식 (https://www.mongodb.com/docs/manual/reference/connection-string/#dns-seed-list-connection-format) 을 사용해 애플리케이션이 복제 셋에 연결하는 방법을 지정해야 한다.
   - DNS를 사용하면 몽고DB 복제 셋 멤버를 호스팅하는 서버를 클라이언트에서 재구성할 필요 없이 돌아가면서 변경할 수 있다는 장점이 있다.
 
+```
+version: '3.8'
+
+services:
+  mongo1:
+    container_name: mongo1
+    image: mongo:4.4
+    volumes:
+    networks:
+      - mongo-network
+    ports:
+      - 27017:27017
+    depends_on:
+      - mongo2
+      - mongo3
+    links:
+      - mongo2
+      - mongo3
+    restart: always
+    entrypoint: [ "/usr/bin/mongod", "--bind_ip_all", "--replSet", "dbrs" ]
+
+  mongo2:
+    container_name: mongo2
+    image: mongo:4.4
+    networks:
+      - mongo-network
+    ports:
+      - 27018:27017
+    restart: always
+    entrypoint: [ "/usr/bin/mongod", "--bind_ip_all", "--replSet", "dbrs" ]
+  mongo3:
+    container_name: mongo3
+    image: mongo:4.4
+    networks:
+      - mongo-network
+    ports:
+      - 27019:27017
+    restart: always
+    entrypoint: [ "/usr/bin/mongod", "--bind_ip_all", "--replSet", "dbrs" ]
+
+networks:
+  mongo-network:
+    driver: bridge
+```
+
+
+
+## 네트워크 고려 사항
+
+- 복제 셋의 모든 멤버는 같은 셋 내 다른 멤버와 연결할 수 있어야 한다.
+
+- 시작한 프로세스는 별도의 서버에서 쉽게 실행할 수 있지만 3.6 버전부터 mongod는 기본적으로 로컬호스트에만 바인딩 된다. 복제 셋의 각 멤버가 다른 멤버와 통신하려면 다른 멤버가 연결할 수 있는 ip 주소를 바인딩해야 한다.
+
+  - 예를 들어 IP 주소가 198.51.100.1인 서버에서 mongod 인스턴스를 실행중이고 인스턴스를 각기 다른 서버의 멤버와 함께 복제 셋의 멤버로 실행하려면  --bind_ip를 지정하면 된다.
+
+  - ```
+    mongod --bind_ip localhost,192.51.100.1 --replSet mdbDefGuid  ...
+    ```
+
+    
+
+## 보안 고려 사항
+
+- localhost 이외의 ip 주소에 바인딩하기 전 복제 셋을 구성할 때 권한 제어를 활성화하고 인증 메커니즘을 지정해야 한다.
+- 디스크의 데이터를 암호화하고 복제 셋 멤버간 통신 및 셋과 클라이언트간 통신을 암호화하면 좋다.
+- 복제 셋 보안은 19장에서 ..~
+
+
+
+## 복제 셋 설정 - 2장
+
 
 
 ```
-// rs1, rs2, rs3 디렉토리 만들기
-mkdir -p ~/data/rs{1,2,3}
+rsconf = { _id: "dbrs", members: [ {_id: 0, host: "mongo1:27017"}, {_id: 1, host: "mongo2:27017"}, {_id: 2, host: "mongo3:27017"} ] }
+rs.initiate(rsconf)
+rs.status()
 
-mongod --replSet mdbDefGuide --dbpath ~/data/rs1 --port 27017 --oplogSize 200
+{
+	"set" : "dbrs",
+	"date" : ISODate("2022-11-14T00:32:18.810Z"),
+	"myState" : 2,
+	"term" : NumberLong(0),
+	"syncSourceHost" : "",
+	"syncSourceId" : -1,
+	"heartbeatIntervalMillis" : NumberLong(2000),
+	"majorityVoteCount" : 2,
+	"writeMajorityCount" : 2,
+	"votingMembersCount" : 3,
+	"writableVotingMembersCount" : 3,
+	"optimes" : {
+		"lastCommittedOpTime" : {
+			"ts" : Timestamp(0, 0),
+			"t" : NumberLong(-1)
+		},
+		"lastCommittedWallTime" : ISODate("1970-01-01T00:00:00Z"),
+		"appliedOpTime" : {
+			"ts" : Timestamp(1668385937, 1),
+			"t" : NumberLong(-1)
+		},
+		"durableOpTime" : {
+			"ts" : Timestamp(1668385937, 1),
+			"t" : NumberLong(-1)
+		},
+		"lastAppliedWallTime" : ISODate("2022-11-14T00:32:17.052Z"),
+		"lastDurableWallTime" : ISODate("2022-11-14T00:32:17.052Z")
+	},
+	"lastStableRecoveryTimestamp" : Timestamp(0, 0),
+	"members" : [
+		{
+			"_id" : 0,
+			"name" : "mongo1:27017",
+			"health" : 1,
+			"state" : 2,
+			"stateStr" : "SECONDARY",
+			"uptime" : 279,
+			"optime" : {
+				"ts" : Timestamp(1668385937, 1),
+				"t" : NumberLong(-1)
+			},
+			"optimeDate" : ISODate("2022-11-14T00:32:17Z"),
+			"lastAppliedWallTime" : ISODate("2022-11-14T00:32:17.052Z"),
+			"lastDurableWallTime" : ISODate("2022-11-14T00:32:17.052Z"),
+			"syncSourceHost" : "",
+			"syncSourceId" : -1,
+			"infoMessage" : "",
+			"configVersion" : 1,
+			"configTerm" : 0,
+			"self" : true,
+			"lastHeartbeatMessage" : ""
+		},
+		{
+			"_id" : 1,
+			"name" : "mongo2:27017",
+			"health" : 1,
+			"state" : 5,
+			"stateStr" : "STARTUP2",
+			"uptime" : 1,
+			"optime" : {
+				"ts" : Timestamp(0, 0),
+				"t" : NumberLong(-1)
+			},
+			"optimeDurable" : {
+				"ts" : Timestamp(0, 0),
+				"t" : NumberLong(-1)
+			},
+			"optimeDate" : ISODate("1970-01-01T00:00:00Z"),
+			"optimeDurableDate" : ISODate("1970-01-01T00:00:00Z"),
+			"lastAppliedWallTime" : ISODate("1970-01-01T00:00:00Z"),
+			"lastDurableWallTime" : ISODate("1970-01-01T00:00:00Z"),
+			"lastHeartbeat" : ISODate("2022-11-14T00:32:18.575Z"),
+			"lastHeartbeatRecv" : ISODate("2022-11-14T00:32:18.725Z"),
+			"pingMs" : NumberLong(0),
+			"lastHeartbeatMessage" : "",
+			"syncSourceHost" : "",
+			"syncSourceId" : -1,
+			"infoMessage" : "",
+			"configVersion" : 1,
+			"configTerm" : 0
+		},
+		{
+			"_id" : 2,
+			"name" : "mongo3:27017",
+			"health" : 1,
+			"state" : 5,
+			"stateStr" : "STARTUP2",
+			"uptime" : 1,
+			"optime" : {
+				"ts" : Timestamp(0, 0),
+				"t" : NumberLong(-1)
+			},
+			"optimeDurable" : {
+				"ts" : Timestamp(0, 0),
+				"t" : NumberLong(-1)
+			},
+			"optimeDate" : ISODate("1970-01-01T00:00:00Z"),
+			"optimeDurableDate" : ISODate("1970-01-01T00:00:00Z"),
+			"lastAppliedWallTime" : ISODate("1970-01-01T00:00:00Z"),
+			"lastDurableWallTime" : ISODate("1970-01-01T00:00:00Z"),
+			"lastHeartbeat" : ISODate("2022-11-14T00:32:18.576Z"),
+			"lastHeartbeatRecv" : ISODate("2022-11-14T00:32:18.718Z"),
+			"pingMs" : NumberLong(0),
+			"lastHeartbeatMessage" : "",
+			"syncSourceHost" : "",
+			"syncSourceId" : -1,
+			"infoMessage" : "",
+			"configVersion" : 1,
+			"configTerm" : 0
+		}
+	],
+	"ok" : 1,
+	"$clusterTime" : {
+		"clusterTime" : Timestamp(1668385937, 1),
+		"signature" : {
+			"hash" : BinData(0,"AAAAAAAAAAAAAAAAAAAAAAAAAAA="),
+			"keyId" : NumberLong(0)
+		}
+	},
+	"operationTime" : Timestamp(1668385937, 1)
+}
 
-mongod --replSet mdbDefGuide --dbpath ~/data/rs2 --port 27018 --oplogSize 200
-
-mongod --replSet mdbDefGuide --dbpath ~/data/rs3 --port 27019 --oplogSize 200
 ```
-
-
 
 
 
