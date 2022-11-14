@@ -3292,6 +3292,7 @@ db.openStreetMap.find({"loc" : {"$near" : {"$geometry" : eastVillage}}})
 
 
 `왜곡`
+- 구면 기하는 지도에 시각화하면 왜곡이 있는데, 지구와 같은 3차원 구를 평면에 투사하는 특성 때문이다.
 
 `레스토랑 검색`
 
@@ -3392,12 +3393,13 @@ Type "it" for more
 
 - 특정 지점으로부터 지정된 거리 내에 있는 레스토랑을 찾을 수 있다.
   - $centerSphere와 함께 $geoWithin을 사용하면 정렬되지 않은 순서로 결과를 반환한다.
-  - $maxDistance와 함꼐 $nearSphere를 사용하면 거리 순으로 정렬된 결과를 반환한다.
+  - $maxDistance와 함께 $nearSphere를 사용하면 거리 순으로 정렬된 결과를 반환한다.
   - 원형 지역 내 레스토랑을 찾으려면 $centerSphere와 함께 $geoWithin을 사용한다.
-    - $centerShpere는  중심과 반경을 라디안으로 지정해 운형 영역을 나타내는 몽고DB 전용 구문이다.
+    - $centerShpere는  중심과 반경을 라디안으로 지정해 원형 영역을 나타내는 몽고DB 전용 구문이다.
     - $geoWithin은 도큐먼트를 특정 순서로 반환하지 않으므로 거리가 가장 먼 도큐먼트를 먼저 반환할 수 있다.
 
 ```
+// $centerShpere와 $geoWithin을 사용해서 쿼리
 > db.restaurants.find({ location: { $geoWithin: { $centerSphere: [ [-73.93414657,40.82302903], 5/3963.2 ] } } })
 { "_id" : ObjectId("55cba2476c522cafdb0552d5"), "location" : { "coordinates" : [ -73.9911006, 40.76503719999999 ], "type" : "Point" }, "name" : "Cakes 'N Shapes" }
 { "_id" : ObjectId("55cba2476c522cafdb05590c"), "location" : { "coordinates" : [ -73.9914056, 40.765347 ], "type" : "Point" }, "name" : "Il Melograno" }
@@ -3427,6 +3429,7 @@ Type "it" for more
 ```
 // 사용자로부터 5마일 이내에 있는 모든 레스토랑을 가장 가까운 곳에서 가장 먼 곳 순으로 반환하는 쿼리
 
+// $nearSphere와 $maxDistance를 사용해서 쿼리
 > var METERS_PER_MILE = 1609.34;
 > db.restaurants.find({ location: { $nearSphere: { $geometry: { type: "Point",coordinates: [-73.93414657,40.82302903] }, $maxDistance: 5*METERS_PER_MILE } } });
 
@@ -3468,7 +3471,7 @@ db.openStreetMap.createIndex({"tags" : 1, "location" : "2dsphere"})
 db.openStreetMap.find({"loc" : {"$geoWithin" : {"$geometry" : hellsKitchen.geometry}}, "tags" : "pizza"})
 ```
 
-- 복합 공간 정보 인덱스도 마찬가지로 카디널리티가 높은 필드가 앞에 와서 결과를 더 많이 필터링하도록 하는게 좋다.
+- 복합 공간 정보 인덱스도 마찬가지로 인덱스를 생성할때 필드의 순서를 카디널리티가 높은 필드 순서대로 둬서 결과를 더 많이 필터링하도록 하는게 좋다.
 
 
 
