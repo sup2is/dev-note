@@ -6085,18 +6085,47 @@ networks:
 
 ## 복제 셋 설정 - 2장
 
-
+- 위 docker-compose.yaml은 아직 각 mongod가 다른 mongod의 존재를 알지 못한다.
+- 각 멤버를 나열하는 구성을 만들어 mongod 프로세스 중 하나로 보내면 멤버들은 서로의 존재를 알게 된다.
 
 ```
+// 연결 설정을 만들고
 rsconf = { _id: "dbrs", members: [ {_id: 0, host: "mongo1:27017"}, {_id: 1, host: "mongo2:27017"}, {_id: 2, host: "mongo3:27017"} ] }
+```
+
+- 복제 셋 구성 도큐먼트
+
+  - _id는 몽고DB를 실행할 때 선언한 이름이어야 한다.
+  - members 배열
+    -  _id는 정수이며 복제 셋 멤버 간에 고유해야 한다.
+    -  host에는 mongod 인스턴스 서버를 나열한다.
+
+- rs 보조자 함수
+
+  - rs는 복제 보조자 함수를 포함하는 전역 변수다
+
+  - rs.help()로 도움말을 확인할 수 있다.
+
+  - 이 함수들은 거의 항상 데이터베이스 명령을 감싸는 래퍼이고 아래 명령어는 rs.initiate(config)와 동일한 역할을 수행한다.
+
+    - ```
+      db.adminCommand({"replSetInitiate" : config})
+      ```
+
+    - 보조자 대신 명령 양식을 사용하는 것이 더 쉬울 떄도 있으므로 보조자와 기본 명령 둘다 익히면 좋다.
+
+```
+// 복제 셋 설정
 rs.initiate(rsconf)
+
+// rs.status() 로 상태 확인하기
 rs.status()
 
 {
 	"set" : "dbrs",
-	"date" : ISODate("2022-11-14T00:32:18.810Z"),
-	"myState" : 2,
-	"term" : NumberLong(0),
+	"date" : ISODate("2022-11-14T14:13:12.569Z"),
+	"myState" : 1,
+	"term" : NumberLong(1),
 	"syncSourceHost" : "",
 	"syncSourceId" : -1,
 	"heartbeatIntervalMillis" : NumberLong(2000),
@@ -6106,42 +6135,68 @@ rs.status()
 	"writableVotingMembersCount" : 3,
 	"optimes" : {
 		"lastCommittedOpTime" : {
+			"ts" : Timestamp(1668435183, 1),
+			"t" : NumberLong(1)
+		},
+		"lastCommittedWallTime" : ISODate("2022-11-14T14:13:03.007Z"),
+		"readConcernMajorityOpTime" : {
+			"ts" : Timestamp(1668435183, 1),
+			"t" : NumberLong(1)
+		},
+		"readConcernMajorityWallTime" : ISODate("2022-11-14T14:13:03.007Z"),
+		"appliedOpTime" : {
+			"ts" : Timestamp(1668435183, 1),
+			"t" : NumberLong(1)
+		},
+		"durableOpTime" : {
+			"ts" : Timestamp(1668435183, 1),
+			"t" : NumberLong(1)
+		},
+		"lastAppliedWallTime" : ISODate("2022-11-14T14:13:03.007Z"),
+		"lastDurableWallTime" : ISODate("2022-11-14T14:13:03.007Z")
+	},
+	"lastStableRecoveryTimestamp" : Timestamp(1668435160, 1),
+	"electionCandidateMetrics" : {
+		"lastElectionReason" : "electionTimeout",
+		"lastElectionDate" : ISODate("2022-11-14T00:32:28.212Z"),
+		"electionTerm" : NumberLong(1),
+		"lastCommittedOpTimeAtElection" : {
 			"ts" : Timestamp(0, 0),
 			"t" : NumberLong(-1)
 		},
-		"lastCommittedWallTime" : ISODate("1970-01-01T00:00:00Z"),
-		"appliedOpTime" : {
+		"lastSeenOpTimeAtElection" : {
 			"ts" : Timestamp(1668385937, 1),
 			"t" : NumberLong(-1)
 		},
-		"durableOpTime" : {
-			"ts" : Timestamp(1668385937, 1),
-			"t" : NumberLong(-1)
-		},
-		"lastAppliedWallTime" : ISODate("2022-11-14T00:32:17.052Z"),
-		"lastDurableWallTime" : ISODate("2022-11-14T00:32:17.052Z")
+		"numVotesNeeded" : 2,
+		"priorityAtElection" : 1,
+		"electionTimeoutMillis" : NumberLong(10000),
+		"numCatchUpOps" : NumberLong(0),
+		"newTermStartDate" : ISODate("2022-11-14T00:32:28.278Z"),
+		"wMajorityWriteAvailabilityDate" : ISODate("2022-11-14T00:32:29.786Z")
 	},
-	"lastStableRecoveryTimestamp" : Timestamp(0, 0),
 	"members" : [
 		{
 			"_id" : 0,
 			"name" : "mongo1:27017",
 			"health" : 1,
-			"state" : 2,
-			"stateStr" : "SECONDARY",
-			"uptime" : 279,
+			"state" : 1,
+			"stateStr" : "PRIMARY",
+			"uptime" : 49533,
 			"optime" : {
-				"ts" : Timestamp(1668385937, 1),
-				"t" : NumberLong(-1)
+				"ts" : Timestamp(1668435183, 1),
+				"t" : NumberLong(1)
 			},
-			"optimeDate" : ISODate("2022-11-14T00:32:17Z"),
-			"lastAppliedWallTime" : ISODate("2022-11-14T00:32:17.052Z"),
-			"lastDurableWallTime" : ISODate("2022-11-14T00:32:17.052Z"),
+			"optimeDate" : ISODate("2022-11-14T14:13:03Z"),
+			"lastAppliedWallTime" : ISODate("2022-11-14T14:13:03.007Z"),
+			"lastDurableWallTime" : ISODate("2022-11-14T14:13:03.007Z"),
 			"syncSourceHost" : "",
 			"syncSourceId" : -1,
 			"infoMessage" : "",
+			"electionTime" : Timestamp(1668385948, 1),
+			"electionDate" : ISODate("2022-11-14T00:32:28Z"),
 			"configVersion" : 1,
-			"configTerm" : 0,
+			"configTerm" : 1,
 			"self" : true,
 			"lastHeartbeatMessage" : ""
 		},
@@ -6149,79 +6204,95 @@ rs.status()
 			"_id" : 1,
 			"name" : "mongo2:27017",
 			"health" : 1,
-			"state" : 5,
-			"stateStr" : "STARTUP2",
-			"uptime" : 1,
+			"state" : 2,
+			"stateStr" : "SECONDARY",
+			"uptime" : 49255,
 			"optime" : {
-				"ts" : Timestamp(0, 0),
-				"t" : NumberLong(-1)
+				"ts" : Timestamp(1668435183, 1),
+				"t" : NumberLong(1)
 			},
 			"optimeDurable" : {
-				"ts" : Timestamp(0, 0),
-				"t" : NumberLong(-1)
+				"ts" : Timestamp(1668435183, 1),
+				"t" : NumberLong(1)
 			},
-			"optimeDate" : ISODate("1970-01-01T00:00:00Z"),
-			"optimeDurableDate" : ISODate("1970-01-01T00:00:00Z"),
-			"lastAppliedWallTime" : ISODate("1970-01-01T00:00:00Z"),
-			"lastDurableWallTime" : ISODate("1970-01-01T00:00:00Z"),
-			"lastHeartbeat" : ISODate("2022-11-14T00:32:18.575Z"),
-			"lastHeartbeatRecv" : ISODate("2022-11-14T00:32:18.725Z"),
+			"optimeDate" : ISODate("2022-11-14T14:13:03Z"),
+			"optimeDurableDate" : ISODate("2022-11-14T14:13:03Z"),
+			"lastAppliedWallTime" : ISODate("2022-11-14T14:13:03.007Z"),
+			"lastDurableWallTime" : ISODate("2022-11-14T14:13:03.007Z"),
+			"lastHeartbeat" : ISODate("2022-11-14T14:13:10.990Z"),
+			"lastHeartbeatRecv" : ISODate("2022-11-14T14:13:10.990Z"),
 			"pingMs" : NumberLong(0),
 			"lastHeartbeatMessage" : "",
-			"syncSourceHost" : "",
-			"syncSourceId" : -1,
+			"syncSourceHost" : "mongo1:27017",
+			"syncSourceId" : 0,
 			"infoMessage" : "",
 			"configVersion" : 1,
-			"configTerm" : 0
+			"configTerm" : 1
 		},
 		{
 			"_id" : 2,
 			"name" : "mongo3:27017",
 			"health" : 1,
-			"state" : 5,
-			"stateStr" : "STARTUP2",
-			"uptime" : 1,
+			"state" : 2,
+			"stateStr" : "SECONDARY",
+			"uptime" : 49255,
 			"optime" : {
-				"ts" : Timestamp(0, 0),
-				"t" : NumberLong(-1)
+				"ts" : Timestamp(1668435183, 1),
+				"t" : NumberLong(1)
 			},
 			"optimeDurable" : {
-				"ts" : Timestamp(0, 0),
-				"t" : NumberLong(-1)
+				"ts" : Timestamp(1668435183, 1),
+				"t" : NumberLong(1)
 			},
-			"optimeDate" : ISODate("1970-01-01T00:00:00Z"),
-			"optimeDurableDate" : ISODate("1970-01-01T00:00:00Z"),
-			"lastAppliedWallTime" : ISODate("1970-01-01T00:00:00Z"),
-			"lastDurableWallTime" : ISODate("1970-01-01T00:00:00Z"),
-			"lastHeartbeat" : ISODate("2022-11-14T00:32:18.576Z"),
-			"lastHeartbeatRecv" : ISODate("2022-11-14T00:32:18.718Z"),
+			"optimeDate" : ISODate("2022-11-14T14:13:03Z"),
+			"optimeDurableDate" : ISODate("2022-11-14T14:13:03Z"),
+			"lastAppliedWallTime" : ISODate("2022-11-14T14:13:03.007Z"),
+			"lastDurableWallTime" : ISODate("2022-11-14T14:13:03.007Z"),
+			"lastHeartbeat" : ISODate("2022-11-14T14:13:10.990Z"),
+			"lastHeartbeatRecv" : ISODate("2022-11-14T14:13:10.988Z"),
 			"pingMs" : NumberLong(0),
 			"lastHeartbeatMessage" : "",
-			"syncSourceHost" : "",
-			"syncSourceId" : -1,
+			"syncSourceHost" : "mongo1:27017",
+			"syncSourceId" : 0,
 			"infoMessage" : "",
 			"configVersion" : 1,
-			"configTerm" : 0
+			"configTerm" : 1
 		}
 	],
 	"ok" : 1,
 	"$clusterTime" : {
-		"clusterTime" : Timestamp(1668385937, 1),
+		"clusterTime" : Timestamp(1668435183, 1),
 		"signature" : {
 			"hash" : BinData(0,"AAAAAAAAAAAAAAAAAAAAAAAAAAA="),
 			"keyId" : NumberLong(0)
 		}
 	},
-	"operationTime" : Timestamp(1668385937, 1)
+	"operationTime" : Timestamp(1668435183, 1)
 }
-
 ```
 
+- rs.status()을 사용하면 복제 셋에 대한 많은 정보들을 알려준다.
+  - members 배열을 확인해보면 누가 프라이머리인지, 세컨더리인지 확인할 수 있다.
 
 
 
+## 복제 관찰
 
+- 복제 셋이 시작되고 mongo 셸이 현재 프라이머리에 연결되어 있다면 아래와 같이 프롬프트가 변경된다.
 
+```
+dbrs:PRIMARY>
+```
 
+- 이는 _id가 dbrs인 복제 셋의 프라이머리에 연결됐음을 의미한다.
+- 프라이머리에서 쓰기와 읽기가 잘 되고 있는지 테스트해보자.
 
+```
+dbrs:PRIMARY> use test
+switched to db test
+dbrs:PRIMARY> for (i=0; i<1000; i++) {db.coll.insert({count: i})}
+WriteResult({ "nInserted" : 1 })
+dbrs:PRIMARY> db.coll.count()
+//1000개 리턴
+```
 
