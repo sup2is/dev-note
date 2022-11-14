@@ -6299,3 +6299,262 @@ dbrs:PRIMARY> db.coll.count()
 //1000개 리턴
 ```
 
+- 아래와 같이 세컨더리 커넥션을 만들고 복제가 잘 되고 있는지 확인할 수 있다.
+
+```
+dbrs:PRIMARY> secondaryConn = new Mongo("mongo2:27017")
+connection to mongo2:27017
+
+dbrs:PRIMARY> secondaryDB = secondaryConn.getDB("test")
+test
+
+dbrs:PRIMARY> secondaryDB.coll.find()
+Error: error: {
+	"topologyVersion" : {
+		"processId" : ObjectId("63718b7a0b78f691477a7e59"),
+		"counter" : NumberLong(4)
+	},
+	"operationTime" : Timestamp(1668467093, 1),
+	"ok" : 0,
+	"errmsg" : "not master and slaveOk=false",
+	"code" : 13435,
+	"codeName" : "NotPrimaryNoSecondaryOk",
+	"$clusterTime" : {
+		"clusterTime" : Timestamp(1668467093, 1),
+		"signature" : {
+			"hash" : BinData(0,"AAAAAAAAAAAAAAAAAAAAAAAAAAA="),
+			"keyId" : NumberLong(0)
+		}
+	}
+}
+```
+
+- 세컨더리에서 오류가 발생한 이유
+  - 세컨더리는 애플리케이션이 실수로 실효 데이터를 읽지 않도록 기본적으로 읽기 요청을 거부한다.
+  - errmsg에 보면 마스터가 아니고 slaveOk=false 인 것을 확인할 수 있다.
+  - 세컨더리에 대한 쿼리를 허용하려면 아래처럼 세컨더리 설정을 해주어야한다.
+
+```
+dbrs:PRIMARY> secondaryConn.setSecondaryOk()
+
+dbrs:PRIMARY> secondaryDB.coll.find()
+{ "_id" : ObjectId("63724e8320ef5fd7afde6b7c"), "count" : 0 }
+{ "_id" : ObjectId("63724e8320ef5fd7afde6b7d"), "count" : 1 }
+{ "_id" : ObjectId("63724e8320ef5fd7afde6b7f"), "count" : 3 }
+{ "_id" : ObjectId("63724e8320ef5fd7afde6b84"), "count" : 8 }
+{ "_id" : ObjectId("63724e8320ef5fd7afde6b80"), "count" : 4 }
+{ "_id" : ObjectId("63724e8320ef5fd7afde6b81"), "count" : 5 }
+{ "_id" : ObjectId("63724e8320ef5fd7afde6b82"), "count" : 6 }
+{ "_id" : ObjectId("63724e8320ef5fd7afde6b7e"), "count" : 2 }
+{ "_id" : ObjectId("63724e8320ef5fd7afde6b83"), "count" : 7 }
+{ "_id" : ObjectId("63724e8320ef5fd7afde6b85"), "count" : 9 }
+{ "_id" : ObjectId("63724e8320ef5fd7afde6b86"), "count" : 10 }
+{ "_id" : ObjectId("63724e8320ef5fd7afde6b87"), "count" : 11 }
+{ "_id" : ObjectId("63724e8320ef5fd7afde6b88"), "count" : 12 }
+{ "_id" : ObjectId("63724e8320ef5fd7afde6b89"), "count" : 13 }
+{ "_id" : ObjectId("63724e8320ef5fd7afde6b8a"), "count" : 14 }
+{ "_id" : ObjectId("63724e8320ef5fd7afde6b8b"), "count" : 15 }
+{ "_id" : ObjectId("63724e8320ef5fd7afde6b8c"), "count" : 16 }
+{ "_id" : ObjectId("63724e8320ef5fd7afde6b8d"), "count" : 17 }
+{ "_id" : ObjectId("63724e8320ef5fd7afde6b8e"), "count" : 18 }
+{ "_id" : ObjectId("63724e8320ef5fd7afde6b90"), "count" : 20 }
+```
+
+- setSecondaryOk() 는 데이터베이스가 아니라 connection에 설정됨을 주의하자.
+- 세컨더리는 복제를 통한 쓰기만 수행하고 클라이언트에 대한 직접쓰기를 할 수 없으므로 쓰기를 시도하면 아래와 같은 에러가 발생한다.
+
+```
+dbrs:PRIMARY> secondaryDB.coll.insert({"count" : 1001})
+WriteCommandError({
+	"topologyVersion" : {
+		"processId" : ObjectId("63718b7a0b78f691477a7e59"),
+		"counter" : NumberLong(4)
+	},
+	"operationTime" : Timestamp(1668469314, 1),
+	"ok" : 0,
+	"errmsg" : "not master",
+	"code" : 10107,
+	"codeName" : "NotWritablePrimary",
+	"$clusterTime" : {
+		"clusterTime" : Timestamp(1668469314, 1),
+		"signature" : {
+			"hash" : BinData(0,"AAAAAAAAAAAAAAAAAAAAAAAAAAA="),
+			"keyId" : NumberLong(0)
+		}
+	}
+})
+dbrs:PRIMARY> secondaryDB.coll.count()
+1000
+
+```
+
+- 자동 장애조치
+  - 프라이머리가 종료되면 프라이머리의 중단을 가장 먼저 발견한 세컨더리가 새로운 프라이머리로 선출된다.
+
+```
+// mongo2 로 재접속
+
+dbrs:PRIMARY> db.isMaster()
+{
+	"topologyVersion" : {
+		"processId" : ObjectId("63718b7a0b78f691477a7e59"),
+		"counter" : NumberLong(7)
+	},
+	"hosts" : [
+		"mongo1:27017",
+		"mongo2:27017",
+		"mongo3:27017"
+	],
+	"setName" : "dbrs",
+	"setVersion" : 1,
+	"ismaster" : true,
+	"secondary" : false,
+	"primary" : "mongo2:27017", // mongo2로 프라이머리가 변경된 것을 확인할 수 있다.
+	"me" : "mongo2:27017",
+	"electionId" : ObjectId("7fffffff0000000000000002"),
+	"lastWrite" : {
+		"opTime" : {
+			"ts" : Timestamp(1668469524, 1),
+			"t" : NumberLong(2)
+		},
+		"lastWriteDate" : ISODate("2022-11-14T23:45:24Z"),
+		"majorityOpTime" : {
+			"ts" : Timestamp(1668469524, 1),
+			"t" : NumberLong(2)
+		},
+		"majorityWriteDate" : ISODate("2022-11-14T23:45:24Z")
+	},
+	"maxBsonObjectSize" : 16777216,
+	"maxMessageSizeBytes" : 48000000,
+	"maxWriteBatchSize" : 100000,
+	"localTime" : ISODate("2022-11-14T23:45:30.391Z"),
+	"logicalSessionTimeoutMinutes" : 30,
+	"connectionId" : 45,
+	"minWireVersion" : 0,
+	"maxWireVersion" : 9,
+	"readOnly" : false,
+	"ok" : 1,
+	"$clusterTime" : {
+		"clusterTime" : Timestamp(1668469524, 1),
+		"signature" : {
+			"hash" : BinData(0,"AAAAAAAAAAAAAAAAAAAAAAAAAAA="),
+			"keyId" : NumberLong(0)
+		}
+	},
+	"operationTime" : Timestamp(1668469524, 1)
+}
+
+```
+
+- 복제 셋의 핵심 개념
+  - 클라이언트는 독립 실행형 서버에 보낼 수 있는 모든 작업을 프라이머리 서버에 보낼 수 있다.
+    - 읽기, 쓰기, 명령, 인덱스 구축 등등 ..
+  - 클라이언트는 세컨더리에 쓰기를 할 수 없다.
+  - 기본적으로 클라이언트는 세컨더리로부터 읽을 수 없다. '세컨더리에서 읽고 있음을 알고 있다'를 뜻하는 설정을 연결에 명시적으로 설정하면 읽기를 활성화 할 수 있다.
+
+
+
+## 복제 셋 구성 변경
+
+- 복제 셋 구성은 언제든지 변경할 수 있고 멤버 추가, 삭제, 변경이 가능하다.
+
+```
+rs.add("localhost:27020")
+rs.remove("localhost:27020")
+```
+
+- 재구성 성공 여부는 셸에서 rs.config()를 실행해 확인할 수 있다.
+
+```
+rs.config()
+{
+	"_id" : "dbrs",
+	"version" : 1,
+	"term" : 2,
+	"protocolVersion" : NumberLong(1),
+	"writeConcernMajorityJournalDefault" : true,
+	"members" : [
+		{
+			"_id" : 0,
+			"host" : "mongo1:27017",
+			"arbiterOnly" : false,
+			"buildIndexes" : true,
+			"hidden" : false,
+			"priority" : 1,
+			"tags" : {
+				
+			},
+			"slaveDelay" : NumberLong(0),
+			"votes" : 1
+		},
+		{
+			"_id" : 1,
+			"host" : "mongo2:27017",
+			"arbiterOnly" : false,
+			"buildIndexes" : true,
+			"hidden" : false,
+			"priority" : 1,
+			"tags" : {
+				
+			},
+			"slaveDelay" : NumberLong(0),
+			"votes" : 1
+		},
+		{
+			"_id" : 2,
+			"host" : "mongo3:27017",
+			"arbiterOnly" : false,
+			"buildIndexes" : true,
+			"hidden" : false,
+			"priority" : 1,
+			"tags" : {
+				
+			},
+			"slaveDelay" : NumberLong(0),
+			"votes" : 1
+		}
+	],
+	"settings" : {
+		"chainingAllowed" : true,
+		"heartbeatIntervalMillis" : 2000,
+		"heartbeatTimeoutSecs" : 10,
+		"electionTimeoutMillis" : 10000,
+		"catchUpTimeoutMillis" : -1,
+		"catchUpTakeoverDelayMillis" : 30000,
+		"getLastErrorModes" : {
+			
+		},
+		"getLastErrorDefaults" : {
+			"w" : 1,
+			"wtimeout" : 0
+		},
+		"replicaSetId" : ObjectId("63718c90eed497ad35e38f60")
+	}
+}
+
+```
+
+- 구성을 변경할 때마다 version 필드의 값이 증가한다.
+- 멤버를 추가하고 제거할 뿐 아니라 이미 존재하는 멤버를 수정할 수도 있다.
+
+```
+var config = rs.config()
+//members[0] 번째의 host 변경
+config.members[0].host = "localhost:27017"
+rs.reconfig(config)
+```
+
+- rs.reconfig()를 사용하면 어떤 구성이든 변경할 수 있다.
+
+
+
+## 복제 셋 설계 방법
+
+
+
+
+
+
+
+
+
