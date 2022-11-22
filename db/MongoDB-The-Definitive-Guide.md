@@ -3736,12 +3736,11 @@ db.runCommand( {"collMod" : "someapp.cache" , "index" : { "keyPattern" : {"lastU
 
 
 ## GridFS로 파일 저장하기
-
 - GridFS는 몽고DB에 대용량 이진 파일을 저장하는 메커니즘이다.
 - GridFS를 고려하는 몇가지 이유
   - GridFS를 사용하면 아키텍처 스택을 단순화할 수 있다. 이미 몽고DB를 사용중이라면 파일스토리지를 위한 별도의 도구 대신 GridFS를 사용하면 된다.
   - GridFS 몽고DB를 위해 설정한 기존의 복제나 자동 샤딩을 이용할 수 있어, 파일 스토리지를 위한 장애 조치와 분산 확장이 더욱 쉽다.
-  - GridFS는 사용자가 올린 파일을 저장할 때 특정 파일시스템이 갖는 문제를 피할 수 있다. ex: GridFS는 같은 디레겉리에 대량의 파일을 저장해도 문제가 없다.
+  - GridFS는 사용자가 올린 파일을 저장할 때 특정 파일시스템이 갖는 문제를 피할 수 있다. ex: GridFS는 같은 디렉토리에 대량의 파일을 저장해도 문제가 없다.
 - GridFS의 단점
   - 성능이 느리다. 
   - 도큐먼트를 수정하려면 도큐먼트 전체를 삭제하고 다시 저장해야 한다.
@@ -3751,7 +3750,7 @@ db.runCommand( {"collMod" : "someapp.cache" , "index" : { "keyPattern" : {"lastU
 
 ### GridFS 시작하기: mongofiles
 
-- mongofiles 유틸리토로 쉽게 GridFS를 설치하고 운영할 수 있다.
+- mongofiles 유틸리티로 쉽게 GridFS를 설치하고 운영할 수 있다.
 - mongofiles는 모든 몽고DB 배포판에 포함되며 GridFS에서 파일을 올리고, 받고, 목록을 출력하고, 검색하고, 삭제할 때 등에 사용한다.
 
 ```
@@ -3806,7 +3805,7 @@ db.runCommand( {"collMod" : "someapp.cache" , "index" : { "keyPattern" : {"lastU
 - fs.files의 구조
   - \_id : 파일의 고유id
   - length : 파일 내용의 총 바이트 수
-  - chunkSize : 파일을 구성하는 각 청크의 크기, 단위는 바이트 기본적으로 256킬로바이트지만 필요시 조정할 수 있따.
+  - chunkSize : 파일을 구성하는 각 청크의 크기, 단위는 바이트 기본적으로 256킬로바이트지만 필요시 조정할 수 있다.
   - uploadDate : GridFS에 파일이 저장된 시간
   - md5 : 체크썸
 - md5 값은 몽고DB에서 filemd5 명령어를 사용해 생성하는데 사용자가 파일이 제대로 올라갔는지 확인하려면 md5 키의 값을 확인해볼 수 있다.
