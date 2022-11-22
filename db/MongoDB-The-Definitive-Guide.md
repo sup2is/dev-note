@@ -3292,7 +3292,10 @@ db.openStreetMap.find({"loc" : {"$near" : {"$geometry" : eastVillage}}})
 
 
 `왜곡`
+
 - 구면 기하는 지도에 시각화하면 왜곡이 있는데, 지구와 같은 3차원 구를 평면에 투사하는 특성 때문이다.
+
+![6-1](./images/mongodb/6-1.jpeg)
 
 `레스토랑 검색`
 
