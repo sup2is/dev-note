@@ -7226,7 +7226,7 @@ db = (new Mongo("localhost:20009")).getDB("accounts")
 - 이제 mongos는 요청을 샤드로 라우팅한다. 클라이언트(셸)는 샤드의 정보는 전혀 몰라도 된다.
 
 ```
-for (var i=0; i<100000; i++) { db.users.insert({"username" : "user"+i, "created_at" : new Date()}); }
+for (var i=19053; i<100000; i++) { db.users.insert({"username" : "user"+i, "created_at" : new Date()}); }
 db.users.count()
 //10만개
 ```
@@ -7262,7 +7262,318 @@ sh.status()
   - 여러 샤딩 보조자 함수를 정의하는 전역 변수다.
   - sh.help()를 실행하면 도움말을 볼 수 있다.
   - sh.status()를 실행해서 클러스터의 상태를 볼 수 있다.
-  - 
+- 프라이머리 샤드
+  - 프라이머리 샤드는 홈 베이스 샤드이고 각 데이터베이스마다 무작위로 선택된다.
+  - 모든 데이터는 프라이머리 샤드에 있다.
+  - 프라이머리 샤드와 복제 셋의 프라이머리는 다르다.
+
+```
+sh.enableSharding("accounts")
+```
+
+- 이렇게 샤딩을 활성화해야 데이터베이스 내에서 컬렉션을 샤딩할 수 있따.
+- 샤드 키
+  - 컬렉션을 샤딩할 때 샤드 키를 선택하는데 이는 몽고DB가 데이터를 분할하는 데 사용하는 필드다.
+  - 예를 들어 username에서 샤딩하도록 선택하면 몽고DB는 데이터를 사용자 이름 범위로 나눈다.
+  - 샤드 키를 선택하는 것은 컬렉션 내 데이터 순서를 선택하는것으로 생각할 수 있다.
+  - 인덱싱과 유사한 개념이고 컬렉션이 커질수록 샤드 키가 컬렉션에서 가장 중요한 인덱스가 된다.
+  - 샤드키를 만들려면 필드에 인덱스를 생성해야 한다.
+
+```
+db.users.createIndex({"username" : 1})
+
+sh.shardCollection("accounts.users", {"username": 1})
+{
+	"collectionsharded" : "accounts.users",
+	"ok" : 1,
+	"$clusterTime" : {
+		"clusterTime" : Timestamp(1669594445, 26),
+		"signature" : {
+			"hash" : BinData(0,"AAAAAAAAAAAAAAAAAAAAAAAAAAA="),
+			"keyId" : NumberLong(0)
+		}
+	},
+	"operationTime" : Timestamp(1669594445, 22)
+}
+
+--- Sharding Status --- 
+  sharding version: {
+  	"_id" : 1,
+  	"minCompatibleVersion" : 5,
+  	"currentVersion" : 6,
+  	"clusterId" : ObjectId("638332c6d00c858fb88f6020")
+  }
+  shards:
+        {  "_id" : "one-min-shards-rs0",  "host" : "one-min-shards-rs0/e618035acdb9:20000,e618035acdb9:20001,e618035acdb9:20002",  "state" : 1,  "topologyTime" : Timestamp(1669542606, 1) }
+        {  "_id" : "one-min-shards-rs1",  "host" : "one-min-shards-rs1/e618035acdb9:20003,e618035acdb9:20004,e618035acdb9:20005",  "state" : 1,  "topologyTime" : Timestamp(1669542609, 1) }
+  active mongoses:
+        "5.0.9" : 1
+  autosplit:
+        Currently enabled: yes
+  balancer:
+        Currently enabled: yes
+        Currently running: no
+        Failed balancer rounds in last 5 attempts: 0
+        Migration results for the last 24 hours: 
+                3 : Success
+  databases:
+        {  "_id" : "account",  "primary" : "one-min-shards-rs1",  "partitioned" : true,  "version" : {  "uuid" : UUID("b6f1b863-8884-4c69-9676-6e6d392b1960"),  "timestamp" : Timestamp(1669594383, 1),  "lastMod" : 1 } }
+        {  "_id" : "accounts",  "primary" : "one-min-shards-rs0",  "partitioned" : true,  "version" : {  "uuid" : UUID("c4e42e7d-b10f-4102-aaf0-f8e9283c3bc7"),  "timestamp" : Timestamp(1669543117, 2),  "lastMod" : 1 } }
+                accounts.users
+                        shard key: { "username" : 1 }
+                        unique: false
+                        balancing: true
+                        chunks:
+                                one-min-shards-rs0	4
+                                one-min-shards-rs1	3
+                        { "username" : { "$minKey" : 1 } } -->> { "username" : "user1" } on : one-min-shards-rs1 Timestamp(2, 0) 
+                        { "username" : "user1" } -->> { "username" : "user2288" } on : one-min-shards-rs1 Timestamp(4, 0) 
+                        { "username" : "user2288" } -->> { "username" : "user33609" } on : one-min-shards-rs0 Timestamp(4, 1) 
+                        { "username" : "user33609" } -->> { "username" : "user44696" } on : one-min-shards-rs0 Timestamp(3, 6) 
+                        { "username" : "user44696" } -->> { "username" : "user54548" } on : one-min-shards-rs0 Timestamp(4, 2) 
+                        { "username" : "user54548" } -->> { "username" : "user9999" } on : one-min-shards-rs0 Timestamp(4, 3) 
+                        { "username" : "user9999" } -->> { "username" : { "$maxKey" : 1 } } on : one-min-shards-rs1 Timestamp(3, 0) 
+        {  "_id" : "config",  "primary" : "config",  "partitioned" : true }
+```
+
+- 컬렉션은 n개의 청크로 분할되었고 각 청크는 데이터의 서브셋인것을 확인할 수 있다.
+- 청크는 샤드 키 범위에 따라 나열된다 
+  - ex: { "username" : "user1" } -->> { "username" : "user2288" }
+
+![14-3](/Users/a10300/Choi/Git/dev-note/db/14-3.webp)
+
+- 하나의 컬렉션에서 샤드키를 기반으로 컬렉션을 더 작은 청크로 구분한다. 분할된 청크는 여러 클러스터에 분산된다.
+- 샤드 키 값
+  - $minkey: 음의 무한대
+  - $maxkey: 양의 무한대
+  - 샤드 키 값은 항상 $minkey와 $maxkey 사이에 있다.
+  - 이러한 값은 BSON 유형이고 애플리케이션에서 사용해서는 안되고 내부에서만 사용해야한다.
+
+
+
+```
+db.users.find({username: "user12345"}).explain()
+
+{
+	"queryPlanner" : {
+		"mongosPlannerVersion" : 1,
+		"winningPlan" : {
+			"stage" : "SINGLE_SHARD",
+			"shards" : [
+				{
+					"shardName" : "one-min-shards-rs1",
+					"connectionString" : "one-min-shards-rs1/e618035acdb9:20003,e618035acdb9:20004,e618035acdb9:20005",
+					"serverInfo" : {
+						"host" : "e618035acdb9",
+						"port" : 20003,
+						"version" : "5.0.9",
+						"gitVersion" : "6f7dae919422dcd7f4892c10ff20cdc721ad00e6"
+					},
+					"namespace" : "accounts.users",
+					"indexFilterSet" : false,
+					"parsedQuery" : {
+						"username" : {
+							"$eq" : "user12345"
+						}
+					},
+					"queryHash" : "379E82C5",
+					"planCacheKey" : "F335C572",
+					"maxIndexedOrSolutionsReached" : false,
+					"maxIndexedAndSolutionsReached" : false,
+					"maxScansToExplodeReached" : false,
+					"winningPlan" : {
+						"stage" : "FETCH",
+						"inputStage" : {
+							"stage" : "IXSCAN",
+							"keyPattern" : {
+								"username" : 1
+							},
+							"indexName" : "username_1",
+							"isMultiKey" : false,
+							"multiKeyPaths" : {
+								"username" : [ ]
+							},
+							"isUnique" : false,
+							"isSparse" : false,
+							"isPartial" : false,
+							"indexVersion" : 2,
+							"direction" : "forward",
+							"indexBounds" : {
+								"username" : [
+									"[\"user12345\", \"user12345\"]"
+								]
+							}
+						}
+					},
+					"rejectedPlans" : [ ]
+				}
+			]
+		}
+	},
+	"serverInfo" : {
+		"host" : "e618035acdb9",
+		"port" : 20009,
+		"version" : "5.0.9",
+		"gitVersion" : "6f7dae919422dcd7f4892c10ff20cdc721ad00e6"
+	},
+	"serverParameters" : {
+		"internalQueryFacetBufferSizeBytes" : 104857600,
+		"internalQueryFacetMaxOutputDocSizeBytes" : 104857600,
+		"internalLookupStageIntermediateDocumentMaxSizeBytes" : 104857600,
+		"internalDocumentSourceGroupMaxMemoryBytes" : 104857600,
+		"internalQueryMaxBlockingSortMemoryUsageBytes" : 104857600,
+		"internalQueryProhibitBlockingMergeOnMongoS" : 0,
+		"internalQueryMaxAddToSetBytes" : 104857600,
+		"internalDocumentSourceSetWindowFieldsMaxMemoryBytes" : 104857600
+	},
+	"command" : {
+		"find" : "users",
+		"filter" : {
+			"username" : "user12345"
+		},
+		"lsid" : {
+			"id" : UUID("3b1d29cf-0ec1-4f14-b351-14c8b3a3fa1b")
+		},
+		"$clusterTime" : {
+			"clusterTime" : Timestamp(1669596202, 1),
+			"signature" : {
+				"hash" : BinData(0,"AAAAAAAAAAAAAAAAAAAAAAAAAAA="),
+				"keyId" : NumberLong(0)
+			}
+		},
+		"$db" : "accounts"
+	},
+	"ok" : 1,
+	"$clusterTime" : {
+		"clusterTime" : Timestamp(1669596206, 1),
+		"signature" : {
+			"hash" : BinData(0,"AAAAAAAAAAAAAAAAAAAAAAAAAAA="),
+			"keyId" : NumberLong(0)
+		}
+	},
+	"operationTime" : Timestamp(1669594973, 14382)
+}
+
+```
+
+- 쿼리플랜의 winningPlan.shards를 보면 어떤 노드를 사용해 사용자의 쿼리를 충족했음을 알 수 있다.
+- 만약 username (샤드키) 가 아니라 전체 사용자를 찾는 쿼리를 실행하면 mongos는 모든 클러스터에 쿼리한다.
+
+```
+{
+	"queryPlanner" : {
+		"mongosPlannerVersion" : 1,
+		"winningPlan" : {
+			"stage" : "SHARD_MERGE",
+			"shards" : [
+				{
+					"shardName" : "one-min-shards-rs0",
+					"connectionString" : "one-min-shards-rs0/e618035acdb9:20000,e618035acdb9:20001,e618035acdb9:20002",
+					"serverInfo" : {
+						"host" : "e618035acdb9",
+						"port" : 20000,
+						"version" : "5.0.9",
+						"gitVersion" : "6f7dae919422dcd7f4892c10ff20cdc721ad00e6"
+					},
+					"namespace" : "accounts.users",
+					"indexFilterSet" : false,
+					"parsedQuery" : {
+						
+					},
+					"queryHash" : "8B3D4AB8",
+					"planCacheKey" : "D542626C",
+					"maxIndexedOrSolutionsReached" : false,
+					"maxIndexedAndSolutionsReached" : false,
+					"maxScansToExplodeReached" : false,
+					"winningPlan" : {
+						"stage" : "SHARDING_FILTER",
+						"inputStage" : {
+							"stage" : "COLLSCAN",
+							"direction" : "forward"
+						}
+					},
+					"rejectedPlans" : [ ]
+				},
+				{
+					"shardName" : "one-min-shards-rs1",
+					"connectionString" : "one-min-shards-rs1/e618035acdb9:20003,e618035acdb9:20004,e618035acdb9:20005",
+					"serverInfo" : {
+						"host" : "e618035acdb9",
+						"port" : 20003,
+						"version" : "5.0.9",
+						"gitVersion" : "6f7dae919422dcd7f4892c10ff20cdc721ad00e6"
+					},
+					"namespace" : "accounts.users",
+					"indexFilterSet" : false,
+					"parsedQuery" : {
+						
+					},
+					"queryHash" : "8B3D4AB8",
+					"planCacheKey" : "D542626C",
+					"maxIndexedOrSolutionsReached" : false,
+					"maxIndexedAndSolutionsReached" : false,
+					"maxScansToExplodeReached" : false,
+					"winningPlan" : {
+						"stage" : "SHARDING_FILTER",
+						"inputStage" : {
+							"stage" : "COLLSCAN",
+							"direction" : "forward"
+						}
+					},
+					"rejectedPlans" : [ ]
+				}
+			]
+		}
+	},
+	"serverInfo" : {
+		"host" : "e618035acdb9",
+		"port" : 20009,
+		"version" : "5.0.9",
+		"gitVersion" : "6f7dae919422dcd7f4892c10ff20cdc721ad00e6"
+	},
+	"serverParameters" : {
+		"internalQueryFacetBufferSizeBytes" : 104857600,
+		"internalQueryFacetMaxOutputDocSizeBytes" : 104857600,
+		"internalLookupStageIntermediateDocumentMaxSizeBytes" : 104857600,
+		"internalDocumentSourceGroupMaxMemoryBytes" : 104857600,
+		"internalQueryMaxBlockingSortMemoryUsageBytes" : 104857600,
+		"internalQueryProhibitBlockingMergeOnMongoS" : 0,
+		"internalQueryMaxAddToSetBytes" : 104857600,
+		"internalDocumentSourceSetWindowFieldsMaxMemoryBytes" : 104857600
+	},
+	"command" : {
+		"find" : "users",
+		"filter" : {
+			
+		},
+		"lsid" : {
+			"id" : UUID("3b1d29cf-0ec1-4f14-b351-14c8b3a3fa1b")
+		},
+		"$clusterTime" : {
+			"clusterTime" : Timestamp(1669596206, 1),
+			"signature" : {
+				"hash" : BinData(0,"AAAAAAAAAAAAAAAAAAAAAAAAAAA="),
+				"keyId" : NumberLong(0)
+			}
+		},
+		"$db" : "accounts"
+	},
+	"ok" : 1,
+	"$clusterTime" : {
+		"clusterTime" : Timestamp(1669596356, 3),
+		"signature" : {
+			"hash" : BinData(0,"AAAAAAAAAAAAAAAAAAAAAAAAAAA="),
+			"keyId" : NumberLong(0)
+		}
+	},
+	"operationTime" : Timestamp(1669595396, 40)
+}
+```
+
+- 타겟 쿼리
+  - 샤드키를 포함하며 단일 샤드나 샤드 서브셋으로 보낼 수 있는 쿼리를 타겟 쿼리라고 한다.
+- 분산-수집 쿼리
+  - 모든 샤드로 보내야하는 쿼리는 분산-수집 쿼리라고 한다. mongos는 쿼리를 모든 샤드로 보내고 결과를 수집한다.
 
 
 
