@@ -8292,3 +8292,283 @@ db.adminCommand({"flushRouterConfig" : 1})
 
 - flushRouterConfig가 작동하지 않는다면 모든 mongos 혹은 mongod 프로세스를 재시작해서 모든 캐시 데이터를 정리하자.
 
+
+
+
+
+# #18 애플리케이션 작업 확인
+
+- 이 장에서 배울 수 있는 것
+  - 느린 작업을 찾아내서 강제 종료하기
+  - 컬렉션과 데이터베이스에 대한 통계를 가져오고 해석하기
+  - 명령행 도구를 사용해서 몽고DB가 실행 중인 작업 알아내기
+
+
+
+## 현재 작업 확인
+
+- 실행 중인 작업을 확인하기
+
+```
+> db.currentOp()
+{
+	"inprog" : [
+		{
+			"type" : "op",
+			"host" : "e618035acdb9:27017",
+			"desc" : "conn47",
+			"connectionId" : 47,
+			"client" : "172.22.0.1:59256",
+			"appName" : "MongoDB Compass",
+			"clientMetadata" : {
+				"driver" : {
+					"name" : "nodejs",
+					"version" : "4.8.1"
+				},
+				"os" : {
+					"type" : "Darwin",
+					"name" : "darwin",
+					"architecture" : "x64",
+					"version" : "21.6.0"
+				},
+				"platform" : "Node.js v16.5.0, LE (unified)|Node.js v16.5.0, LE (unified)",
+				"application" : {
+					"name" : "MongoDB Compass"
+				}
+			},
+			"active" : true,
+			"currentOpTime" : "2022-12-06T23:56:39.698+00:00",
+			"threaded" : true,
+			"opid" : 9270296,
+			"secs_running" : NumberLong(3),
+			"microsecs_running" : NumberLong(3896608),
+			"op" : "command",
+			"ns" : "admin.$cmd",
+			"command" : {
+				"hello" : true,
+				"maxAwaitTimeMS" : 10000,
+				"topologyVersion" : {
+					"processId" : ObjectId("638332a327f13993f56b67b7"),
+					"counter" : NumberLong(0)
+				},
+				"$db" : "admin"
+			},
+			"numYields" : 0,
+			"waitingForLatch" : {
+				"timestamp" : ISODate("2022-12-06T23:56:35.901Z"),
+				"captureName" : "AnonymousLatch"
+			},
+			"locks" : {
+				
+			},
+			"waitingForLock" : false,
+			"lockStats" : {
+				
+			},
+			"waitingForFlowControl" : false,
+			"flowControlStats" : {
+				
+			}
+		},
+		{
+			"type" : "op",
+			"host" : "e618035acdb9:27017",
+			"desc" : "JournalFlusher",
+			"active" : true,
+			"currentOpTime" : "2022-12-06T23:56:39.700+00:00",
+			"opid" : 9270346,
+			"op" : "none",
+			"ns" : "",
+			"command" : {
+				
+			},
+			"numYields" : 0,
+			"locks" : {
+				
+			},
+			"waitingForLock" : false,
+			"lockStats" : {
+				
+			},
+			"waitingForFlowControl" : false,
+			"flowControlStats" : {
+				
+			}
+		},
+		{
+			"type" : "op",
+			"host" : "e618035acdb9:27017",
+			"desc" : "Checkpointer",
+			"active" : true,
+			"currentOpTime" : "2022-12-06T23:56:39.700+00:00",
+			"opid" : 9269664,
+			"op" : "none",
+			"ns" : "",
+			"command" : {
+				
+			},
+			"numYields" : 0,
+			"locks" : {
+				
+			},
+			"waitingForLock" : false,
+			"lockStats" : {
+				
+			},
+			"waitingForFlowControl" : false,
+			"flowControlStats" : {
+				
+			}
+		},
+		{
+			"type" : "op",
+			"host" : "e618035acdb9:27017",
+			"desc" : "conn46",
+			"connectionId" : 46,
+			"client" : "172.22.0.1:59254",
+			"appName" : "MongoDB Compass",
+			"clientMetadata" : {
+				"driver" : {
+					"name" : "nodejs",
+					"version" : "4.8.1"
+				},
+				"os" : {
+					"type" : "Darwin",
+					"name" : "darwin",
+					"architecture" : "x64",
+					"version" : "21.6.0"
+				},
+				"platform" : "Node.js v16.5.0, LE (unified)|Node.js v16.5.0, LE (unified)",
+				"application" : {
+					"name" : "MongoDB Compass"
+				}
+			},
+			"active" : true,
+			"currentOpTime" : "2022-12-06T23:56:39.700+00:00",
+			"threaded" : true,
+			"opid" : 9270297,
+			"secs_running" : NumberLong(3),
+			"microsecs_running" : NumberLong(3887684),
+			"op" : "command",
+			"ns" : "admin.$cmd",
+			"command" : {
+				"hello" : true,
+				"maxAwaitTimeMS" : 10000,
+				"topologyVersion" : {
+					"processId" : ObjectId("638332a327f13993f56b67b7"),
+					"counter" : NumberLong(0)
+				},
+				"$db" : "admin"
+			},
+			"numYields" : 0,
+			"waitingForLatch" : {
+				"timestamp" : ISODate("2022-12-06T23:56:35.912Z"),
+				"captureName" : "AnonymousLatch"
+			},
+			"locks" : {
+				
+			},
+			"waitingForLock" : false,
+			"lockStats" : {
+				
+			},
+			"waitingForFlowControl" : false,
+			"flowControlStats" : {
+				
+			}
+		},
+		{
+			"type" : "op",
+			"host" : "e618035acdb9:27017",
+			"desc" : "conn48",
+			"connectionId" : 48,
+			"client" : "127.0.0.1:58372",
+			"appName" : "MongoDB Shell",
+			"clientMetadata" : {
+				"application" : {
+					"name" : "MongoDB Shell"
+				},
+				"driver" : {
+					"name" : "MongoDB Internal Client",
+					"version" : "5.0.9"
+				},
+				"os" : {
+					"type" : "Linux",
+					"name" : "Ubuntu",
+					"architecture" : "x86_64",
+					"version" : "20.04"
+				}
+			},
+			"active" : true,
+			"currentOpTime" : "2022-12-06T23:56:39.700+00:00",
+			"threaded" : true,
+			"opid" : 9270348,
+			"lsid" : {
+				"id" : UUID("5ec98d28-6e5d-48fa-a86e-3eeecaf60e75"),
+				"uid" : BinData(0,"47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=")
+			},
+			"secs_running" : NumberLong(0),
+			"microsecs_running" : NumberLong(9084),
+			"op" : "command",
+			"ns" : "admin.$cmd.aggregate",
+			"command" : {
+				"aggregate" : 1,
+				"pipeline" : [
+					{
+						"$currentOp" : {
+							"allUsers" : true,
+							"idleConnections" : false,
+							"truncateOps" : false
+						}
+					},
+					{
+						"$match" : {
+							
+						}
+					}
+				],
+				"cursor" : {
+					
+				},
+				"lsid" : {
+					"id" : UUID("5ec98d28-6e5d-48fa-a86e-3eeecaf60e75")
+				},
+				"$readPreference" : {
+					"mode" : "primaryPreferred"
+				},
+				"$db" : "admin"
+			},
+			"numYields" : 0,
+			"locks" : {
+				
+			},
+			"waitingForLock" : false,
+			"lockStats" : {
+				
+			},
+			"waitingForFlowControl" : false,
+			"flowControlStats" : {
+				
+			}
+		}
+	],
+	"ok" : 1
+}
+
+```
+
+- 중요한 필드 설명
+  - opid
+    -  작업의 고유 식별자. 작업을 강제 종료할 때 이번호를 사용한다.
+  - active
+    - 작업이 실행중인지 아닌지를 나타낸다. 
+    - 이 필드가 false면 다른 작업의 수행을 위해 우위를 양보했거나 락을 기다리는 중임을 의미한다.
+  - secs_running: 작업의 실행 기간을 초 단위로 보여준다.
+  - microsecs_running: 작업의 실행 기간을 마이크로초 단위로 보여준다.
+  - op: 작업의 타입. 일반적으로 "query", "insert", "update", "remove" 타입이다. 데이터베이스 명령은  "query"로 수행된다.
+  - desc: 클라이언트 식별자. 로그의 메시지와 연관될 수 있다.
+  - locks: 작업으로 인해 획득한 락 타입을 설명한다.
+  - waitingForLock: 작업이 락을 획득하려고 기다리는 중인지 나타낸다.
+  - numYields: 다른 작업의 실해을 위해 락을 해제하고 우위를 양보한 횟수다. 
+  - 
+
