@@ -8633,3 +8633,693 @@ db.killOp(123)
 - 확인 쓰기
   - 이러한 유령 쓰기를 방지하는 가장 좋은 방법은 확인 쓰기를 하는 방버이다.
   - 각각의 쓰기가 이전 쓰기가 데이터베이스 서버의 버퍼에 자리 잡을때까지가 아니라 완료될 떄까지 기다리게한다.
+
+
+
+
+
+
+
+## 시스템 프로파일러 사용
+
+- 시스템 프로파일러로 느린 작업을 찾아낼 수 있다.
+- 시스템 프로파일러는 system.profile 컬렉션에 작업을 기록한다.
+- 오래 걸리는 작업에 대한 많은 정보를 제공하지만 mongod의 전반적인 성능을 느려지게 한다는 단점이 있기 때문에 프로파일러를 주기적으로 작동시켜 트래픽의 일부를 획득하는데 사용한다.
+- 시스템 부하가 이미 심하다면 다른 기법으로 문제를 분석하자.
+- 기본적으로 프로파일러는 꺼져 있으며 아무것도 기록하지 않기 때문에 셸에서 프로파일을 켜줘야 한다.
+
+```
+db.setProfilingLevel(2)
+{ "was" : 0, "slowms" : 100, "sampleRate" : 1, "ok" : 1 }
+```
+
+- 프로파일링이 레벨 2라면 '모든 것을 프로파일링' 한다 라는 의미인데 데이터베이스의 모든 읽기와 쓰기 요청을 system.profile 컬렉션에 기록하므로 심한 성능 저하를 일으킨다.
+  - 모든 쓰기는 기록될때 추가 시간이 필요하고 모든 읽기는 락을 획득해야 한다. (system.profile 컬렉션에 항목을 기록하기 때문에)
+
+
+
+```
+db.foo.insert({x:1})
+db.foo.update({},{$set:{x:2}})
+db.foo.remove({})
+db.system.profile.find().pretty()
+{
+	"op" : "command",
+	"ns" : "test.foo",
+	"command" : {
+		"create" : "foo",
+		"lsid" : {
+			"id" : UUID("5ec98d28-6e5d-48fa-a86e-3eeecaf60e75")
+		},
+		"$db" : "test"
+	},
+	"numYield" : 0,
+	"locks" : {
+		"ParallelBatchWriterMode" : {
+			"acquireCount" : {
+				"r" : NumberLong(2)
+			}
+		},
+		"ReplicationStateTransition" : {
+			"acquireCount" : {
+				"w" : NumberLong(2)
+			}
+		},
+		"Global" : {
+			"acquireCount" : {
+				"r" : NumberLong(1),
+				"w" : NumberLong(1)
+			}
+		},
+		"Database" : {
+			"acquireCount" : {
+				"r" : NumberLong(1),
+				"w" : NumberLong(1)
+			}
+		},
+		"Collection" : {
+			"acquireCount" : {
+				"w" : NumberLong(1)
+			}
+		},
+		"Mutex" : {
+			"acquireCount" : {
+				"r" : NumberLong(2)
+			}
+		}
+	},
+	"flowControl" : {
+		"acquireCount" : NumberLong(1),
+		"timeAcquiringMicros" : NumberLong(27)
+	},
+	"responseLength" : 38,
+	"protocol" : "op_msg",
+	"millis" : 26,
+	"ts" : ISODate("2022-12-08T22:53:14.302Z"),
+	"client" : "127.0.0.1",
+	"appName" : "MongoDB Shell",
+	"allUsers" : [ ],
+	"user" : ""
+}
+{
+	"op" : "insert",
+	"ns" : "test.foo",
+	"command" : {
+		"insert" : "foo",
+		"ordered" : true,
+		"lsid" : {
+			"id" : UUID("5ec98d28-6e5d-48fa-a86e-3eeecaf60e75")
+		},
+		"$db" : "test"
+	},
+	"ninserted" : 1,
+	"keysInserted" : 1,
+	"numYield" : 0,
+	"locks" : {
+		"ParallelBatchWriterMode" : {
+			"acquireCount" : {
+				"r" : NumberLong(1)
+			}
+		},
+		"ReplicationStateTransition" : {
+			"acquireCount" : {
+				"w" : NumberLong(1)
+			}
+		},
+		"Global" : {
+			"acquireCount" : {
+				"w" : NumberLong(1)
+			}
+		},
+		"Database" : {
+			"acquireCount" : {
+				"w" : NumberLong(1)
+			}
+		},
+		"Collection" : {
+			"acquireCount" : {
+				"w" : NumberLong(1)
+			}
+		},
+		"Mutex" : {
+			"acquireCount" : {
+				"r" : NumberLong(1)
+			}
+		}
+	},
+	"flowControl" : {
+		"acquireCount" : NumberLong(1),
+		"timeAcquiringMicros" : NumberLong(27)
+	},
+	"responseLength" : 45,
+	"protocol" : "op_msg",
+	"millis" : 2,
+	"ts" : ISODate("2022-12-08T22:53:23.906Z"),
+	"client" : "127.0.0.1",
+	"appName" : "MongoDB Shell",
+	"allUsers" : [ ],
+	"user" : ""
+}
+{
+	"op" : "update",
+	"ns" : "test.foo",
+	"command" : {
+		"q" : {
+			
+		},
+		"u" : {
+			"$set" : {
+				"x" : 2
+			}
+		},
+		"multi" : false,
+		"upsert" : false
+	},
+	"keysExamined" : 0,
+	"docsExamined" : 1,
+	"nMatched" : 1,
+	"nModified" : 1,
+	"nUpserted" : 0,
+	"numYield" : 0,
+	"locks" : {
+		"ParallelBatchWriterMode" : {
+			"acquireCount" : {
+				"r" : NumberLong(1)
+			}
+		},
+		"ReplicationStateTransition" : {
+			"acquireCount" : {
+				"w" : NumberLong(1)
+			}
+		},
+		"Global" : {
+			"acquireCount" : {
+				"w" : NumberLong(1)
+			}
+		},
+		"Database" : {
+			"acquireCount" : {
+				"w" : NumberLong(1)
+			}
+		},
+		"Collection" : {
+			"acquireCount" : {
+				"w" : NumberLong(1)
+			}
+		},
+		"Mutex" : {
+			"acquireCount" : {
+				"r" : NumberLong(1)
+			}
+		}
+	},
+	"flowControl" : {
+		"acquireCount" : NumberLong(1),
+		"timeAcquiringMicros" : NumberLong(27)
+	},
+	"millis" : 4,
+	"planSummary" : "COLLSCAN",
+	"execStats" : {
+		"stage" : "UPDATE",
+		"nReturned" : 0,
+		"executionTimeMillisEstimate" : 0,
+		"works" : 3,
+		"advanced" : 0,
+		"needTime" : 2,
+		"needYield" : 0,
+		"saveState" : 0,
+		"restoreState" : 0,
+		"isEOF" : 1,
+		"nMatched" : 1,
+		"nWouldModify" : 1,
+		"nWouldUpsert" : 0,
+		"inputStage" : {
+			"stage" : "COLLSCAN",
+			"nReturned" : 1,
+			"executionTimeMillisEstimate" : 0,
+			"works" : 2,
+			"advanced" : 1,
+			"needTime" : 1,
+			"needYield" : 0,
+			"saveState" : 1,
+			"restoreState" : 1,
+			"isEOF" : 0,
+			"direction" : "forward",
+			"docsExamined" : 1
+		}
+	},
+	"ts" : ISODate("2022-12-08T22:53:34.274Z"),
+	"client" : "127.0.0.1",
+	"appName" : "MongoDB Shell",
+	"allUsers" : [ ],
+	"user" : ""
+}
+{
+	"op" : "remove",
+	"ns" : "test.foo",
+	"command" : {
+		"q" : {
+			
+		},
+		"limit" : 0
+	},
+	"keysExamined" : 0,
+	"docsExamined" : 1,
+	"ndeleted" : 1,
+	"keysDeleted" : 1,
+	"numYield" : 0,
+	"locks" : {
+		"ParallelBatchWriterMode" : {
+			"acquireCount" : {
+				"r" : NumberLong(1)
+			}
+		},
+		"ReplicationStateTransition" : {
+			"acquireCount" : {
+				"w" : NumberLong(1)
+			}
+		},
+		"Global" : {
+			"acquireCount" : {
+				"w" : NumberLong(1)
+			}
+		},
+		"Database" : {
+			"acquireCount" : {
+				"w" : NumberLong(1)
+			}
+		},
+		"Collection" : {
+			"acquireCount" : {
+				"w" : NumberLong(1)
+			}
+		},
+		"Mutex" : {
+			"acquireCount" : {
+				"r" : NumberLong(1)
+			}
+		}
+	},
+	"flowControl" : {
+		"acquireCount" : NumberLong(1),
+		"timeAcquiringMicros" : NumberLong(26)
+	},
+	"millis" : 2,
+	"planSummary" : "COLLSCAN",
+	"execStats" : {
+		"stage" : "DELETE",
+		"nReturned" : 0,
+		"executionTimeMillisEstimate" : 0,
+		"works" : 3,
+		"advanced" : 0,
+		"needTime" : 2,
+		"needYield" : 0,
+		"saveState" : 0,
+		"restoreState" : 0,
+		"isEOF" : 1,
+		"nWouldDelete" : 1,
+		"inputStage" : {
+			"stage" : "COLLSCAN",
+			"nReturned" : 1,
+			"executionTimeMillisEstimate" : 0,
+			"works" : 3,
+			"advanced" : 1,
+			"needTime" : 1,
+			"needYield" : 0,
+			"saveState" : 1,
+			"restoreState" : 1,
+			"isEOF" : 1,
+			"direction" : "forward",
+			"docsExamined" : 1
+		}
+	},
+	"ts" : ISODate("2022-12-08T22:57:02.819Z"),
+	"client" : "127.0.0.1",
+	"appName" : "MongoDB Shell",
+	"allUsers" : [ ],
+	"user" : ""
+}
+```
+
+- 필드에 관한 설명은 [https://www.mongodb.com/docs/manual/reference/database-profiler/#output-reference](https://www.mongodb.com/docs/manual/reference/database-profiler/#output-reference) 에서 확인할 수 있다.
+- 보통 데이터베이스가 수행중인 모든 작업을 프로파일링하진 않고 느린 작업에만 프로파일링하게 할 수 있다.
+
+```
+// 500밀리초보다 오래 걸리는 작업을 모두 기록한다.
+db.setProfilingLevel(1, 500)
+```
+
+- 프로파일링을 끄려면 프로파일링 레벨을 0으로 설정한다.
+
+```
+db.setProfilingLevel(0)
+{ "was" : 1, "slowms" : 500, "sampleRate" : 1, "ok" : 1 }
+```
+
+- slowms 
+  - slowms 값을 확인할 수 있는데 이 값은 낮은 값으로 설정하면 좋지 않다.
+  - slowms는 로그에 느린 작업을 출력하는 임계치를 설정하므로 프로파일링이 꺼져 있더라도 mongod에 영향을 미친다.
+  - 따라서  slowms를 2로 설정하면 프로파일링이 꺼져 있더라도 2밀리초보다 오래 걸리는 모든 작업이 로그에 나타난다.
+  - 모니터링을 위해 slowms를 낮게 설정했다면 다시 원복시켜야 한다.
+- db.getPRofilingLevel()로 현재 프로파일링 레벨을 확인할 수 있고 프로파일링 레벨은 영구적이지 않고 데이터베이스를 재시작하면 초기화된다.
+- 일반적으로 프로파일링 레벨을 높이는 것은 임시적인 디버깅 조치이고 장기적인 구성 추가가 아니다.
+- 몽고DB 4.2에서는 느린 쿼리 식별을 개선하도록 읽기/쓰기 작업에서 프로파일러 항목과 진단 로그 메시지가 확장됐고  queryHash, planCacheKey 필드가 추가됐다.
+- queryHash
+  - 쿼리 모양을 해시로 나타낸다.
+  - 각 쿼리 모양은 queryHash와 연결되므로 동일한 모양을 사용하는 쿼리를 쉽게 강조 표시할 수 있다.
+- planCacheKey
+  - 쿼리여 연관된 플랜 캐시 항목에 대한 키의 해시다.
+  - 쿼리 모양과 현재 모양에 사용 가능한 인덱스의 세부 정보를 포함하는데 이는 쿼리 성능 진단을 위해 프로파일러에서 사용 가능한 정보를 연관시키는 데 도움이 된다.
+- system.profile 컬렉션은 기본적으로 제한 컬렉션이기 때문에 크기를 더 크게 만들려면 프로파일링을 끄고 system.profile 컬렉션을 제거한 뒤 원하는 크기의 system.profile 컬렉션을 만들면 된다.
+
+
+
+## 크기 계산
+
+- 적절한 양의 디스크와 메모리를 제공하려면 도큐먼트, 인덱스, 컬렉션, 데이터베이스가 공간을 얼마나 차지하는지 알아야 한다.
+
+
+
+### 도큐먼트
+
+- 도큐먼트 크기를 구하는 가장 쉬운 방법은 셸의 Object.bsonsize() 함수를 사용하는 방법이다.
+
+```
+> Object.bsonsize({_id:ObjectId()})
+22
+> Object.bsonsize({_id:""+ObjectId()})
+39
+```
+
+- 몽고DB는 _id를 저장할 때 문자열보다  ObjectId 타입으로 저장할 때 더 효율적이다.
+- 더 실용적인 방법은 도큐먼트 자체를 넘기는 방법이다.
+
+```
+> Object.bsonsize(db.users.findOne())
+54
+```
+
+
+
+### 컬렉션
+
+- 전체 컬렉션에 대한 정보를 확인할 때는 stats 함수를 사용한다.
+
+```
+db.movies.stats()
+{
+	"ns" : "test.movies",
+	"size" : 0,
+	"count" : 0,
+	"storageSize" : 0,
+	"totalSize" : 0,
+	"nindexes" : 0,
+	"totalIndexSize" : 0,
+	"indexSizes" : {
+		
+	},
+	"scaleFactor" : 1,
+	"ok" : 1
+}
+> db.foo.stats()
+{
+	"ns" : "test.foo",
+	"size" : 0,
+	"count" : 0,
+	"storageSize" : 24576,
+	"freeStorageSize" : 16384,
+	"capped" : false,
+	"wiredTiger" : {
+		"metadata" : {
+			"formatVersion" : 1
+		},
+		"creationString" : "access_pattern_hint=none,allocation_size=4KB,app_metadata=(formatVersion=1),assert=(commit_timestamp=none,durable_timestamp=none,read_timestamp=none,write_timestamp=off),block_allocation=best,block_compressor=snappy,cache_resident=false,checksum=on,colgroups=,collator=,columns=,dictionary=0,encryption=(keyid=,name=),exclusive=false,extractor=,format=btree,huffman_key=,huffman_value=,ignore_in_memory_cache_size=false,immutable=false,import=(enabled=false,file_metadata=,repair=false),internal_item_max=0,internal_key_max=0,internal_key_truncate=true,internal_page_max=4KB,key_format=q,key_gap=10,leaf_item_max=0,leaf_key_max=0,leaf_page_max=32KB,leaf_value_max=64MB,log=(enabled=true),lsm=(auto_throttle=true,bloom=true,bloom_bit_count=16,bloom_config=,bloom_hash_count=8,bloom_oldest=false,chunk_count_limit=0,chunk_max=5GB,chunk_size=10MB,merge_custom=(prefix=,start_generation=0,suffix=),merge_max=15,merge_min=0),memory_page_image_max=0,memory_page_max=10m,os_cache_dirty_max=0,os_cache_max=0,prefix_compression=false,prefix_compression_min=4,readonly=false,source=,split_deepen_min_child=0,split_deepen_per_child=0,split_pct=90,tiered_object=false,tiered_storage=(auth_token=,bucket=,bucket_prefix=,cache_directory=,local_retention=300,name=),type=file,value_format=u,verbose=[],write_timestamp_usage=none",
+		"type" : "file",
+		"uri" : "statistics:table:collection-3--4706924563783797557",
+		"LSM" : {
+			"bloom filter false positives" : 0,
+			"bloom filter hits" : 0,
+			"bloom filter misses" : 0,
+			"bloom filter pages evicted from cache" : 0,
+			"bloom filter pages read into cache" : 0,
+			"bloom filters in the LSM tree" : 0,
+			"chunks in the LSM tree" : 0,
+			"highest merge generation in the LSM tree" : 0,
+			"queries that could have benefited from a Bloom filter that did not exist" : 0,
+			"sleep for LSM checkpoint throttle" : 0,
+			"sleep for LSM merge throttle" : 0,
+			"total size of bloom filters" : 0
+		},
+		"block-manager" : {
+			"allocations requiring file extension" : 5,
+			"blocks allocated" : 6,
+			"blocks freed" : 1,
+			"checkpoint size" : 0,
+			"file allocation unit size" : 4096,
+			"file bytes available for reuse" : 16384,
+			"file magic number" : 120897,
+			"file major version number" : 1,
+			"file size in bytes" : 24576,
+			"minor version number" : 0
+		},
+		"btree" : {
+			"btree checkpoint generation" : 14892,
+			"btree clean tree checkpoint expiration time" : NumberLong("9223372036854775807"),
+			"btree compact pages reviewed" : 0,
+			"btree compact pages rewritten" : 0,
+			"btree compact pages skipped" : 0,
+			"btree skipped by compaction as process would not reduce size" : 0,
+			"column-store fixed-size leaf pages" : 0,
+			"column-store internal pages" : 0,
+			"column-store variable-size RLE encoded values" : 0,
+			"column-store variable-size deleted values" : 0,
+			"column-store variable-size leaf pages" : 0,
+			"fixed-record size" : 0,
+			"maximum internal page size" : 4096,
+			"maximum leaf page key size" : 2867,
+			"maximum leaf page size" : 32768,
+			"maximum leaf page value size" : 67108864,
+			"maximum tree depth" : 3,
+			"number of key/value pairs" : 0,
+			"overflow pages" : 0,
+			"row-store empty values" : 0,
+			"row-store internal pages" : 0,
+			"row-store leaf pages" : 0
+		},
+		"cache" : {
+			"bytes currently in the cache" : 476,
+			"bytes dirty in the cache cumulative" : 3461,
+			"bytes read into cache" : 0,
+			"bytes written from cache" : 128,
+			"checkpoint blocked page eviction" : 0,
+			"checkpoint of history store file blocked non-history store page eviction" : 0,
+			"data source pages selected for eviction unable to be evicted" : 0,
+			"eviction gave up due to detecting an out of order on disk value behind the last update on the chain" : 0,
+			"eviction gave up due to detecting an out of order tombstone ahead of the selected on disk update" : 0,
+			"eviction gave up due to detecting an out of order tombstone ahead of the selected on disk update after validating the update chain" : 0,
+			"eviction gave up due to detecting out of order timestamps on the update chain after the selected on disk update" : 0,
+			"eviction walk passes of a file" : 0,
+			"eviction walk target pages histogram - 0-9" : 0,
+			"eviction walk target pages histogram - 10-31" : 0,
+			"eviction walk target pages histogram - 128 and higher" : 0,
+			"eviction walk target pages histogram - 32-63" : 0,
+			"eviction walk target pages histogram - 64-128" : 0,
+			"eviction walk target pages reduced due to history store cache pressure" : 0,
+			"eviction walks abandoned" : 0,
+			"eviction walks gave up because they restarted their walk twice" : 0,
+			"eviction walks gave up because they saw too many pages and found no candidates" : 0,
+			"eviction walks gave up because they saw too many pages and found too few candidates" : 0,
+			"eviction walks reached end of tree" : 0,
+			"eviction walks restarted" : 0,
+			"eviction walks started from root of tree" : 0,
+			"eviction walks started from saved location in tree" : 0,
+			"hazard pointer blocked page eviction" : 0,
+			"history store table insert calls" : 0,
+			"history store table insert calls that returned restart" : 0,
+			"history store table out-of-order resolved updates that lose their durable timestamp" : 0,
+			"history store table out-of-order updates that were fixed up by reinserting with the fixed timestamp" : 0,
+			"history store table reads" : 0,
+			"history store table reads missed" : 0,
+			"history store table reads requiring squashed modifies" : 0,
+			"history store table truncation by rollback to stable to remove an unstable update" : 0,
+			"history store table truncation by rollback to stable to remove an update" : 0,
+			"history store table truncation to remove an update" : 0,
+			"history store table truncation to remove range of updates due to key being removed from the data page during reconciliation" : 0,
+			"history store table truncation to remove range of updates due to out-of-order timestamp update on data page" : 0,
+			"history store table writes requiring squashed modifies" : 0,
+			"in-memory page passed criteria to be split" : 0,
+			"in-memory page splits" : 0,
+			"internal pages evicted" : 0,
+			"internal pages split during eviction" : 0,
+			"leaf pages split during eviction" : 0,
+			"modified pages evicted" : 1,
+			"overflow pages read into cache" : 0,
+			"page split during eviction deepened the tree" : 0,
+			"page written requiring history store records" : 0,
+			"pages read into cache" : 0,
+			"pages read into cache after truncate" : 1,
+			"pages read into cache after truncate in prepare state" : 0,
+			"pages requested from the cache" : 13,
+			"pages seen by eviction walk" : 0,
+			"pages written from cache" : 2,
+			"pages written requiring in-memory restoration" : 1,
+			"the number of times full update inserted to history store" : 0,
+			"the number of times reverse modify inserted to history store" : 0,
+			"tracked dirty bytes in the cache" : 0,
+			"unmodified pages evicted" : 0
+		},
+		"cache_walk" : {
+			"Average difference between current eviction generation when the page was last considered" : 0,
+			"Average on-disk page image size seen" : 0,
+			"Average time in cache for pages that have been visited by the eviction server" : 0,
+			"Average time in cache for pages that have not been visited by the eviction server" : 0,
+			"Clean pages currently in cache" : 0,
+			"Current eviction generation" : 0,
+			"Dirty pages currently in cache" : 0,
+			"Entries in the root page" : 0,
+			"Internal pages currently in cache" : 0,
+			"Leaf pages currently in cache" : 0,
+			"Maximum difference between current eviction generation when the page was last considered" : 0,
+			"Maximum page size seen" : 0,
+			"Minimum on-disk page image size seen" : 0,
+			"Number of pages never visited by eviction server" : 0,
+			"On-disk page image sizes smaller than a single allocation unit" : 0,
+			"Pages created in memory and never written" : 0,
+			"Pages currently queued for eviction" : 0,
+			"Pages that could not be queued for eviction" : 0,
+			"Refs skipped during cache traversal" : 0,
+			"Size of the root page" : 0,
+			"Total number of pages currently in cache" : 0
+		},
+		"checkpoint-cleanup" : {
+			"pages added for eviction" : 1,
+			"pages removed" : 0,
+			"pages skipped during tree walk" : 0,
+			"pages visited" : 3
+		},
+		"compression" : {
+			"compressed page maximum internal page size prior to compression" : 4096,
+			"compressed page maximum leaf page size prior to compression " : 131072,
+			"compressed pages read" : 0,
+			"compressed pages written" : 0,
+			"number of blocks with compress ratio greater than 64" : 0,
+			"number of blocks with compress ratio smaller than 16" : 0,
+			"number of blocks with compress ratio smaller than 2" : 0,
+			"number of blocks with compress ratio smaller than 32" : 0,
+			"number of blocks with compress ratio smaller than 4" : 0,
+			"number of blocks with compress ratio smaller than 64" : 0,
+			"number of blocks with compress ratio smaller than 8" : 0,
+			"page written failed to compress" : 0,
+			"page written was too small to compress" : 2
+		},
+		"cursor" : {
+			"Total number of entries skipped by cursor next calls" : 0,
+			"Total number of entries skipped by cursor prev calls" : 1,
+			"Total number of entries skipped to position the history store cursor" : 0,
+			"Total number of times a search near has exited due to prefix config" : 0,
+			"bulk loaded cursor insert calls" : 0,
+			"cache cursors reuse count" : 6,
+			"close calls that result in cache" : 7,
+			"create calls" : 4,
+			"cursor next calls that skip due to a globally visible history store tombstone" : 0,
+			"cursor next calls that skip greater than or equal to 100 entries" : 0,
+			"cursor next calls that skip less than 100 entries" : 5,
+			"cursor prev calls that skip due to a globally visible history store tombstone" : 0,
+			"cursor prev calls that skip greater than or equal to 100 entries" : 0,
+			"cursor prev calls that skip less than 100 entries" : 2,
+			"insert calls" : 1,
+			"insert key and value bytes" : 34,
+			"modify" : 1,
+			"modify key and value bytes affected" : 33,
+			"modify value bytes modified" : 8,
+			"next calls" : 5,
+			"open cursor count" : 0,
+			"operation restarted" : 0,
+			"prev calls" : 2,
+			"remove calls" : 1,
+			"remove key bytes removed" : 1,
+			"reserve calls" : 0,
+			"reset calls" : 18,
+			"search calls" : 2,
+			"search history store calls" : 0,
+			"search near calls" : 2,
+			"truncate calls" : 0,
+			"update calls" : 0,
+			"update key and value bytes" : 0,
+			"update value size change" : 0
+		},
+		"reconciliation" : {
+			"approximate byte size of timestamps in pages written" : 0,
+			"approximate byte size of transaction IDs in pages written" : 0,
+			"dictionary matches" : 0,
+			"fast-path pages deleted" : 0,
+			"internal page key bytes discarded using suffix compression" : 0,
+			"internal page multi-block writes" : 0,
+			"leaf page key bytes discarded using prefix compression" : 0,
+			"leaf page multi-block writes" : 0,
+			"leaf-page overflow keys" : 0,
+			"maximum blocks required for a page" : 1,
+			"overflow values written" : 0,
+			"page checksum matches" : 0,
+			"page reconciliation calls" : 6,
+			"page reconciliation calls for eviction" : 1,
+			"pages deleted" : 4,
+			"pages written including an aggregated newest start durable timestamp " : 0,
+			"pages written including an aggregated newest stop durable timestamp " : 0,
+			"pages written including an aggregated newest stop timestamp " : 0,
+			"pages written including an aggregated newest stop transaction ID" : 0,
+			"pages written including an aggregated newest transaction ID " : 0,
+			"pages written including an aggregated oldest start timestamp " : 0,
+			"pages written including an aggregated prepare" : 0,
+			"pages written including at least one prepare" : 0,
+			"pages written including at least one start durable timestamp" : 0,
+			"pages written including at least one start timestamp" : 0,
+			"pages written including at least one start transaction ID" : 0,
+			"pages written including at least one stop durable timestamp" : 0,
+			"pages written including at least one stop timestamp" : 0,
+			"pages written including at least one stop transaction ID" : 0,
+			"records written including a prepare" : 0,
+			"records written including a start durable timestamp" : 0,
+			"records written including a start timestamp" : 0,
+			"records written including a start transaction ID" : 0,
+			"records written including a stop durable timestamp" : 0,
+			"records written including a stop timestamp" : 0,
+			"records written including a stop transaction ID" : 0
+		},
+		"session" : {
+			"object compaction" : 0,
+			"tiered operations dequeued and processed" : 0,
+			"tiered operations scheduled" : 0,
+			"tiered storage local retention time (secs)" : 0
+		},
+		"transaction" : {
+			"race to read prepared update retry" : 0,
+			"rollback to stable history store records with stop timestamps older than newer records" : 0,
+			"rollback to stable inconsistent checkpoint" : 0,
+			"rollback to stable keys removed" : 0,
+			"rollback to stable keys restored" : 0,
+			"rollback to stable restored tombstones from history store" : 0,
+			"rollback to stable restored updates from history store" : 0,
+			"rollback to stable skipping delete rle" : 0,
+			"rollback to stable skipping stable rle" : 0,
+			"rollback to stable sweeping history store keys" : 0,
+			"rollback to stable updates removed from history store" : 0,
+			"transaction checkpoints due to obsolete pages" : 0,
+			"update conflicts" : 0
+		}
+	},
+	"nindexes" : 1,
+	"indexBuilds" : [ ],
+	"totalIndexSize" : 24576,
+	"totalSize" : 49152,
+	"indexSizes" : {
+		"_id_" : 24576
+	},
+	"scaleFactor" : 1,
+	"ok" : 1
+}
+
+```
+
+- [https://www.mongodb.com/docs/manual/reference/command/collStats/#output](https://www.mongodb.com/docs/manual/reference/command/collStats/#output)
+
