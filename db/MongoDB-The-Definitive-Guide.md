@@ -9026,22 +9026,7 @@ db.setProfilingLevel(0)
 - 전체 컬렉션에 대한 정보를 확인할 때는 stats 함수를 사용한다.
 
 ```
-db.movies.stats()
-{
-	"ns" : "test.movies",
-	"size" : 0,
-	"count" : 0,
-	"storageSize" : 0,
-	"totalSize" : 0,
-	"nindexes" : 0,
-	"totalIndexSize" : 0,
-	"indexSizes" : {
-		
-	},
-	"scaleFactor" : 1,
-	"ok" : 1
-}
-> db.foo.stats()
+db.foo.stats()
 {
 	"ns" : "test.foo",
 	"size" : 0,
@@ -9321,5 +9306,95 @@ db.movies.stats()
 
 ```
 
-- [https://www.mongodb.com/docs/manual/reference/command/collStats/#output](https://www.mongodb.com/docs/manual/reference/command/collStats/#output)
+- 필드들에 대한 자세한 설명은 docs 참고
+  - [https://www.mongodb.com/docs/manual/reference/command/collStats/#output](https://www.mongodb.com/docs/manual/reference/command/collStats/#output)
+- 컬렉션이 커질수록 stats 출력도 매우 커지므로 특정 단위를 넘겨줘서 컬렉션 정보를 얻을 수 있다.
+
+```
+db.foo.stats(1024*1024*1024*1024) // 테라바이트 단위로 컬렉션 정보 얻기
+```
+
+
+
+
+
+
+
+### 데이터베이스
+
+- 데이터베이스 에도 마찬가지로 stats() 함수를 사용할 수 있다.
+
+```
+db.stats()
+{
+	"db" : "test",
+	"collections" : 12,
+	"views" : 0,
+	"objects" : 1031137,
+	"avgObjSize" : 327.17351913470276,
+	"dataSize" : 337360721,
+	"storageSize" : 99778560,
+	"indexes" : 20,
+	"indexSize" : 40980480,
+	"totalSize" : 140759040,
+	"scaleFactor" : 1,
+	"fsUsedSize" : 476387704832,
+	"fsTotalSize" : 499963174912,
+	"ok" : 1
+}
+```
+
+- 간단한 필드 설명
+  - object: 데이터베이스 내 모든 도큐먼트의 수
+  - fsTotalSize: 몽고DB 인스턴스가 데이터를 저정하는 파일 시스템의 총 디스크 용량 크기, 이 값이 항상 커야한다.
+  - fsUIsedSize: 몽고DB가 해당 파일시스템에서 사용하는 총 공간을 나타낸다. 이는 데이터 디렉터리 내 모든 파일이 사용하는 총 공간과 일치해야 한다.
+  - dataSize: 데이터베이스에 보관된 압축되지 않은 데이터의 크기
+  - indexSize: 데이터베이스의 모든 인덱스가 차지하는 공간의 양
+  - [https://www.mongodb.com/docs/manual/reference/command/dbStats/#output](https://www.mongodb.com/docs/manual/reference/command/dbStats/#output)
+- 락 비율이 높은 시스템에서 데이터베이스의 stats() 함수르 사용하는 것은 시간이 오래 걸리고 다른 작업을 중단시킬 수 있다는 점에서 유의하자.
+
+
+
+## mongotop과 mongostat 사용
+
+- mongotop
+  - 유닉스의 top 유틸리티와 유사하며 어떤 컬렉션이 가장 분주한지에 대한 개요를 제공한다.
+  - mongotop --locks를 실행하면 각 데이터베이스의 락에 대한 통계 정보를 얻을 수 있다.
+- mongostat
+  - mongostat은 서버 차원의 정보를 제공한다.
+  - 기본적으로 1초마다 한 번씩 통계 목록을 출력하지만 커스텀하게 구성이 가능하다.
+  - 각각의 필드는 초마다 grouping 해서 초마다 발생한 count만큼 값을 반환한다.
+
+```
+insert query update delete getmore command dirty used flushes vsize   res qrw arw net_in net_out conn                time
+    *0    *0     *0     *0       0     1|0  0.0% 0.0%       0 1.49G 13.0M 0|0 0|0   259b   56.2k    8 Dec 10 04:39:47.769
+    *0    *0     *0     *0       0     2|0  0.0% 0.0%       0 1.49G 13.0M 0|0 0|0   192b   56.5k    8 Dec 10 04:39:48.766
+     1    *0     *0     *0       0     4|0  0.0% 0.0%       0 1.49G 13.0M 0|0 0|0   746b   57.3k    8 Dec 10 04:39:49.767
+     2    *0     *0     *0       0     4|0  0.0% 0.0%       0 1.49G 13.0M 0|0 0|0   668b   57.1k    8 Dec 10 04:39:50.767
+    *0    *0     *0     *0       0     2|0  0.0% 0.0%       0 1.49G 13.0M 0|0 0|0   429b   56.6k    8 Dec 10 04:39:51.768
+    *0    *0     *0     *0       0     3|0  0.0% 0.0%       0 1.49G 13.0M 0|0 0|0   222b   56.7k    8 Dec 10 04:39:52.766
+    *0    *0     *0     *0       0     3|0  0.0% 0.0%       0 1.49G 13.0M 0|0 0|0   508b   56.8k    8 Dec 10 04:39:53.770
+     3    *0     *0     *0       0     5|0  0.0% 0.0%       0 1.49G 13.0M 0|0 0|0   960b   57.6k    8 Dec 10 04:39:54.766
+    *0    *0     *0     *0       0     1|0  0.0% 0.0%       0 1.49G 13.0M 0|0 0|0   242b   56.2k    8 Dec 10 04:39:55.768
+    *0    *0     *0     *0       0     2|0  0.0% 0.0%       0 1.49G 13.0M 0|0 0|0   174b   56.4k    8 Dec 10 04:39:56.732
+...
+```
+
+- 간단한 필드 설명
+  - insert, query, updtae, delete: 각 명령이 실행된 횟수
+  - flushes: mongod가 데이터를 디스크에 플러시한 횟수
+  - mapped: mongod가 매핑한 메모리의 양, 일반적으로 데이터 디렉터리의 크기
+  - vsize: mongod가 사용중인 가상 메모리의 양
+  - res: mongod가 사용중인 메모리의 양
+  - ar | aw: 읽기와 쓰기를 수행하는 현재 활동중인 클라이언트 수
+  - qr | qw: 읽기 및 쓰기용 큐의 크기, 즉 중단된 채 처리되기를 기다리는 읽기와 쓰기의 수
+  - netIn : 몽고DB에 의해 집계된 바이트 단위 네트워크 유입량
+  - netOut: 몽고DB에 의해 집계뙨 바이트 단위 네트워크 유출량
+  - conn: 서버가 열어놓은 연결의 개수
+  - [https://www.mongodb.com/docs/database-tools/mongostat/#fields](https://www.mongodb.com/docs/database-tools/mongostat/#fields)
+- mongostat은 복제 셋이나 샤드 클러스터에서 실행할 수 있다.
+- mongostat은 처음에 연결한 멤버로부터 복제 셋이나 클러스터의 모든 멤버를 찾는다.
+- mongostat은 데이터베이스가 무엇을 하는지에 대한 정보를 재빨리 얻는 데 좋은 방법이지만 장기간 모니터링에는 몽고DB 아틀라스, 옵스 매니저같은 도구가 더 적합하다.
+
+
 
