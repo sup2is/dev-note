@@ -8644,6 +8644,7 @@ db.killOp(123)
   - 이러한 유령 쓰기를 방지하는 가장 좋은 방법은 확인 쓰기를 하는 방법이다.
   - 각각의 쓰기가 이전 쓰기가 데이터베이스 서버의 버퍼에 자리 잡을때까지가 아니라 완료될 때까지 기다리게한다.
   - write concern 옵션에서 j를 true로 두면 디스크의 journal 까지 기록이 완료 된 후에 응답한다.
+    - [https://www.mongodb.com/docs/manual/reference/write-concern/#j-option](https://www.mongodb.com/docs/manual/reference/write-concern/#j-option)
 
 
 
@@ -8655,7 +8656,7 @@ db.killOp(123)
 
 - 시스템 프로파일러로 느린 작업을 찾아낼 수 있다.
 - 시스템 프로파일러는 system.profile 컬렉션에 작업을 기록한다.
-- 오래 걸리는 작업에 대한 많은 정보를 제공하지만 mongod의 전반적인 성능을 느려지게 한다는 단점이 있기 때문에 프로파일러를 주기적으로 작동시켜 트래픽의 일부를 획득하는데 사용한다.
+- 오래 걸리는 작업에 대한 많은 정보를 제공하지만 mongod의 전반적인 성능을 느려지게 한다는 단점이 있다.
 - 시스템 부하가 이미 심하다면 다른 기법으로 문제를 분석하자.
 - 기본적으로 프로파일러는 꺼져 있으며 아무것도 기록하지 않기 때문에 셸에서 프로파일을 켜줘야 한다.
 
@@ -8987,12 +8988,12 @@ db.setProfilingLevel(0)
 { "was" : 1, "slowms" : 500, "sampleRate" : 1, "ok" : 1 }
 ```
 
-- slowms 
+- `slowms` 
   - slowms 값을 확인할 수 있는데 이 값은 낮은 값으로 설정하면 좋지 않다.
   - slowms는 로그에 느린 작업을 출력하는 임계치를 설정하므로 프로파일링이 꺼져 있더라도 mongod에 영향을 미친다.
   - 따라서  slowms를 2로 설정하면 프로파일링이 꺼져 있더라도 2밀리초보다 오래 걸리는 모든 작업이 로그에 나타난다.
   - 모니터링을 위해 slowms를 낮게 설정했다면 다시 원복시켜야 한다.
-- db.getPRofilingLevel()로 현재 프로파일링 레벨을 확인할 수 있고 프로파일링 레벨은 영구적이지 않고 데이터베이스를 재시작하면 초기화된다.
+- `db.getProfilingLevel()` 로 현재 프로파일링 레벨을 확인할 수 있고 프로파일링 레벨은 영구적이지 않고 데이터베이스를 재시작하면 초기화된다.
 - 일반적으로 프로파일링 레벨을 높이는 것은 임시적인 디버깅 조치이고 장기적인 구성 추가가 아니다.
 - 몽고DB 4.2에서는 느린 쿼리 식별을 개선하도록 읽기/쓰기 작업에서 프로파일러 항목과 진단 로그 메시지가 확장됐고  queryHash, planCacheKey 필드가 추가됐다.
 - queryHash
@@ -9013,7 +9014,7 @@ db.setProfilingLevel(0)
 
 ### 도큐먼트
 
-- 도큐먼트 크기를 구하는 가장 쉬운 방법은 셸의 Object.bsonsize() 함수를 사용하는 방법이다.
+- 도큐먼트 크기를 구하는 가장 쉬운 방법은 셸의 `Object.bsonsize()` 함수를 사용하는 방법이다.
 
 ```
 > Object.bsonsize({_id:ObjectId()})
@@ -9023,12 +9024,14 @@ db.setProfilingLevel(0)
 ```
 
 - 몽고DB는 _id를 저장할 때 문자열보다  ObjectId 타입으로 저장할 때 더 효율적이다.
-- 더 실용적인 방법은 도큐먼트 자체를 넘기는 방법이다.
+- 도큐먼트 하나가 디스크에서 정확히 몇 바이트를 차지하는지 보려면 아래와 같이 하면 된다.
 
 ```
 > Object.bsonsize(db.users.findOne())
 54
 ```
+
+- 컬렉션 크기에서 종종 중요한 요소가 되는 패딩이나 인덱스는 계산하지 않는다.
 
 
 
@@ -9317,6 +9320,18 @@ db.foo.stats()
 
 ```
 
+- 필드들에 대한 간단한 설명
+  - `size`
+    - 컬렉션의 각 요소에 대해 `Object.bsonsize()` 만큼 모든 크기를 합한 결과
+  
+  - `storageSize`
+    - 도큐먼트들의 바이트 총합은 컬렉션을 압축함으로써 절약되는 공간을 제외한다.
+    - storageSize는 압축으로 절약된 공간을 반영하므로 size보다 작은 수일 수 있다.
+  
+  - `nindexes`
+    - 컬렉션에 있는 인덱스의 수
+    - 인덱스는 구축이 끝날 때까지 nindexes에 합산되지 않으며 목록에 나타나기 전까지는 인덱스를 사용할 수 없다.
+  
 - 필드들에 대한 자세한 설명은 docs 참고
   - [https://www.mongodb.com/docs/manual/reference/command/collStats/#output](https://www.mongodb.com/docs/manual/reference/command/collStats/#output)
 - 컬렉션이 커질수록 stats 출력도 매우 커지므로 특정 단위를 넘겨줘서 컬렉션 정보를 얻을 수 있다.
@@ -9333,7 +9348,7 @@ db.foo.stats(1024*1024*1024*1024) // 테라바이트 단위로 컬렉션 정보 
 
 ### 데이터베이스
 
-- 데이터베이스 에도 마찬가지로 stats() 함수를 사용할 수 있다.
+- 데이터베이스 에도 마찬가지로 `stats()` 함수를 사용할 수 있다.
 
 ```
 db.stats()
@@ -9356,13 +9371,13 @@ db.stats()
 ```
 
 - 간단한 필드 설명
-  - object: 데이터베이스 내 모든 도큐먼트의 수
-  - fsTotalSize: 몽고DB 인스턴스가 데이터를 저정하는 파일 시스템의 총 디스크 용량 크기, 이 값이 항상 커야한다.
-  - fsUIsedSize: 몽고DB가 해당 파일시스템에서 사용하는 총 공간을 나타낸다. 이는 데이터 디렉터리 내 모든 파일이 사용하는 총 공간과 일치해야 한다.
-  - dataSize: 데이터베이스에 보관된 압축되지 않은 데이터의 크기
-  - indexSize: 데이터베이스의 모든 인덱스가 차지하는 공간의 양
+  - `objects`: 데이터베이스 내 모든 도큐먼트의 수
+  - `fsTotalSize`: 몽고DB 인스턴스가 데이터를 저정하는 파일 시스템의 총 디스크 용량 크기, 이 값이 항상 커야한다.
+  - `fsUsedSize`: 몽고DB가 해당 파일시스템에서 사용하는 총 공간을 나타낸다. 이는 데이터 디렉터리 내 모든 파일이 사용하는 총 공간과 일치해야 한다.
+  - `dataSize`: 데이터베이스에 보관된 압축되지 않은 데이터의 크기
+  - `indexSize`: 데이터베이스의 모든 인덱스가 차지하는 공간의 양
   - [https://www.mongodb.com/docs/manual/reference/command/dbStats/#output](https://www.mongodb.com/docs/manual/reference/command/dbStats/#output)
-- 락 비율이 높은 시스템에서 데이터베이스의 stats() 함수르 사용하는 것은 시간이 오래 걸리고 다른 작업을 중단시킬 수 있다는 점에서 유의하자.
+- 락 비율이 높은 시스템에서 데이터베이스의 stats() 함수를 사용하는 것은 시간이 오래 걸리고 다른 작업을 중단시킬 수 있다는 점에서 유의하자.
 
 
 
@@ -9392,19 +9407,28 @@ insert query update delete getmore command dirty used flushes vsize   res qrw ar
 ```
 
 - 간단한 필드 설명
-  - insert, query, updtae, delete: 각 명령이 실행된 횟수
-  - flushes: mongod가 데이터를 디스크에 플러시한 횟수
-  - mapped: mongod가 매핑한 메모리의 양, 일반적으로 데이터 디렉터리의 크기
-  - vsize: mongod가 사용중인 가상 메모리의 양
-  - res: mongod가 사용중인 메모리의 양
-  - ar | aw: 읽기와 쓰기를 수행하는 현재 활동중인 클라이언트 수
-  - qr | qw: 읽기 및 쓰기용 큐의 크기, 즉 중단된 채 처리되기를 기다리는 읽기와 쓰기의 수
-  - netIn : 몽고DB에 의해 집계된 바이트 단위 네트워크 유입량
-  - netOut: 몽고DB에 의해 집계뙨 바이트 단위 네트워크 유출량
-  - conn: 서버가 열어놓은 연결의 개수
+  - `insert, query, updtae, delete`: 각 명령이 실행된 횟수
+  - `flushes`: mongod가 데이터를 디스크에 플러시한 횟수
+  - `mapped`: mongod가 매핑한 메모리의 양, 일반적으로 데이터 디렉터리의 크기
+  - `vsize`: mongod가 사용중인 가상 메모리의 양. 일반적으로 데이터 디렉터리의 두 배  크기 (매핑된 파일을 저널링하므로 두 배)
+  - `res`: mongod가 사용중인 메모리의 양. 일반적으로 장비의 총 메모리에 최대한 근접해야 한다.
+  - `locked d`
+    - 마지막 타임슬라이스에 락이 걸린 채 대부분의 시간을 소비한 데이터베이스를 보여준다.
+    - 이 필드는 전역 락이 유지된 기간과, 데이터베이스가 락에 걸렸던 시간 비율을 합쳐서 알려준다.
+    - 따라서 값이 100%를 초과할 수 있다.
+  - `ìdx miss %`
+    - 검색하는 인덱스 항목이나 인덱스 섹션이 메모리에 없어서  mongodb가 디스크로 이동한 비율
+  - `ar | aw`: 읽기와 쓰기를 수행하는 현재 활동중인 클라이언트 수
+  - `qr | qw`: 읽기 및 쓰기용 큐의 크기, 즉 중단된 채 처리되기를 기다리는 읽기와 쓰기의 수
+  - `netIn` : 몽고DB에 의해 집계된 바이트 단위 네트워크 유입량
+  - `netOut`: 몽고DB에 의해 집계뙨 바이트 단위 네트워크 유출량
+  - `conn`: 서버가 열어놓은 연결의 개수
+  - `time`: 통계가 찍힌 시간
   - [https://www.mongodb.com/docs/database-tools/mongostat/#fields](https://www.mongodb.com/docs/database-tools/mongostat/#fields)
 - mongostat은 복제 셋이나 샤드 클러스터에서 실행할 수 있다.
-- mongostat은 처음에 연결한 멤버로부터 복제 셋이나 클러스터의 모든 멤버를 찾는다.
+  - --discover 옵션을 사용하면 mongostat은 처음에 연결한 멤버로부터 복제 셋이나 클러스터의 모든 멤버를 찾고 출력한다.
+  - 대규모 클러스터에서는 다루기 힘들 정도로 빠를 수 있지만, 소규모 클러스터와 도구에서는 데이터를 읽기 쉬운 형태로 제시하므로 유용할 수도 있다.
+
 - mongostat은 데이터베이스가 무엇을 하는지에 대한 정보를 재빨리 얻는 데 좋은 방법이지만 장기간 모니터링에는 몽고DB 아틀라스, 옵스 매니저같은 도구가 더 적합하다.
 
 
