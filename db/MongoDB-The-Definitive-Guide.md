@@ -8303,7 +8303,10 @@ db.adminCommand({"flushRouterConfig" : 1})
 
 ## 현재 작업 확인
 
-- 실행 중인 작업을 확인하기
+- 실행 중인 작업을 확인하면 느린 작업을 쉽게 찾아낼 수 있다. 
+  - 느린 작업은 나타나기 쉽고 오래 실행중일 가능성이 높다.
+
+- 실행 중인 작업을 확인하기는 `db.currentOp()` 을 사용한다.
 
 ```
 > db.currentOp()
@@ -8554,24 +8557,32 @@ db.adminCommand({"flushRouterConfig" : 1})
 ```
 
 - 중요한 필드 설명
-  - opid
+  - `opid`
     -  작업의 고유 식별자. 작업을 강제 종료할 때 이번호를 사용한다.
-  - active
+  - `active`
     - 작업이 실행중인지 아닌지를 나타낸다. 
     - 이 필드가 false면 다른 작업의 수행을 위해 우위를 양보했거나 락을 기다리는 중임을 의미한다.
-  - secs_running: 작업의 실행 기간을 초 단위로 보여준다.
-  - microsecs_running: 작업의 실행 기간을 마이크로초 단위로 보여준다.
-  - op: 작업의 타입. 일반적으로 "query", "insert", "update", "remove" 타입이다. 데이터베이스 명령은  "query"로 수행된다.
-  - desc: 클라이언트 식별자. 로그의 메시지와 연관될 수 있다.
-  - locks: 작업으로 인해 획득한 락 타입을 설명한다.
-  - waitingForLock: 작업이 락을 획득하려고 기다리는 중인지 나타낸다.
-  - numYields
+  - `secs_running`
+    -  작업의 실행 기간을 초 단위로 보여준다.
+  - `microsecs_running`
+    - 작업의 실행 기간을 마이크로초 단위로 보여준다.
+  - `op`
+    - 작업의 타입. 일반적으로 "query", "insert", "update", "remove" 타입이다. 데이터베이스 명령은  "query"로 수행된다.
+  - `desc`
+    - 클라이언트 식별자. 로그의 메시지와 연관될 수 있다.
+  - `locks`
+    - 작업으로 인해 획득한 락 타입을 설명한다.
+  - `waitingForLock`
+    -  작업이 락을 획득하려고 기다리는 중인지 나타낸다.
+  - `numYields`
     - 다른 작업의 실해을 위해 락을 해제하고 우위를 양보한 횟수다. 
     - 일반적으로 도큐먼트를 검색하는 작업은 우위를 양보할 수 있다.
     - 이러한 작업은 우선순위가 높은 다른 작업이 큐에 입력돼 대기하면 곧바로 실행 권한을 양보한다.
     - 일반적으로 waitingForLock 상태인 작업이 없다면 현재 작업은 우위를 양보하지 않는다.
-
-- 그 외에 필드 설명
+  - `lockstats.timeAcquiringMicors`
+    - 작업하는 데 필요한 락을 획득하는 데 걸린 시간을 보여준다.
+  
+- 그 외 필드 설명
 
   - [https://www.mongodb.com/docs/manual/reference/command/currentOp/#output-fields](https://www.mongodb.com/docs/manual/reference/command/currentOp/#output-fields)
 
@@ -8579,7 +8590,7 @@ db.adminCommand({"flushRouterConfig" : 1})
 
 <br>
 
-- currentOp을 필터링해서 특정 기준을 충족하는 작업을 찾아낼 수 있다.
+- `currentOp()` 을 필터링해서 특정 기준을 충족하는 작업을 찾아낼 수 있다.
 
 ```
 db.currentOp({ "active" : true, "secs_running" : { "$gt" : 3 }, "ns" : /^db1\./})
@@ -8590,7 +8601,7 @@ db.currentOp({ "active" : true, "secs_running" : { "$gt" : 3 }, "ns" : /^db1\./}
 
 ### 문제 있는 작업 찾기
 
-- currentOp()은 주로 느린 작업을 찾아내는 용도로 사용한다.
+- `currentOp()` 은 주로 느린 작업을 찾아내는 용도로 사용한다.
 - 필터링을 걸어서 시간이 오래 걸리는 쿼리를 찾을 수 있고 이는 누락된 인덱스나 부적절한 필드 필터링에 대한 힌트를 준다.
 
 
@@ -8604,8 +8615,8 @@ db.killOp(123)
 ```
 
 - 갱신, 조회, 제거 명령 모두 작업을 종료할 수 있지만 락을 갖거나 기다리게 하는 작업은 강제 종료할 수 없다.
-- 작업에 강제종료 메시지를 보내면 db.currentOp()에 killed 필드가 생기지만 해당 작업은 현재 작업 목록에서 사라질 때까지는 실제로 종료되지 않는다.
-- 몽고4.0에서 mongos에서 killOp 메서드를 실행할 수 있도록 확장됐다.
+- 작업에 강제종료 메시지를 보내면 `db.currentOp()`에 killed 필드가 생기지만 해당 작업은 현재 작업 목록에서 사라질 때까지는 실제로 종료되지 않는다.
+- 몽고4.0에서 mongos에서 killOp 메서드를 실행할 수 있도록 확장됐다. 이전 버전에서는 샤드마다 프라이머리 mongod에서 수동으로 kill 명령어를 실행했었다.
 
 
 
@@ -8615,6 +8626,9 @@ db.killOp(123)
 - writebacklistner 명령 뿐 아니라 local.oplog.rs의 모든 장기 실행 쿼리는 무시해도 된다.
   - 이 작업들을 종료하면 몽고DB는 작업을 바로 재시작한다.
   - 이 작업들을 강제중지하면 복제를 중지하거나 mongos가 정규적인 쓰기 오류를 놓치는 원인이 될 수 있기 때문에 일반적으로 강제종료하지 말아야한다.
+- writebacklistner
+  - [https://www.mongodb.com/docs/manual/faq/sharding/#what-does-writebacklisten-in-the-log-mean-](https://www.mongodb.com/docs/manual/faq/sharding/#what-does-writebacklisten-in-the-log-mean-)
+  
 
 
 
@@ -8624,11 +8638,12 @@ db.killOp(123)
   - 사용자는 재빨리 작업을 정지하고 모든 갱신을 강제로 종료하지만 작업이 더는 실행되지 않는데도 이전 갱신을 강제로 종료하자마자 새로운 갱신이 계속 나타나게된다.
 - 미확인 쓰기
   - 미확인 쓰기를 사용해서 데이터를 로드하면 애플리케이션은 몽고DB가 처리하는 속도보다 더 빠른 몽고DB에 쓰기를 발생시킨다.
-  - 몽고DB가 백업되면 쓰기는 운영체제의 소켓 버퍼에 쌓이게 되는데 사용자가 몽고DB에서 실행되느 쓰기를 강제종료했을때 몽고DB는 버퍼에 있는 쓰기 작업을 실행할 수 있다.
-  - 결국 남아있는 버퍼는 이미 몽고DB에 수신된 상태이기 때문에 몽고DB에 의해 처리된다.
+  - 몽고DB가 백업되면 쓰기는 운영체제의 소켓 버퍼에 쌓이게 되는데 사용자가 몽고DB에서 실행되는 쓰기를 강제종료했을때 몽고DB는 버퍼에 있는 쓰기 작업을 실행할 수 있다.
+  - 클라이언트가 쓰기를 보내지 못하게 막더라도 버퍼에 들어간 쓰기는 이미 수신됐기 때문에 몽고DB에 의해 처리된다.
 - 확인 쓰기
-  - 이러한 유령 쓰기를 방지하는 가장 좋은 방법은 확인 쓰기를 하는 방버이다.
+  - 이러한 유령 쓰기를 방지하는 가장 좋은 방법은 확인 쓰기를 하는 방법이다.
   - 각각의 쓰기가 이전 쓰기가 데이터베이스 서버의 버퍼에 자리 잡을때까지가 아니라 완료될 때까지 기다리게한다.
+  - write concern 옵션에서 j를 true로 두면 디스크의 journal 까지 기록이 완료 된 후에 응답한다.
 
 
 
@@ -9394,3 +9409,4 @@ insert query update delete getmore command dirty used flushes vsize   res qrw ar
 
 
 
+# 
