@@ -106,9 +106,7 @@
   - 각각 컨테이너의 설정을 통합하기 때문에 설정의 일관성을 높일 수 있다.
   - 운영체제 커널 하나에 컨테이너가 여러 개 격리된 형태로 실행되기 때문에 자원을 효율적으로 관리할 수 있고 거치는 단계가 적어서 속도도 빠르다.
 
-
-
-![image-20230702111500478](./image-20230702111500478.png)
+![3-1](./images/kubernates-docker/3-1.png)
 
 > 가상화환경 vs 컨테이너 인프라 환경
 
@@ -170,7 +168,7 @@
 
 ### 쿠버네티스 구성하기
 
-- 사용자 설정이 가장 많은 kubeadm을 사용해서 쿠버네티스를 구성
+- 사용자 설정이 가장 많은 kubeadm와 vagrant(2장 참고)를 사용해서 쿠버네티스를 구성
 
 **Vagrantfile**
 
@@ -355,7 +353,7 @@ kubeadm join --token 123456.1234567890123456 \
 ```
 
 - 파일 설명
-  - 4~5 line: kubeadm을 통해 쿠버네티스 마스터 노드에 접속한다. 마스터 노드에서 생성한 토큰을 사용하고 간단한 구성을 위해 `discovery-token-unsafe-skip-ca-verification` 옵션을 으로 인증을 무시한다. 
+  - 4~5 line: kubeadm을 통해 쿠버네티스 마스터 노드에 접속한다. 마스터 노드에서 생성한 토큰을 사용하고 간단한 구성을 위해 `discovery-token-unsafe-skip-ca-verification` 옵션을 으로 인증을 무시한다. API 서버 주소(192.168.1.10:6443) 로 접속하도록 설정한다.
 
 
 
@@ -417,7 +415,7 @@ kube-system   kube-scheduler-m-k8s                      1/1     Running   1     
 
 **관리자나 개발자가 파드를 배포할 때**
 
-사진
+![3-2](./images/kubernates-docker/3-2.jpeg)
 
 
 
@@ -447,6 +445,7 @@ kube-system   kube-scheduler-m-k8s                      1/1     Running   1     
   - 파드의 구성 내용을 받아서 컨테이너 런타임으로 전달하고 파드 안의 컨테이너들이 정상적으로 작동하는지 모니터링한다.
 - 컨테이너 런타임(6)
   - 파드를 이루는 컨테이너의 실행을 담당
+  - 파드 안에서 다양한 종류의 컨테이너가 문제 없이 작동하게 만드는 표준 인터페이스
 - 파드(7)
   - 한 개 이상의 컨테이너로 단일 목적의 일을 하기 위해서 모인 단위
   - 파드는 **언제라도 죽을 수 있는 존재**
@@ -470,8 +469,8 @@ kube-system   kube-scheduler-m-k8s                      1/1     Running   1     
 
 **사용자가 배포된 파드에 접속할 때**
 
-- kube-proxy: 쿠버네티스 클러스터는 파드가 위치한 노드에 kube-proxy를 통해 파드가 통신할 수 있는 네트워크를 설정한다. 이때 실젱 통신은 br_netfliter와  iptables로 관리한다.
-- 파드: 이미 배포된 파드에 접속하고 필요한 내용을 전달받는다.
+- kube-proxy: 쿠버네티스 클러스터는 파드가 위치한 노드에 kube-proxy를 통해 파드가 통신할 수 있는 네트워크를 설정한다. 이때 실제 통신은 br_netfliter와  iptables로 관리한다.
+- 파드: 이미 배포된 파드에 접속하고 필요한 내용을 전달받는다. 사용자는 파드가 어떤 워커노드에 있는지 신경쓰지 않아도 된다.
 
 ### 파드의 생명주기로 쿠버네티스 구성요소 살펴보기
 
@@ -479,9 +478,9 @@ kube-system   kube-scheduler-m-k8s                      1/1     Running   1     
   - 쿠버네티스의 구성 요소마다 하는 일이 명확하게 구분돼 각자의 역할만 충실하게 수행하면 클러스터 시스템이 안정적으로 운영된다.
   - 어느 부분에서 문제가 발생했는지 디버깅하기 쉽다.
 
+![3-3](./images/kubernates-docker/3-3.jpeg)
 
 
-사진
 
 1. kubectl을 통해  API 서버에 파드 생성을 요청한다.
 2. API서버에 전달된 내용이 있으면 API 서버는 ectd에 전달된 내용을 모두 기록해 클러스터의 상태 값을 최신으로 유지한다.
@@ -493,7 +492,7 @@ kube-system   kube-scheduler-m-k8s                      1/1     Running   1     
 
 
 
-- 쿠버네티스는 선언적인 시스템 구조다 => 각 요소가 추구하는 상태를 선언하면 현재 상태와 맞는지 점검하고 그것에 맞추려고 노력하는 구조
+- **쿠버네티스는 선언적인 시스템 구조다** => 각 요소가 추구하는 상태를 선언하면 현재 상태와 맞는지 점검하고 그것에 맞추려고 노력하는 구조
   - 추구하는 상태를  API 서버에 선언하면 다른 요소들이 API 서버에 와서 현재 상태와 비교하고 그에 맞게 상태를 변경하려고 한다.
   - API의 상태를 저장하는 곳은? => etcd. API 서버와 etcd는 한몸처럼 움직이도록 설계됐다.
 
@@ -510,13 +509,15 @@ kube-system   kube-scheduler-m-k8s                      1/1     Running   1     
 - kubectl이 어디에 있더라도 API 서버의 접속 정보만 있다면 어느 곳에서든 쿠버네티스 클러스터에 명령을 내릴 수 있다.
 
 ```shell
+# w3-k8s 노드 접속
 vagrant ssh w3-k8s
 
 # 파드 정보 확인
+# kubectl이 쿠버네티스 클러스터 정보를 모르기때문에 파드 정보가 표시되지 않음
 [vagrant@w3-k8s ~]$ kubectl get pods
 The connection to the server localhost:8080 was refused - did you specify the right host or port?
 
-#scp로 쿠버네티스 클러스터 정보 copy
+# scp로 마스터노드의 쿠버네티스 클러스터 정보 copy
 [vagrant@w3-k8s ~]$ scp root@192.168.1.10:/etc/kubernetes/admin.conf .
 
 # 노드 정보 확인
@@ -534,32 +535,38 @@ w3-k8s   Ready    <none>   2d19h   v1.18.4
 - kubelet에 문제가 생기면 파드가 정상적으로 관리되지 않는다.
 
 ```shell
+# kubelet 기능 검증 예제
+
+# 파드 생성
 [vagrant@m-k8s 3.1.6]$ kubectl create -f ./nginx-pod.yaml
 pod/nginx-pod created
 
 # 파드 정보 확인
 [vagrant@m-k8s 3.1.6]$ kubectl get pods
 NAME        READY   STATUS              RESTARTS   AGE
-nginx-pod   0/1     ContainerCreating   0          8s
+nginx-pod   0/1     Running   0          8s
 
-# 파드의 더 다양한 정보 확인
+# -o wide 옵션으로 파드의 더 다양한 정보 확인
 [vagrant@m-k8s 3.1.6]$ kubectl get pods -o wide
 NAME        READY   STATUS              RESTARTS   AGE   IP       NODE     NOMINATED NODE   READINESS GATES
-nginx-pod   0/1     ContainerCreating   0          15s   <none>   w3-k8s   <none>           <none>
+nginx-pod   0/1     Running   0          15s   <none>   w3-k8s   <none>           <none>
 
-# 워커 노드에서 kubelet 종료하기
+# 워커 노드(w3-k8s)에서 kubelet 종료하기
 systemctl stop kubelet
 
-# 마스터노드에서 파드 삭제하기 but kubelet이 종료되었기 때문에 삭제되지 않는다.
+# 마스터노드에서 파드 삭제하기
+# kubelet이 종료되었기 때문에 삭제되지 않는다.
 [vagrant@m-k8s ~]$ kubectl delete pod nginx-pod
 pod "nginx-pod" deleted
 
+# 파드 정보 확인
+# 파드가 계속 Terminating 상태다.
 [vagrant@m-k8s ~]$ kubectl get pods
 NAME        READY   STATUS        RESTARTS   AGE
 nginx-pod   1/1     Terminating   0          2m32s
 
 
-# 워커 노드에서 kubelet 복구하기
+# 워커 노드(w3-k8s)에서 kubelet 복구하기
 systemctl start kubelet
 
 # 파드 정보 확인
@@ -573,14 +580,15 @@ No resources found in default namespace.
 **kube-proxy**
 
 - kube-proxy는 파드의 통신을 담당한다.
-- kube-proxy에 문제가 생기면?
 
 ```shell
+# kube-proxy 기능 검증 예제
+
 # 파드 배포
 [vagrant@m-k8s 3.1.6]$ kubectl create -f ./nginx-pod.yaml
 pod/nginx-pod created
 
-# 파드 상태 확인
+# 파드의 노드 확인
 [vagrant@m-k8s 3.1.6]$ kubectl get pods -o wide
 NAME        READY   STATUS    RESTARTS   AGE   IP               NODE     NOMINATED NODE   READINESS GATES
 nginx-pod   1/1     Running   0          30m   172.16.103.129   w2-k8s   <none>           <none>
@@ -611,15 +619,21 @@ Commercial support is available at
 </body>
 </html>
 
-# br_netfilter 모듈 제거 후 network 재시작
+# 워커노드(w2-k8s)에서 br_netfilter 모듈 제거 후 network 재시작
 [vagrant@w2-k8s ~]$ sudo modprobe -r br_netfilter
 [vagrant@w2-k8s ~]$ systemctl restart network
 
-# nginx 페이지 확인 but kube-proxy가 이용하는 br_netfilter에 문제가 있어서 파드의 nginx 웹서버와 통신이 이루어지지 않는 상태
+# nginx 페이지 확인 => 실패
 [vagrant@m-k8s ~]$ curl --connect-timeout 5 172.16.103.129
 curl: (28) Connection timed out after 5001 milliseconds
 
-# br_netfilter 재실행 후 reboot
+# 파드 상태 확인
+# 파드 상태가 Running이고 ip도 변경이 없지만 br_netfilter에 문제가 있어서 파드의 nginx 웹서버와 통신이 이루어지지 않는 상태
+[vagrant@m-k8s ~]$ kubectl get pods -o wide
+NAME        READY   STATUS    RESTARTS   AGE   IP               NODE     NOMINATED NODE   READINESS GATES
+nginx-pod   1/1     Running   1          35m   172.16.103.129   w2-k8s   <none>           <none>
+
+# 워커노드(w2-k8s)에서 br_netfilter 재실행 후 reboot
 [vagrant@w2-k8s ~]$ sudo modprobe br_netfilter
 [vagrant@w2-k8s ~]$ reboot
 
@@ -669,7 +683,7 @@ Commercial support is available at
 - kubectl run 명령을 실행하면 쉽게 파드를 생성할 수 있다.
 
 ```shell
-# 파드 생성
+# run 명령어로 파드 생성
 [vagrant@m-k8s 3.1.6]$ kubectl run nginx-pod --image=nginx
 pod/nginx-pod created
 
@@ -683,18 +697,18 @@ nginx-pod   1/1     Running   0
 Error: unknown flag: --image
 See 'kubectl create --help' for usage.
 
-# deployment로 생성 가능
+# create deployment로 생성 가능
 [vagrant@m-k8s 3.1.6]$ kubectl get pods
 NAME                       READY   STATUS              RESTARTS   AGE
 dpy-nginx-c8d778df-pvrpz   0/1     ContainerCreating   0          3s
 nginx-pod                  1/1     Running             0          11h
 ```
 
-- run vs create
+- run vs create deployment
   - run => 단일 파드 1개만 생성되고 관리된다.
   - create deployment => deployment라는 관리 그룹 내에서 파드가 생성된다.
 
-![image-20230705210531326](./image-20230705210531326.png)
+![3-4](./images/kubernates-docker/3-4.png)
 
 
 
@@ -728,7 +742,15 @@ nginx-pod                  1/1     Running             0          11h
   - 레플리카셋 오브젝트(구 레플리케이션 컨트롤러)를 합쳐 놓은 형태
 - 이때 API서버와 컨트롤러 매니저는 단순히 파드가 생성되는 것을 감시하는 것이 아니라 디플로이먼트처럼 레플리카셋을 포함하는 오브젝트의 생성을 감시한다. 
 
-사진
+![3-5](./images/kubernates-docker/3-5.jpeg)
+
+
+
+![3-6](./images/kubernates-docker/3-6.jpeg)
+
+
+
+
 
 ```shell
 # 디플로이먼트 생성
@@ -762,7 +784,9 @@ nginx-pod                  1/1     Running   0          11h
 
 
 
-그림
+![3-7](./images/kubernates-docker/3-7.jpeg)
+
+
 
 
 
@@ -773,7 +797,8 @@ NAME                       READY   STATUS    RESTARTS   AGE
 dpy-nginx-c8d778df-pvrpz   1/1     Running   0          52m
 nginx-pod                  1/1     Running   0          12h
 
-# 파드 개수 늘리기 but nginx-pod는 단일 파드라 replicas 적용에 실패한다
+# 파드 개수 늘리기
+# nginx-pod는 단일 파드라 replicas 적용에 실패한다
 [vagrant@m-k8s 3.1.6]$ kubectl scale pod nginx-pod --replicas=3
 Error from server (NotFound): the server could not find the requested resource
 
@@ -790,8 +815,6 @@ dpy-nginx-c8d778df-xmqhz   1/1     Running   0          20s   172.16.221.130   w
 nginx-pod                  1/1     Running   0          12h   172.16.103.131   w2-k8s   <none>           <none>
 
 ```
-
-
 
 ### 스펙을 지정해 오브젝트 생성하기
 
@@ -847,7 +870,7 @@ spec:
 
 
 
-사진
+![3-8](./images/kubernates-docker/3-8.jpeg)
 
 
 
@@ -856,7 +879,7 @@ spec:
 [vagrant@m-k8s 3.2.4]$ kubectl create -f ./echo-hname.yaml 
 deployment.apps/echo-hname created
 
-# 파드 상태 확인
+# 파드 개수가 3개인지 확인
 [vagrant@m-k8s 3.2.4]$ kubectl get pods
 NAME                        READY   STATUS    RESTARTS   AGE
 echo-hname-7894b67f-56rv2   1/1     Running   0          32s
@@ -868,6 +891,9 @@ nginx-pod                   1/1     Running   0          12h
 sed -i 's/replicas: 3/replicas: 6/' ./echo-hname.yaml
 
 # 변경사항 적용하기
+[vagrant@m-k8s 3.2.4]$ kubectl apply -f ./echo-hname.yaml
+
+# 파드 개수가 6개로 변경되었는지 확인하기
 [vagrant@m-k8s 3.2.4]$ kubectl get pods
 NAME                        READY   STATUS    RESTARTS   AGE
 echo-hname-7894b67f-2xx4d   1/1     Running   0          6s
@@ -877,6 +903,7 @@ echo-hname-7894b67f-fsrzl   1/1     Running   0          118s
 echo-hname-7894b67f-sjvbw   1/1     Running   0          6s
 echo-hname-7894b67f-xsh6k   1/1     Running   0          6s
 nginx-pod                   1/1     Running   0          12h
+
 ```
 
 
@@ -974,7 +1001,7 @@ echo-hname-7894b67f-xsh6k   1/1     Running   0          13m
 - 왜 삭제해도 파드수를 유지할까? => 이유는 echo-hname이 디플로이먼트에 속한 파드이기 때문
 - replicas는 파드를 선언한 수대로 유지하도록 파드의 수를 항상 확인하고 부족하면 새로운 파드를 만들어낸다.
 
-사진
+![3-9](./images/kubernates-docker/3-9.jpeg)
 
 - 디플로이먼트에 속한 파드를 삭제하고싶다면? => 상위 디플로이먼트를 삭제해야 파드가 삭제된다.
 
