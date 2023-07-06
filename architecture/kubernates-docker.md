@@ -359,23 +359,44 @@ kubeadm join --token 123456.1234567890123456 \
 
 
 
-```
+```shell
 # vagrant 로 쿠버네티스 클러스터 자동 구성하기
 vagrant up
 
 vagrant ssh m-k8s
 
 # 노드 확인하기
-kubectl get nodes
+[vagrant@m-k8s ~]$ kubectl get nodes
+NAME     STATUS   ROLES    AGE     VERSION
+m-k8s    Ready    master   2d19h   v1.18.4
+w1-k8s   Ready    <none>   2d19h   v1.18.4
+w2-k8s   Ready    <none>   2d19h   v1.18.4
+w3-k8s   Ready    <none>   2d19h   v1.18.4
 ```
 
 
 
 ### 파드 배포를 중심으로 쿠버네티스 구성 요소 살펴보기
 
-```
+```shell
 # 모든 네임스페이스에서 파드를 수집해서 보여준다.
-kubectl get pods --all-namespaces
+[vagrant@m-k8s ~]$ kubectl get pods --all-namespaces
+NAMESPACE     NAME                                      READY   STATUS    RESTARTS   AGE
+kube-system   calico-kube-controllers-99c9b6f64-xxznc   1/1     Running   0          2d19h
+kube-system   calico-node-27787                         1/1     Running   0          2d19h
+kube-system   calico-node-5n94z                         1/1     Running   0          2d19h
+kube-system   calico-node-d2g5w                         1/1     Running   0          2d19h
+kube-system   calico-node-r97td                         1/1     Running   0          2d19h
+kube-system   coredns-66bff467f8-gdz49                  1/1     Running   0          2d19h
+kube-system   coredns-66bff467f8-lrssr                  1/1     Running   0          2d19h
+kube-system   etcd-m-k8s                                1/1     Running   0          2d19h
+kube-system   kube-apiserver-m-k8s                      1/1     Running   0          2d19h
+kube-system   kube-controller-manager-m-k8s             1/1     Running   0          2d19h
+kube-system   kube-proxy-7sh65                          1/1     Running   0          2d19h
+kube-system   kube-proxy-m6hxr                          1/1     Running   0          2d19h
+kube-system   kube-proxy-qx5tw                          1/1     Running   0          2d19h
+kube-system   kube-proxy-w25z6                          1/1     Running   0          2d19h
+kube-system   kube-scheduler-m-k8s                      1/1     Running   1          2d19h
 ```
 
 
@@ -384,11 +405,13 @@ kubectl get pods --all-namespaces
 >
 > - 쿠버네티스의 구성 요소는 동시에 여러 개가 존재하는 경우 중복된 이름을 피하려고 뒤에 해시코드가 삽입된다.
 >
+> ```shell
+> [vagrant@m-k8s ~]$ kubectl get pods --all-namespaces | grep kube-proxy
+> kube-system   kube-proxy-7sh65                          1/1     Running   0          2d19h
+> kube-system   kube-proxy-m6hxr                          1/1     Running   0          2d19h
+> kube-system   kube-proxy-qx5tw                          1/1     Running   0          2d19h
+> kube-system   kube-proxy-w25z6                          1/1     Running   0          2d19h
 > ```
-> kubectl get pods --all-namespaces | grep kube-proxy
-> ```
->
-> 
 
 
 
@@ -486,17 +509,23 @@ kubectl get pods --all-namespaces
 
 - kubectl이 어디에 있더라도 API 서버의 접속 정보만 있다면 어느 곳에서든 쿠버네티스 클러스터에 명령을 내릴 수 있다.
 
-```
+```shell
 vagrant ssh w3-k8s
 
 # 파드 정보 확인
-kubectl get pods
+[vagrant@w3-k8s ~]$ kubectl get pods
+The connection to the server localhost:8080 was refused - did you specify the right host or port?
 
 #scp로 쿠버네티스 클러스터 정보 copy
-scp root@192.168.1.10:/etc/kubernetes/admin.conf .
+[vagrant@w3-k8s ~]$ scp root@192.168.1.10:/etc/kubernetes/admin.conf .
 
 # 노드 정보 확인
-kubectl get nodes --kubeconfig admin.conf
+[vagrant@w3-k8s ~]$ kubectl get nodes --kubeconfig admin.conf
+NAME     STATUS   ROLES    AGE     VERSION
+m-k8s    Ready    master   2d19h   v1.18.4
+w1-k8s   Ready    <none>   2d19h   v1.18.4
+w2-k8s   Ready    <none>   2d19h   v1.18.4
+w3-k8s   Ready    <none>   2d19h   v1.18.4
 ```
 
 **kubelet**
@@ -504,26 +533,38 @@ kubectl get nodes --kubeconfig admin.conf
 - kubelet은 쿠버네티스에서 파드의 생성과 상태 관리 및 복구 등을 담당하는 매우 중요한 구성 요소다.
 - kubelet에 문제가 생기면 파드가 정상적으로 관리되지 않는다.
 
-```
-kubectl create -f ./nginx-pod.yaml
+```shell
+[vagrant@m-k8s 3.1.6]$ kubectl create -f ./nginx-pod.yaml
+pod/nginx-pod created
 
 # 파드 정보 확인
-kubectl get pods
+[vagrant@m-k8s 3.1.6]$ kubectl get pods
+NAME        READY   STATUS              RESTARTS   AGE
+nginx-pod   0/1     ContainerCreating   0          8s
 
 # 파드의 더 다양한 정보 확인
-kubectl get pods -o wide
+[vagrant@m-k8s 3.1.6]$ kubectl get pods -o wide
+NAME        READY   STATUS              RESTARTS   AGE   IP       NODE     NOMINATED NODE   READINESS GATES
+nginx-pod   0/1     ContainerCreating   0          15s   <none>   w3-k8s   <none>           <none>
 
 # 워커 노드에서 kubelet 종료하기
 systemctl stop kubelet
 
 # 마스터노드에서 파드 삭제하기 but kubelet이 종료되었기 때문에 삭제되지 않는다.
-kubectl delete pod nginx-pod
+[vagrant@m-k8s ~]$ kubectl delete pod nginx-pod
+pod "nginx-pod" deleted
+
+[vagrant@m-k8s ~]$ kubectl get pods
+NAME        READY   STATUS        RESTARTS   AGE
+nginx-pod   1/1     Terminating   0          2m32s
+
 
 # 워커 노드에서 kubelet 복구하기
 systemctl start kubelet
 
 # 파드 정보 확인
-kubectl get pods
+[vagrant@m-k8s ~]$ kubectl get pods
+No resources found in default namespace.
 
 ```
 
@@ -532,6 +573,90 @@ kubectl get pods
 **kube-proxy**
 
 - kube-proxy는 파드의 통신을 담당한다.
+- kube-proxy에 문제가 생기면?
+
+```shell
+# 파드 배포
+[vagrant@m-k8s 3.1.6]$ kubectl create -f ./nginx-pod.yaml
+pod/nginx-pod created
+
+# 파드 상태 확인
+[vagrant@m-k8s 3.1.6]$ kubectl get pods -o wide
+NAME        READY   STATUS    RESTARTS   AGE   IP               NODE     NOMINATED NODE   READINESS GATES
+nginx-pod   1/1     Running   0          30m   172.16.103.129   w2-k8s   <none>           <none>
+
+# nginx 페이지 확인
+[vagrant@m-k8s 3.1.6]$ curl 172.16.103.129
+<!DOCTYPE html>
+<html>
+<head>
+<title>Welcome to nginx!</title>
+<style>
+html { color-scheme: light dark; }
+body { width: 35em; margin: 0 auto;
+font-family: Tahoma, Verdana, Arial, sans-serif; }
+</style>
+</head>
+<body>
+<h1>Welcome to nginx!</h1>
+<p>If you see this page, the nginx web server is successfully installed and
+working. Further configuration is required.</p>
+
+<p>For online documentation and support please refer to
+<a href="http://nginx.org/">nginx.org</a>.<br/>
+Commercial support is available at
+<a href="http://nginx.com/">nginx.com</a>.</p>
+
+<p><em>Thank you for using nginx.</em></p>
+</body>
+</html>
+
+# br_netfilter 모듈 제거 후 network 재시작
+[vagrant@w2-k8s ~]$ sudo modprobe -r br_netfilter
+[vagrant@w2-k8s ~]$ systemctl restart network
+
+# nginx 페이지 확인 but kube-proxy가 이용하는 br_netfilter에 문제가 있어서 파드의 nginx 웹서버와 통신이 이루어지지 않는 상태
+[vagrant@m-k8s ~]$ curl --connect-timeout 5 172.16.103.129
+curl: (28) Connection timed out after 5001 milliseconds
+
+# br_netfilter 재실행 후 reboot
+[vagrant@w2-k8s ~]$ sudo modprobe br_netfilter
+[vagrant@w2-k8s ~]$ reboot
+
+# 파드 상태 확인
+[vagrant@m-k8s ~]$ kubectl get pods -o wide
+NAME        READY   STATUS    RESTARTS   AGE   IP               NODE     NOMINATED NODE   READINESS GATES
+nginx-pod   1/1     Running   1          36m   172.16.103.130   w2-k8s   <none>           <none>
+
+# nginx 페이지 확인
+[vagrant@m-k8s ~]$ curl 172.16.103.130
+<!DOCTYPE html>
+<html>
+<head>
+<title>Welcome to nginx!</title>
+<style>
+html { color-scheme: light dark; }
+body { width: 35em; margin: 0 auto;
+font-family: Tahoma, Verdana, Arial, sans-serif; }
+</style>
+</head>
+<body>
+<h1>Welcome to nginx!</h1>
+<p>If you see this page, the nginx web server is successfully installed and
+working. Further configuration is required.</p>
+
+<p>For online documentation and support please refer to
+<a href="http://nginx.org/">nginx.org</a>.<br/>
+Commercial support is available at
+<a href="http://nginx.com/">nginx.com</a>.</p>
+
+<p><em>Thank you for using nginx.</em></p>
+</body>
+</html>
+
+
+
+```
 
 
 
@@ -541,7 +666,37 @@ kubectl get pods
 
 ### 파드를 생성하는 방법
 
-- 
+- kubectl run 명령을 실행하면 쉽게 파드를 생성할 수 있다.
+
+```shell
+# 파드 생성
+[vagrant@m-k8s 3.1.6]$ kubectl run nginx-pod --image=nginx
+pod/nginx-pod created
+
+# 파드 상태 확인
+[vagrant@m-k8s 3.1.6]$ kubectl get pod
+NAME        READY   STATUS    RESTARTS   AGE
+nginx-pod   1/1     Running   0   
+
+# create로 파드 생성은 불가능하다
+[vagrant@m-k8s 3.1.6]$ kubectl create nginx --image=nginx
+Error: unknown flag: --image
+See 'kubectl create --help' for usage.
+
+# deployment로 생성 가능
+[vagrant@m-k8s 3.1.6]$ kubectl get pods
+NAME                       READY   STATUS              RESTARTS   AGE
+dpy-nginx-c8d778df-pvrpz   0/1     ContainerCreating   0          3s
+nginx-pod                  1/1     Running             0          11h
+```
+
+- run vs create
+  - run => 단일 파드 1개만 생성되고 관리된다.
+  - create deployment => deployment라는 관리 그룹 내에서 파드가 생성된다.
+
+![image-20230705210531326](./image-20230705210531326.png)
+
+
 
 ### 오브젝트란
 
@@ -556,7 +711,8 @@ kubectl get pods
   - 특별히 지정하지 않으면  default
   - 쿠버네티스 시스템에서 사용하는 kube-system 등등 이 있다.
 - 볼륨
-  - 파드가 생성될 때 파드에서 사용할 수 있는 디렉터리를 제공
+  - 파드가 생성될 때 파드에서 사용할 수 있는 디렉터리를 제공 => 영속적이지 않음
+  - 파드가 사라지더라도 저장과 보존이 가능한 디렉터리를 볼륨 오브젝트로 생성하고 사용할 수 있다.
 - 서비스
   - 쿠버네티스 외부에서 쿠버네티스 내부로 접속할 때 논리적으로 연결해주는 서비스
   - 파드는 **언제라도 죽을 수 있는 존재**라서 접속 정보가 고정일 수 없다. 따라서 서비스를 통해 내/외부로 연결된다.
@@ -569,25 +725,35 @@ kubectl get pods
 - 기본 오브젝트 외에도 디플로이먼트, 데몬셋, 컨피그맵, 레플리카셋, PV, PVC, 스테이트풀셋 이 있다.
 - 디플로이먼트
   - 쿠버네티스에서 가장 많이 쓰이는 오브젝트
-  - 레플리카셋 오브젝트를 합쳐 놓은 형태
-
-
-
-사진
+  - 레플리카셋 오브젝트(구 레플리케이션 컨트롤러)를 합쳐 놓은 형태
+- 이때 API서버와 컨트롤러 매니저는 단순히 파드가 생성되는 것을 감시하는 것이 아니라 디플로이먼트처럼 레플리카셋을 포함하는 오브젝트의 생성을 감시한다. 
 
 사진
 
+```shell
+# 디플로이먼트 생성
+[vagrant@m-k8s 3.1.6]$ kubectl create deployment dpy-hname --image=sysnet4admin/echo-hname
+deployment.apps/dpy-hname created
+
+# 파드 상태 확인
+[vagrant@m-k8s 3.1.6]$ kubectl get pods
+NAME                        READY   STATUS              RESTARTS   AGE
+dpy-hname-59778b9bb-nmvwg   0/1     ContainerCreating   0          4s
+dpy-nginx-c8d778df-pvrpz    1/1     Running             0          13m
+nginx-pod                   1/1     Running             0          11h
+
+# 디플로이먼트 삭제
+[vagrant@m-k8s 3.1.6]$ kubectl delete deployment dpy-hname
+deployment.apps "dpy-hname" deleted
+
+# 파드 상태 확인
+[vagrant@m-k8s 3.1.6]$ kubectl get pods
+NAME                       READY   STATUS    RESTARTS   AGE
+dpy-nginx-c8d778df-pvrpz   1/1     Running   0          13m
+nginx-pod                  1/1     Running   0          11h
 ```
-kubectl create deployment dpy-hname --image=sysnet4admin/echo-hname
 
-kubectl get pods
-
-kubectl delete deployment dpy-hname
-
-kubectl get pods
-```
-
-
+- 왜 디플로이먼트가 필요할까? => 레플리카셋을 사용하기 위해
 
 ### 레플리카셋으로 파드 수 관리하기
 
@@ -600,17 +766,28 @@ kubectl get pods
 
 
 
-```
-kubectl get pods
+```shell
+# 파드 상태 확인
+[vagrant@m-k8s 3.1.6]$ kubectl get pods
+NAME                       READY   STATUS    RESTARTS   AGE
+dpy-nginx-c8d778df-pvrpz   1/1     Running   0          52m
+nginx-pod                  1/1     Running   0          12h
 
-kubectl scale pod nginx-pod --replicas=3
+# 파드 개수 늘리기 but nginx-pod는 단일 파드라 replicas 적용에 실패한다
+[vagrant@m-k8s 3.1.6]$ kubectl scale pod nginx-pod --replicas=3
+Error from server (NotFound): the server could not find the requested resource
 
-kubectl scale deployment dpy-ngginx --replicas=3
+# 파드 개수 늘리기
+[vagrant@m-k8s 3.1.6]$ kubectl scale deployment dpy-nginx --replicas=3
+deployment.apps/dpy-nginx scaled
 
-kubectl get pods
-
-kubectl get pods -o wide
-
+# 파드 상태 확인
+[vagrant@m-k8s 3.1.6]$ kubectl get pods -o wide
+NAME                       READY   STATUS    RESTARTS   AGE   IP               NODE     NOMINATED NODE   READINESS GATES
+dpy-nginx-c8d778df-l65qp   1/1     Running   0          20s   172.16.103.132   w2-k8s   <none>           <none>
+dpy-nginx-c8d778df-pvrpz   1/1     Running   0          53m   172.16.132.2     w3-k8s   <none>           <none>
+dpy-nginx-c8d778df-xmqhz   1/1     Running   0          20s   172.16.221.130   w1-k8s   <none>           <none>
+nginx-pod                  1/1     Running   0          12h   172.16.103.131   w2-k8s   <none>           <none>
 
 ```
 
@@ -650,8 +827,20 @@ spec:
 
 > 사용 가능한 api version 확인하기
 >
-> ```
-> kubectl api-versions
+> ```shell
+> [vagrant@m-k8s 3.1.6]$ kubectl api-versions
+> admissionregistration.k8s.io/v1
+> admissionregistration.k8s.io/v1beta1
+> apiextensions.k8s.io/v1
+> apiextensions.k8s.io/v1beta1
+> apiregistration.k8s.io/v1
+> apiregistration.k8s.io/v1beta1
+> apps/v1
+> authentication.k8s.io/v1
+> authentication.k8s.io/v1beta1
+> authorization.k8s.io/v1
+> 
+> ... 생략
 > ```
 >
 > 
@@ -662,15 +851,32 @@ spec:
 
 
 
-```
-kubectl create -f ./echo-hname.yaml
+```shell
+# 디플로이먼트 생성
+[vagrant@m-k8s 3.2.4]$ kubectl create -f ./echo-hname.yaml 
+deployment.apps/echo-hname created
 
-kubectl get pods
+# 파드 상태 확인
+[vagrant@m-k8s 3.2.4]$ kubectl get pods
+NAME                        READY   STATUS    RESTARTS   AGE
+echo-hname-7894b67f-56rv2   1/1     Running   0          32s
+echo-hname-7894b67f-8wxjp   1/1     Running   0          32s
+echo-hname-7894b67f-fsrzl   1/1     Running   0          32s
+nginx-pod                   1/1     Running   0          12h
 
 # 파드를 3개에서 6개로 늘리기
-sed -i 's/replicas: 3/replicas: 6' ./echo-hname.yaml
+sed -i 's/replicas: 3/replicas: 6/' ./echo-hname.yaml
 
-kubectl apply -f ./echo-hname.yaml
+# 변경사항 적용하기
+[vagrant@m-k8s 3.2.4]$ kubectl get pods
+NAME                        READY   STATUS    RESTARTS   AGE
+echo-hname-7894b67f-2xx4d   1/1     Running   0          6s
+echo-hname-7894b67f-56rv2   1/1     Running   0          118s
+echo-hname-7894b67f-8wxjp   1/1     Running   0          118s
+echo-hname-7894b67f-fsrzl   1/1     Running   0          118s
+echo-hname-7894b67f-sjvbw   1/1     Running   0          6s
+echo-hname-7894b67f-xsh6k   1/1     Running   0          6s
+nginx-pod                   1/1     Running   0          12h
 ```
 
 
@@ -699,33 +905,39 @@ kubectl apply -f ./echo-hname.yaml
 
 - 쿠버네티스는 거의 모든 부분이 자동 복구되도록 설계 됐다.
 - 파드의 자동 복구 기술 => **셀프 힐링**
-  - 제대로 작동하지 않는 컨테이너를 다시 시작하거나 교체해 파드가 정상적으로 작동하게 한다.
+- 셀프힐링이란? => 제대로 작동하지 않는 컨테이너를 다시 시작하거나 교체해 파드가 정상적으로 작동하게 한다.
 
-```
+```shell
 # 파드 ip 확인
-kubectl get pods -o wide
+[vagrant@m-k8s 3.2.4]$ kubectl get pods -o wide
+NAME                        READY   STATUS    RESTARTS   AGE     IP               NODE     NOMINATED NODE   READINESS GATES
+echo-hname-7894b67f-2xx4d   1/1     Running   0          90s     172.16.132.4     w3-k8s   <none>           <none>
+echo-hname-7894b67f-56rv2   1/1     Running   0          3m22s   172.16.132.3     w3-k8s   <none>           <none>
+echo-hname-7894b67f-8wxjp   1/1     Running   0          3m22s   172.16.221.131   w1-k8s   <none>           <none>
+echo-hname-7894b67f-fsrzl   1/1     Running   0          3m22s   172.16.103.133   w2-k8s   <none>           <none>
+echo-hname-7894b67f-sjvbw   1/1     Running   0          90s     172.16.221.132   w1-k8s   <none>           <none>
+echo-hname-7894b67f-xsh6k   1/1     Running   0          90s     172.16.103.134   w2-k8s   <none>           <none>
+nginx-pod                   1/1     Running   0          12h     172.16.103.131   w2-k8s   <none>           <none>
 
 # 파드 셸에 접속
-kubectl exec -it nginx-pid -- /bin/bash
+kubectl exec -it nginx-pod -- /bin/bash
 
 # nignx pid 확인
-cat /run/nginx.pid
+root@nginx-pod:/# cat /run/nginx.pid
+1
 
 # 프로세스 생성 시간 확인
-ls -I /run/nginx.pid
-
-# nginx의 상태 확인하기
-i=1; while true; do sleep 1; echo $((i++)) `curl --silent 172.16.103.132 | grep title`; done
+root@nginx-pod:/# ls -l /run/nginx.pid 
+-rw-r--r--. 1 root root 2 Jul  5 00:25 /run/nginx.pid
 
 # nginx 죽이기
-kill 1
+root@nginx-pod:/# kill 1
 
 # 프로세스 생성 시간 확인
-ls -I /run/nginx.pid
+root@nginx-pod:/# ls -l /run/nginx.pid 
+-rw-r--r--. 1 root root 2 Jul  5 13:08 /run/nginx.pid
 
 ```
-
-
 
 
 
@@ -733,14 +945,30 @@ ls -I /run/nginx.pid
 
 - 쿠버네티스는 파드 자체에 문제가 발생하면 파드를 자동 복구해서 파드가 항상 동작하도록 보장하는 기능이 있다
 
+```shell
+# 파드 상태 확인
+[vagrant@m-k8s 3.2.4]$ kubectl get pods
+NAME                        READY   STATUS    RESTARTS   AGE
+echo-hname-7894b67f-2xx4d   1/1     Running   0          12m
+echo-hname-7894b67f-56rv2   1/1     Running   0          13m
+echo-hname-7894b67f-8wxjp   1/1     Running   0          13m
+echo-hname-7894b67f-fsrzl   1/1     Running   0          13m
+echo-hname-7894b67f-sjvbw   1/1     Running   0          12m
+echo-hname-7894b67f-xsh6k   1/1     Running   0          12m
 
+# echo-hname-7894b67f-2xx4d 파드 삭제하기
+[vagrant@m-k8s 3.2.4]$ kubectl delete pods echo-hname-7894b67f-2xx4d
+pod "echo-hname-7894b67f-2xx4d" deleted
 
-```
-kubectl get pods
-
-kubectl delete pods ...
-
-kubectl get pods
+# 파드 상태 확인
+[vagrant@m-k8s 3.2.4]$ kubectl get pods
+NAME                        READY   STATUS    RESTARTS   AGE
+echo-hname-7894b67f-56rv2   1/1     Running   0          14m
+echo-hname-7894b67f-8wxjp   1/1     Running   0          14m
+echo-hname-7894b67f-fsrzl   1/1     Running   0          14m
+echo-hname-7894b67f-sjvbw   1/1     Running   0          13m
+echo-hname-7894b67f-sq79n   1/1     Running   0          36s
+echo-hname-7894b67f-xsh6k   1/1     Running   0          13m
 ```
 
 - 왜 삭제해도 파드수를 유지할까? => 이유는 echo-hname이 디플로이먼트에 속한 파드이기 때문
@@ -750,10 +978,12 @@ kubectl get pods
 
 - 디플로이먼트에 속한 파드를 삭제하고싶다면? => 상위 디플로이먼트를 삭제해야 파드가 삭제된다.
 
-```
-kubectl delete deployment echo-hname
+```shell
+[vagrant@m-k8s 3.2.4]$ kubectl delete deployment echo-hname
+deployment.apps "echo-hname" deleted
 
-kubectl get pods
+[vagrant@m-k8s 3.2.4]$ kubectl get pods
+No resources found in default namespace.
 ```
 
 
@@ -765,35 +995,97 @@ kubectl get pods
 - 노드란? => 쿠버네티스 스케줄러에서 파드를 할당받고 처리하는 역할을 한다.
 - 쿠버네티스는 모든 노드에 균등하게 파드를 할당하려고하는데 만약 특정 노드에 문제가 생겼거나 생길 것 같다면? => **cordon** 기능을 사용한다.
 
-```
-kubectl apply -f ./echo-hname.yaml
+```shell
+# 디플로이먼트 적용하기
+[vagrant@m-k8s 3.2.8]$ kubectl apply -f ./echo-hname.yaml
+deployment.apps/echo-hname created
 
-kubectl scale deployment echo-hname --replicas=9
+# 파드를 9개로 늘리기
+[vagrant@m-k8s 3.2.8]$ kubectl scale deployment echo-hname --replicas=9
+deployment.apps/echo-hname scaled
 
 # 노드 및 기타정보 확인하기
-kubectl get pods \
--o=custom-columns=NAME: .metadata.name,IP:.status.podIP,STATUS:.status.phase,NODE:.spec.nodeName
+[vagrant@m-k8s 3.2.8]$ kubectl get pods \
+> -o=custom-columns=NAME:.metadata.name,IP:.status.podIP,STATUS:.status.phase,NODE:.spec.nodeName
+NAME                        IP               STATUS    NODE
+echo-hname-7894b67f-2wvpj   172.16.103.137   Running   w2-k8s
+echo-hname-7894b67f-4b6ks   172.16.132.7     Running   w3-k8s
+echo-hname-7894b67f-8xs6q   172.16.221.135   Running   w1-k8s
+echo-hname-7894b67f-fs772   172.16.221.134   Running   w1-k8s
+echo-hname-7894b67f-kgp6w   172.16.132.6     Running   w3-k8s
+echo-hname-7894b67f-mgfp9   172.16.221.133   Running   w1-k8s
+echo-hname-7894b67f-pbtmk   172.16.103.136   Running   w2-k8s
+echo-hname-7894b67f-qfvvl   172.16.103.135   Running   w2-k8s
+echo-hname-7894b67f-x4cs2   172.16.132.8     Running   w3-k8s
 
-kubectl scale deployment echo-hname --replicas=3
+# 파드를 3개로 줄이기
+[vagrant@m-k8s 3.2.8]$ kubectl scale deployment echo-hname --replicas=3
+deployment.apps/echo-hname scaled
 
-kubectl get pods \
--o=custom-columns=NAME: .metadata.name,IP:.status.podIP,STATUS:.status.phase,NODE:.spec.nodeName
+# 파드가 각 노드에 각 1개씩 잘 있는지 확인
+[vagrant@m-k8s 3.2.8]$ kubectl get pods \
+> -o=custom-columns=NAME:.metadata.name,IP:.status.podIP,STATUS:.status.phase,NODE:.spec.nodeName
+NAME                        IP               STATUS    NODE
+echo-hname-7894b67f-kgp6w   172.16.132.6     Running   w3-k8s
+echo-hname-7894b67f-mgfp9   172.16.221.133   Running   w1-k8s
+echo-hname-7894b67f-qfvvl   172.16.103.135   Running   w2-k8s
 
-kubectl cordon w3-k8s
+# w3-k8s 노드에 cordon 적용
+[vagrant@m-k8s 3.2.8]$ kubectl cordon w3-k8s
+node/w3-k8s cordoned
 
-kubectl get nodes
+# 노드 상태 확인
+[vagrant@m-k8s 3.2.8]$ kubectl get nodes
+NAME     STATUS                     ROLES    AGE     VERSION
+m-k8s    Ready                      master   3d20h   v1.18.4
+w1-k8s   Ready                      <none>   3d20h   v1.18.4
+w2-k8s   Ready                      <none>   3d19h   v1.18.4
+w3-k8s   Ready,SchedulingDisabled   <none>   3d19h   v1.18.4
 
-kubectl scale deployment echo-hname --replicas=9
+# 다시 파드를 9개로 늘리기
+[vagrant@m-k8s 3.2.8]$ kubectl scale deployment echo-hname --replicas=9
+deployment.apps/echo-hname scaled
 
-kubectl get pods \
--o=custom-columns=NAME: .metadata.name,IP:.status.podIP,STATUS:.status.phase,NODE:.spec.nodeName
+# 파드 상태 확인
+[vagrant@m-k8s 3.2.8]$ kubectl get pods \
+> -o=custom-columns=NAME:.metadata.name,IP:.status.podIP,STATUS:.status.phase,NODE:.spec.nodeName
+NAME                        IP               STATUS    NODE
+echo-hname-7894b67f-47hsc   <none>           Pending   w1-k8s
+echo-hname-7894b67f-7t49k   <none>           Pending   w1-k8s
+echo-hname-7894b67f-7t7mv   <none>           Pending   w2-k8s
+echo-hname-7894b67f-kgp6w   172.16.132.6     Running   w3-k8s
+echo-hname-7894b67f-kthpm   <none>           Pending   w2-k8s
+echo-hname-7894b67f-kzf7n   <none>           Pending   w1-k8s
+echo-hname-7894b67f-mgfp9   172.16.221.133   Running   w1-k8s
+echo-hname-7894b67f-qfvvl   172.16.103.135   Running   w2-k8s
+echo-hname-7894b67f-wwm9t   <none>           Pending   w2-k8s
 
-kubectl uncordon w3-k8s
+# w3-k8s에 uncordon 적용
+[vagrant@m-k8s 3.2.8]$ kubectl uncordon w3-k8s
+node/w3-k8s uncordoned
+[vagrant@m-k8s 3.2.8]$ kubectl get nodes
+NAME     STATUS   ROLES    AGE     VERSION
+m-k8s    Ready    master   3d20h   v1.18.4
+w1-k8s   Ready    <none>   3d20h   v1.18.4
+w2-k8s   Ready    <none>   3d20h   v1.18.4
+w3-k8s   Ready    <none>   3d19h   v1.18.4
 
-kubectl get nodes
+# 파드 상태 확인
+[vagrant@m-k8s 3.2.8]$ kubectl get pods \
+> -o=custom-columns=NAME:.metadata.name,IP:.status.podIP,STATUS:.status.phase,NODE:.spec.nodeName
+NAME                        IP               STATUS    NODE
+echo-hname-7894b67f-47hsc   172.16.221.138   Running   w1-k8s
+echo-hname-7894b67f-7t49k   172.16.221.137   Running   w1-k8s
+echo-hname-7894b67f-7t7mv   172.16.103.140   Running   w2-k8s
+echo-hname-7894b67f-kgp6w   172.16.132.6     Running   w3-k8s
+echo-hname-7894b67f-kthpm   172.16.103.138   Running   w2-k8s
+echo-hname-7894b67f-kzf7n   172.16.221.136   Running   w1-k8s
+echo-hname-7894b67f-mgfp9   172.16.221.133   Running   w1-k8s
+echo-hname-7894b67f-qfvvl   172.16.103.135   Running   w2-k8s
+echo-hname-7894b67f-wwm9t   172.16.103.139   Running   w2-k8s
 ```
 
-
+- cordon은 문제가 발생할 가능성이 있는 노드를 스케줄되지 않게 설정한다.
 
 
 
@@ -803,23 +1095,54 @@ kubectl get nodes
 
 
 
-```
+```shell
 # drain 적용하기, 데몬셋때문에 실패
-kubectl drain w3-k8s
+[vagrant@m-k8s 3.2.8]$ kubectl drain w3-k8s
+node/w3-k8s cordoned
+error: unable to drain node "w3-k8s", aborting command...
+
+There are pending nodes to be drained:
+ w3-k8s
+error: cannot delete DaemonSet-managed Pods (use --ignore-daemonsets to ignore): kube-system/calico-node-5n94z, kube-system/kube-proxy-qx5tw
 
 # drain 적용하기, 데몬셋 무시
-kubectl drain w3-k8s --ignore-daemonsets
+[vagrant@m-k8s 3.2.8]$ kubectl drain w3-k8s --ignore-daemonsets
+node/w3-k8s already cordoned
+WARNING: ignoring DaemonSet-managed Pods: kube-system/calico-node-5n94z, kube-system/kube-proxy-qx5tw
+evicting pod default/echo-hname-7894b67f-kgp6w
 
 # w3-k8s 노드에 파드가 없는 것 확인
-kubectl get pods \
--o=custom-columns=NAME: .metadata.name,IP:.status.podIP,STATUS:.status.phase,NODE:.spec.nodeName
+[vagrant@m-k8s 3.2.8]$ kubectl get pods \
+> -o=custom-columns=NAME:.metadata.name,IP:.status.podIP,STATUS:.status.phase,NODE:.spec.nodeName
+NAME                        IP               STATUS    NODE
+echo-hname-7894b67f-47hsc   172.16.221.138   Running   w1-k8s
+echo-hname-7894b67f-7t49k   172.16.221.137   Running   w1-k8s
+echo-hname-7894b67f-7t7mv   172.16.103.140   Running   w2-k8s
+echo-hname-7894b67f-d59l5   172.16.103.141   Running   w2-k8s
+echo-hname-7894b67f-kthpm   172.16.103.138   Running   w2-k8s
+echo-hname-7894b67f-kzf7n   172.16.221.136   Running   w1-k8s
+echo-hname-7894b67f-mgfp9   172.16.221.133   Running   w1-k8s
+echo-hname-7894b67f-qfvvl   172.16.103.135   Running   w2-k8s
+echo-hname-7894b67f-wwm9t   172.16.103.139   Running   w2-k8s
 
 # 노드 확인
-kubectl get nodes
+[vagrant@m-k8s 3.2.8]$ kubectl get nodes
+NAME     STATUS                     ROLES    AGE     VERSION
+m-k8s    Ready                      master   3d20h   v1.18.4
+w1-k8s   Ready                      <none>   3d20h   v1.18.4
+w2-k8s   Ready                      <none>   3d20h   v1.18.4
+w3-k8s   Ready,SchedulingDisabled   <none>   3d20h   v1.18.4
 
+# 작업이 끝났으면 다시 uncordon 적용
 kubectl uncordon w3-k8s
 
-kubectl get nodes
+# 노드 상태 확인
+[vagrant@m-k8s 3.2.8]$ kubectl get nodes
+NAME     STATUS   ROLES    AGE     VERSION
+m-k8s    Ready    master   3d20h   v1.18.4
+w1-k8s   Ready    <none>   3d20h   v1.18.4
+w2-k8s   Ready    <none>   3d20h   v1.18.4
+w3-k8s   Ready    <none>   3d20h   v1.18.4
 ```
 
 
@@ -828,83 +1151,198 @@ kubectl get nodes
 
 **파드 업데이트 하기**
 
-
-
-```
+```shell
 # record 옵션으로 디플로이먼트 생성
-kubectl apply -f ./rollout-nginx.yaml --record
+[vagrant@m-k8s 3.2.10]$ kubectl apply -f ./rollout-nginx.yaml --record
+deployment.apps/rollout-nginx created
 
 # record 옵션으로 기록된 히스토리는 rollout history 명령을 실행해서 확인 가능
-kubectl rollout history deployment rollout-nginx
+deployment.apps/rollout-nginx 
+REVISION  CHANGE-CAUSE
+1         kubectl apply --filename=./rollout-nginx.yaml --record=true
+
 
 # 파드 정보 확인
-kubectl get pods \
--o=custom-columns=NAME: .metadata.name,IP:.status.podIP,STATUS:.status.phase,NODE:.spec.nodeName
+[vagrant@m-k8s 3.2.10]$ kubectl get pods \
+> -o=custom-columns=NAME:.metadata.name,IP:.status.podIP,STATUS:.status.phase,NODE:.spec.nodeName
+NAME                             IP               STATUS    NODE
+rollout-nginx-64dd56c7b5-9nf89   172.16.132.9     Running   w3-k8s
+rollout-nginx-64dd56c7b5-fg9z8   172.16.103.142   Running   w2-k8s
+rollout-nginx-64dd56c7b5-htltn   172.16.221.139   Running   w1-k8s
 
 # nginx 버전 확인
-curl -I --silent 172.16.103.143 | grep Server
+[vagrant@m-k8s 3.2.10]$ curl -I --silent 172.16.103.142 | grep Server
+Server: nginx/1.15.12
 
 # nginx 이미지 업데이트
-kubectl set image deployment rollout-nginx nginx=nginx:1.16.0 --record
+[vagrant@m-k8s 3.2.10]$ kubectl set image deployment rollout-nginx nginx=nginx:1.16.0 --record
+deployment.apps/rollout-nginx image updated
 
 # 파드 정보 확인
-kubectl get pods \
--o=custom-columns=NAME: .metadata.name,IP:.status.podIP,STATUS:.status.phase,NODE:.spec.nodeName
+[vagrant@m-k8s 3.2.10]$ kubectl get pods -o=custom-columns=NAME:.metadata.name,IP:.status.podIP,STATUS:.status.phase,NODE:.spec.nodeName
+NAME                             IP               STATUS    NODE
+rollout-nginx-8566d57f75-6ch4d   172.16.103.143   Running   w2-k8s
+rollout-nginx-8566d57f75-chwwz   172.16.221.140   Running   w1-k8s
+rollout-nginx-8566d57f75-zptp7   172.16.132.10    Running   w3-k8s
 
-# deployment 상태 확인
-kubectl rollout status deployment rollout-nginx
+# deployment 상태 확인하기
+[vagrant@m-k8s 3.2.10]$ kubectl rollout status deployment rollout-nginx
+deployment "rollout-nginx" successfully rolled out
 
-kubectl rollout history deployment rollout-nginx
+# rollout history 확인하기
+[vagrant@m-k8s 3.2.10]$ kubectl rollout history deployment rollout-nginx
+deployment.apps/rollout-nginx 
+REVISION  CHANGE-CAUSE
+1         kubectl apply --filename=./rollout-nginx.yaml --record=true
+2         kubectl set image deployment rollout-nginx nginx=nginx:1.16.0 --record=true
 
-curl -I --silent 172.16.132.10 | grep Server
+# nginx 버전 확인
+[vagrant@m-k8s 3.2.10]$ curl -I --silent 172.16.132.10 | grep Server
+Server: nginx/1.16.0
+
 ```
 
 
 
 **업데이트 실패 시 파드 복구하기**
 
-```
+```shell
 # 잘못된 버전 입력
-kubectl set image deployment rollout-nginx nginx=nginx:1.17.23 --record
+[vagrant@m-k8s 3.2.10]$ kubectl set image deployment rollout-nginx nginx=nginx:1.17.23 --record
+deployment.apps/rollout-nginx image updated
 
 # 파드 정보 확인
 kubectl get pods \
--o=custom-columns=NAME: .metadata.name,IP:.status.podIP,STATUS:.status.phase,NODE:.spec.nodeName
+-o=custom-columns=NAME:.metadata.name,IP:.status.podIP,STATUS:.status.phase,NODE:.spec.nodeName
 
 # deployment 상태 확인
-kubectl rollout status deployment rollout-nginx
+[vagrant@m-k8s 3.2.10]$ kubectl rollout status deployment rollout-nginx
+Waiting for deployment "rollout-nginx" rollout to finish: 1 out of 3 new replicas have been updated...
 
 # deployment를 생성하려고 여러번 시도했지만 끝내 생성되지 않았다는 메시지
 kubectl rollout status deployment rollout-nginx
 
 # describe로 확인
-kubectl describe deployment rollout-nginx
+[vagrant@m-k8s 3.2.10]$ kubectl describe deployment rollout-nginx
+Name:                   rollout-nginx
+Namespace:              default
+CreationTimestamp:      Thu, 06 Jul 2023 09:31:17 +0900
+Labels:                 <none>
+Annotations:            deployment.kubernetes.io/revision: 3
+                        kubernetes.io/change-cause: kubectl set image deployment rollout-nginx nginx=nginx:1.17.23 --record=true
+Selector:               app=nginx
+Replicas:               3 desired | 1 updated | 4 total | 3 available | 1 unavailable
+StrategyType:           RollingUpdate
+MinReadySeconds:        0
+RollingUpdateStrategy:  25% max unavailable, 25% max surge
+Pod Template:
+  Labels:  app=nginx
+  Containers:
+   nginx:
+    Image:        nginx:1.17.23
+    Port:         <none>
+    Host Port:    <none>
+    Environment:  <none>
+    Mounts:       <none>
+  Volumes:        <none>
+Conditions:
+  Type           Status  Reason
+  ----           ------  ------
+  Available      True    MinimumReplicasAvailable
+  Progressing    True    ReplicaSetUpdated
+OldReplicaSets:  rollout-nginx-8566d57f75 (3/3 replicas created)
+NewReplicaSet:   rollout-nginx-856f4c79c9 (1/1 replicas created)
+Events:
+  Type    Reason             Age   From                   Message
+  ----    ------             ----  ----                   -------
+  Normal  ScalingReplicaSet  66s   deployment-controller  Scaled up replica set rollout-nginx-856f4c79c9 to 1
 
 # 히스토리 확인
-kubectl rollout history deployment rollout-nginx
+[vagrant@m-k8s 3.2.10]$ kubectl rollout history deployment rollout-nginx
+deployment.apps/rollout-nginx 
+REVISION  CHANGE-CAUSE
+1         kubectl apply --filename=./rollout-nginx.yaml --record=true
+2         kubectl set image deployment rollout-nginx nginx=nginx:1.16.0 --record=true
+3         kubectl set image deployment rollout-nginx nginx=nginx:1.17.23 --record=true
 
 # 마지막단계 취소하기
-kubectl rollout undo deployment rollout-nginx
+[vagrant@m-k8s 3.2.10]$ kubectl rollout undo deployment rollout-nginx
+deployment.apps/rollout-nginx rolled back
 
 # 파드 정보 확인
-kubectl get pods \
--o=custom-columns=NAME: .metadata.name,IP:.status.podIP,STATUS:.status.phase,NODE:.spec.nodeName
+[vagrant@m-k8s 3.2.10]$ kubectl get pods \
+> -o=custom-columns=NAME:.metadata.name,IP:.status.podIP,STATUS:.status.phase,NODE:.spec.nodeName
+NAME                             IP               STATUS    NODE
+rollout-nginx-8566d57f75-6ch4d   172.16.103.143   Running   w2-k8s
+rollout-nginx-8566d57f75-chwwz   172.16.221.140   Running   w1-k8s
+rollout-nginx-8566d57f75-zptp7   172.16.132.10    Running   w3-k8s
 
 # 히스토리 확인
-kubectl rollout history deployment rollout-nginx
+[vagrant@m-k8s 3.2.10]$ kubectl rollout history deployment rollout-nginx
+deployment.apps/rollout-nginx 
+REVISION  CHANGE-CAUSE
+1         kubectl apply --filename=./rollout-nginx.yaml --record=true
+3         kubectl set image deployment rollout-nginx nginx=nginx:1.17.23 --record=true
+4         kubectl set image deployment rollout-nginx nginx=nginx:1.16.0 --record=true
+
+
+# describe로 확인
+[vagrant@m-k8s 3.2.10]$ kubectl describe deployment rollout-nginx
+Name:                   rollout-nginx
+Namespace:              default
+CreationTimestamp:      Thu, 06 Jul 2023 09:31:17 +0900
+Labels:                 <none>
+Annotations:            deployment.kubernetes.io/revision: 4
+                        kubernetes.io/change-cause: kubectl set image deployment rollout-nginx nginx=nginx:1.16.0 --record=true
+Selector:               app=nginx
+Replicas:               3 desired | 3 updated | 3 total | 3 available | 0 unavailable
+StrategyType:           RollingUpdate
+MinReadySeconds:        0
+RollingUpdateStrategy:  25% max unavailable, 25% max surge
+Pod Template:
+  Labels:  app=nginx
+  Containers:
+   nginx:
+    Image:        nginx:1.16.0
+    Port:         <none>
+    Host Port:    <none>
+    Environment:  <none>
+    Mounts:       <none>
+  Volumes:        <none>
+Conditions:
+  Type           Status  Reason
+  ----           ------  ------
+  Available      True    MinimumReplicasAvailable
+  Progressing    True    NewReplicaSetAvailable
+OldReplicaSets:  <none>
+NewReplicaSet:   rollout-nginx-8566d57f75 (3/3 replicas created)
+Events:
+  Type    Reason             Age    From                   Message
+  ----    ------             ----   ----                   -------
+  Normal  ScalingReplicaSet  2m41s  deployment-controller  Scaled up replica set rollout-nginx-856f4c79c9 to 1
+  Normal  ScalingReplicaSet  43s    deployment-controller  Scaled down replica set rollout-nginx-856f4c79c9 to 0
 ```
 
 
 
 **특정 시점으로 파드 복구하기**
 
-```
+```shell
 # revision 1로 복구
-kubectl rollout undo deployment rollout-nginx --to-revision=1
+[vagrant@m-k8s 3.2.10]$ kubectl rollout undo deployment rollout-nginx --to-revision=1
+deployment.apps/rollout-nginx rolled back
 
 # 파드 정보 확인
-kubectl get pods \
--o=custom-columns=NAME: .metadata.name,IP:.status.podIP,STATUS:.status.phase,NODE:.spec.nodeName
+[vagrant@m-k8s 3.2.10]$ kubectl get pods \
+> -o=custom-columns=NAME:.metadata.name,IP:.status.podIP,STATUS:.status.phase,NODE:.spec.nodeName
+NAME                             IP               STATUS    NODE
+rollout-nginx-64dd56c7b5-cjkv6   172.16.103.144   Running   w2-k8s
+rollout-nginx-64dd56c7b5-pk7wd   172.16.221.141   Running   w1-k8s
+rollout-nginx-64dd56c7b5-rvbqz   172.16.132.13    Running   w3-k8s
+
+# nginx 버전 확인
+[vagrant@m-k8s 3.2.10]$ curl -I --silent 172.16.132.13 | grep Server
+Server: nginx/1.15.12
 ```
 
 
