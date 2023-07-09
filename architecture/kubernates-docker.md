@@ -130,7 +130,7 @@
 ### 왜 쿠버네티스일까?
 
 - **docker swarm**
-  - 간단하게 설치할 수 있지만 대규모 환경에서는 잘 사용하지 않는다.
+  - 간단하게 설치할 수 있지만 기능이 다양하지 않아 대규모 환경에서는 잘 사용하지 않는다.
 - **mesos**
   - 아파치 오픈소스 프로젝트
   - 기능을 충분히 활용하려면 분산 관리 시스템과 연동해야 해서 부담이 있다.
@@ -232,7 +232,7 @@ end
   - 5 line: 쿠버네티스에서 작업을 수행할 워커 노드의 수를 변수로 받는다.
   - 6 line: 쿠버네티스 버전을 사용자가 선택할 수 있도록 변수로 저장한다.
   - 25 line: arg: [ Ver, "Main" ] 으로 쿠버네티스 버전 정보(Ver)와 Main이라는 문자를 install_pkg.sh로 넘긴다.
-  - 26,28 line: 쿠버네티스 마스터 노드를 위한 master_node.sh와 워커노드를 위한 work_nodes.sh 코드를 추가한다.
+  - 26,48 line: 쿠버네티스 마스터 노드를 위한 master_node.sh와 워커노드를 위한 work_nodes.sh 코드를 추가한다.
 
 **config.sh**
 
@@ -415,6 +415,9 @@ kube-system   kube-scheduler-m-k8s                      1/1     Running   1     
 
 **관리자나 개발자가 파드를 배포할 때**
 
+- 쿠버네티스의 구성 요소의 유기적인 연결 관계를 표현하면 아래 그림과 같다.
+- 아래 그림의 숫자는 실제로 관리자나 개발자가 파드 배포 명령을 수행했을 때 실행되는 순서다.
+
 ![3-2](./images/kubernates-docker/3-2.jpeg)
 
 
@@ -469,7 +472,7 @@ kube-system   kube-scheduler-m-k8s                      1/1     Running   1     
 
 **사용자가 배포된 파드에 접속할 때**
 
-- kube-proxy: 쿠버네티스 클러스터는 파드가 위치한 노드에 kube-proxy를 통해 파드가 통신할 수 있는 네트워크를 설정한다. 이때 실제 통신은 br_netfliter와  iptables로 관리한다.
+- kube-proxy: 쿠버네티스 클러스터는 파드가 위치한 노드에 kube-proxy를 통해 파드가 통신할 수 있는 네트워크를 설정한다. 이때 실제 통신은 br_netfliter와  iptables로 관리한다. (config.sh 참고)
 - 파드: 이미 배포된 파드에 접속하고 필요한 내용을 전달받는다. 사용자는 파드가 어떤 워커노드에 있는지 신경쓰지 않아도 된다.
 
 ### 파드의 생명주기로 쿠버네티스 구성요소 살펴보기
@@ -480,13 +483,13 @@ kube-system   kube-scheduler-m-k8s                      1/1     Running   1     
 
 ![3-3](./images/kubernates-docker/3-3.jpeg)
 
-
+> 파드의 생명주기
 
 1. kubectl을 통해  API 서버에 파드 생성을 요청한다.
 2. API서버에 전달된 내용이 있으면 API 서버는 ectd에 전달된 내용을 모두 기록해 클러스터의 상태 값을 최신으로 유지한다.
 3. API 서버에 파드 생성이 요청된 것을 컨트롤러 매니저가 인지하면 컨트롤러 매니저는 파드를 생성하고 이 상태를 API 서버에 전달한다. (이때아직 어디 워커노드에 파드를 적용할지는 결정되지 않음)
 4. API 서버에 파드가 생성됐다는 정보를 스케줄러가 인지한다. 그리고 스케줄러가 조건에 맞는 워커노드를 골라 해당 워커노드에 파드를 띄우도록 요청한다.
-5. API 서버에 전달된 정보대로 지정한 워커 노드에 파드가 속해 이쓴ㄴ지 스케줄러가  kubelet으로 확인한다.
+5. API 서버에 전달된 정보대로 지정한 워커 노드에 파드가 속해 있는지 스케줄러가 kubelet으로 확인한다.
 6. kubelet에서 컨테이너 런타임으로 파드 생성을 요청한다.
 7. 파드가 생성되고 실행 가능한 상태가 된다.
 
@@ -494,7 +497,7 @@ kube-system   kube-scheduler-m-k8s                      1/1     Running   1     
 
 - **쿠버네티스는 선언적인 시스템 구조다** => 각 요소가 추구하는 상태를 선언하면 현재 상태와 맞는지 점검하고 그것에 맞추려고 노력하는 구조
   - 추구하는 상태를  API 서버에 선언하면 다른 요소들이 API 서버에 와서 현재 상태와 비교하고 그에 맞게 상태를 변경하려고 한다.
-  - API의 상태를 저장하는 곳은? => etcd. API 서버와 etcd는 한몸처럼 움직이도록 설계됐다.
+  - API의 상태를 저장하는 곳은? => **etcd**. API 서버와 etcd는 한몸처럼 움직이도록 설계됐다.
 
 
 
@@ -570,6 +573,7 @@ nginx-pod   1/1     Terminating   0          2m32s
 systemctl start kubelet
 
 # 파드 정보 확인
+# 파드가 삭제되었다
 [vagrant@m-k8s ~]$ kubectl get pods
 No resources found in default namespace.
 
@@ -584,7 +588,7 @@ No resources found in default namespace.
 ```shell
 # kube-proxy 기능 검증 예제
 
-# 파드 배포
+# nginx 파드 배포
 [vagrant@m-k8s 3.1.6]$ kubectl create -f ./nginx-pod.yaml
 pod/nginx-pod created
 
@@ -668,8 +672,6 @@ Commercial support is available at
 </body>
 </html>
 
-
-
 ```
 
 
@@ -709,6 +711,8 @@ nginx-pod                  1/1     Running             0          11h
   - create deployment => deployment라는 관리 그룹 내에서 파드가 생성된다.
 
 ![3-4](./images/kubernates-docker/3-4.png)
+
+
 
 
 
@@ -753,6 +757,8 @@ nginx-pod                  1/1     Running             0          11h
 
 
 ```shell
+# 디플로이먼트 생성 예제
+
 # 디플로이먼트 생성
 [vagrant@m-k8s 3.1.6]$ kubectl create deployment dpy-hname --image=sysnet4admin/echo-hname
 deployment.apps/dpy-hname created
@@ -788,21 +794,21 @@ nginx-pod                  1/1     Running   0          11h
 
 
 
-
-
 ```shell
+# 레플리카셋 예제
+
 # 파드 상태 확인
 [vagrant@m-k8s 3.1.6]$ kubectl get pods
 NAME                       READY   STATUS    RESTARTS   AGE
 dpy-nginx-c8d778df-pvrpz   1/1     Running   0          52m
 nginx-pod                  1/1     Running   0          12h
 
-# 파드 개수 늘리기
+# nginx-pod 파드 개수 늘리기
 # nginx-pod는 단일 파드라 replicas 적용에 실패한다
 [vagrant@m-k8s 3.1.6]$ kubectl scale pod nginx-pod --replicas=3
 Error from server (NotFound): the server could not find the requested resource
 
-# 파드 개수 늘리기
+# dpy-nginx 파드 개수 늘리기
 [vagrant@m-k8s 3.1.6]$ kubectl scale deployment dpy-nginx --replicas=3
 deployment.apps/dpy-nginx scaled
 
@@ -848,6 +854,8 @@ spec:
 - replicas: 몇 개의 파드를 생성할지 설정
 - image: 사용되는 이미지
 
+![3-8](./images/kubernates-docker/3-8.jpeg)
+
 > 사용 가능한 api version 확인하기
 >
 > ```shell
@@ -865,16 +873,10 @@ spec:
 > 
 > ... 생략
 > ```
->
-> 
-
-
-
-![3-8](./images/kubernates-docker/3-8.jpeg)
-
-
 
 ```shell
+# 오브젝트 스펙 생성 예제
+
 # 디플로이먼트 생성
 [vagrant@m-k8s 3.2.4]$ kubectl create -f ./echo-hname.yaml 
 deployment.apps/echo-hname created
@@ -890,8 +892,10 @@ nginx-pod                   1/1     Running   0          12h
 # 파드를 3개에서 6개로 늘리기
 sed -i 's/replicas: 3/replicas: 6/' ./echo-hname.yaml
 
-# 변경사항 적용하기
+# apply로 변경사항 적용하기
+# 오브젝트를 create로 생성한 경우 경고가 뜬다.
 [vagrant@m-k8s 3.2.4]$ kubectl apply -f ./echo-hname.yaml
+Warning: kubectl apply should be used on resource created by either kubectl create --save-config or kubectl apply
 
 # 파드 개수가 6개로 변경되었는지 확인하기
 [vagrant@m-k8s 3.2.4]$ kubectl get pods
@@ -910,9 +914,10 @@ nginx-pod                   1/1     Running   0          12h
 
 ### apply로 오브젝트 생성하고 관리하기
 
-- kubectl run => 단일 파드만 생성 가능
-- kubectl create => 파일로 생성할 수 있지만 파일의 변경사항을 적용할 수 없음
-- kubectl apply => 파일로 생성할 수 있고 파일의 변경사항도 적용할 수 있음
+- 오브젝트를 생성하는 세가지 방법
+  - kubectl run => 단일 파드만 생성 가능
+  - kubectl create => 파일로 생성할 수 있지만 파일의 변경사항을 적용할 수 없음
+  - kubectl apply => 파일로 생성할 수 있고 파일의 변경사항도 적용할 수 있음
 
 
 
@@ -1062,6 +1067,7 @@ echo-hname-7894b67f-qfvvl   172.16.103.135   Running   w2-k8s
 node/w3-k8s cordoned
 
 # 노드 상태 확인
+# w3-k8s 노드에 SchedulingDisabled 이 표시된다.
 [vagrant@m-k8s 3.2.8]$ kubectl get nodes
 NAME     STATUS                     ROLES    AGE     VERSION
 m-k8s    Ready                      master   3d20h   v1.18.4
@@ -1074,6 +1080,7 @@ w3-k8s   Ready,SchedulingDisabled   <none>   3d19h   v1.18.4
 deployment.apps/echo-hname scaled
 
 # 파드 상태 확인
+# w3-k8s에 기존 파드 외에 다른 파드들이 할당되지 않았다.
 [vagrant@m-k8s 3.2.8]$ kubectl get pods \
 > -o=custom-columns=NAME:.metadata.name,IP:.status.podIP,STATUS:.status.phase,NODE:.spec.nodeName
 NAME                        IP               STATUS    NODE
@@ -1090,26 +1097,14 @@ echo-hname-7894b67f-wwm9t   <none>           Pending   w2-k8s
 # w3-k8s에 uncordon 적용
 [vagrant@m-k8s 3.2.8]$ kubectl uncordon w3-k8s
 node/w3-k8s uncordoned
+
+# 노드 상태 확인
 [vagrant@m-k8s 3.2.8]$ kubectl get nodes
 NAME     STATUS   ROLES    AGE     VERSION
 m-k8s    Ready    master   3d20h   v1.18.4
 w1-k8s   Ready    <none>   3d20h   v1.18.4
 w2-k8s   Ready    <none>   3d20h   v1.18.4
 w3-k8s   Ready    <none>   3d19h   v1.18.4
-
-# 파드 상태 확인
-[vagrant@m-k8s 3.2.8]$ kubectl get pods \
-> -o=custom-columns=NAME:.metadata.name,IP:.status.podIP,STATUS:.status.phase,NODE:.spec.nodeName
-NAME                        IP               STATUS    NODE
-echo-hname-7894b67f-47hsc   172.16.221.138   Running   w1-k8s
-echo-hname-7894b67f-7t49k   172.16.221.137   Running   w1-k8s
-echo-hname-7894b67f-7t7mv   172.16.103.140   Running   w2-k8s
-echo-hname-7894b67f-kgp6w   172.16.132.6     Running   w3-k8s
-echo-hname-7894b67f-kthpm   172.16.103.138   Running   w2-k8s
-echo-hname-7894b67f-kzf7n   172.16.221.136   Running   w1-k8s
-echo-hname-7894b67f-mgfp9   172.16.221.133   Running   w1-k8s
-echo-hname-7894b67f-qfvvl   172.16.103.135   Running   w2-k8s
-echo-hname-7894b67f-wwm9t   172.16.103.139   Running   w2-k8s
 ```
 
 - cordon은 문제가 발생할 가능성이 있는 노드를 스케줄되지 않게 설정한다.
@@ -1120,10 +1115,10 @@ echo-hname-7894b67f-wwm9t   172.16.103.139   Running   w2-k8s
 
 - 쿠버네티스를 사용하면서 정기, 비정기적인 유지보수를 위해 노드를 꺼야 하는 상황이 발생한다면? =? **drain** 기능을 사용한다.
 
-
-
 ```shell
 # drain 적용하기, 데몬셋때문에 실패
+# drain은 파드를 옮기는 것이 아니라 파드를 삭제하고 다른 곳에 다시 생성한다.
+# 그런데 데몬셋은 각 노드에 1개만 존재하는 파드라서 drain으로는 삭제할 수 없어서 오류가 발생한다(3.4.1에서 데몬셋 설명 참고)
 [vagrant@m-k8s 3.2.8]$ kubectl drain w3-k8s
 node/w3-k8s cordoned
 error: unable to drain node "w3-k8s", aborting command...
@@ -1188,7 +1183,6 @@ deployment.apps/rollout-nginx
 REVISION  CHANGE-CAUSE
 1         kubectl apply --filename=./rollout-nginx.yaml --record=true
 
-
 # 파드 정보 확인
 [vagrant@m-k8s 3.2.10]$ kubectl get pods \
 > -o=custom-columns=NAME:.metadata.name,IP:.status.podIP,STATUS:.status.phase,NODE:.spec.nodeName
@@ -1206,6 +1200,8 @@ Server: nginx/1.15.12
 deployment.apps/rollout-nginx image updated
 
 # 파드 정보 확인
+# ip가 바뀐부분을 확인할 수 있는데 업데이트할때 파드를 순차적으로 한개씩 지우고 이미지를 업데이트한다.
+# 파드의 수가 많으면 다수의 파드가 업데이트되는데 업데이트 기본값은 전체의 25%이고 최솟값은 1개이다.
 [vagrant@m-k8s 3.2.10]$ kubectl get pods -o=custom-columns=NAME:.metadata.name,IP:.status.podIP,STATUS:.status.phase,NODE:.spec.nodeName
 NAME                             IP               STATUS    NODE
 rollout-nginx-8566d57f75-6ch4d   172.16.103.143   Running   w2-k8s
@@ -1234,7 +1230,8 @@ Server: nginx/1.16.0
 **업데이트 실패 시 파드 복구하기**
 
 ```shell
-# 잘못된 버전 입력
+# nginx이미지 업데이트하기
+# 잘못된 버전을 입력
 [vagrant@m-k8s 3.2.10]$ kubectl set image deployment rollout-nginx nginx=nginx:1.17.23 --record
 deployment.apps/rollout-nginx image updated
 
@@ -1248,8 +1245,11 @@ Waiting for deployment "rollout-nginx" rollout to finish: 1 out of 3 new replica
 
 # deployment를 생성하려고 여러번 시도했지만 끝내 생성되지 않았다는 메시지
 kubectl rollout status deployment rollout-nginx
+error: deployment "rollout-nginx" exceeded its progress deadline
 
 # describe로 확인
+# NewReplicaSet 부분을 보면 replicas가 새로 생성되는 과정에서 멈춰있다. (1.17.23 이미지가 없기 때문에)
+# 이를 방지하고자 --record 옵션을 사용한다.
 [vagrant@m-k8s 3.2.10]$ kubectl describe deployment rollout-nginx
 Name:                   rollout-nginx
 Namespace:              default
